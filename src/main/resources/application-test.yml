@@ -1,0 +1,18 @@
+# ============================================================================
+# test profile — used by Testcontainers-backed integration tests.
+# NO datasource URL here on purpose: the PostgreSQL container is supplied at
+# runtime via @ServiceConnection (see TestcontainersConfiguration). Flyway runs
+# the real migrations against that container.
+# ============================================================================
+spring:
+  jpa:
+    # Flyway owns the schema, even in tests. Never create/alter via Hibernate.
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+app:
+  jwt:
+    # Test-only HS256 key (>= 32 bytes). Not a real secret — safe to commit.
+    secret: test-only-jwt-secret-not-for-production-0123456789

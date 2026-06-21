@@ -1,0 +1,239 @@
+erDiagram
+    User ||--o{ RefreshToken : "has"
+    User ||--o| StudentProfile : "profile"
+    User ||--o| CoachProfile : "profile"
+    University ||--o{ CoachProfile : "attends"
+    CoachProfile ||--o{ CoachSubject : "serves-track"
+    User ||--o{ ConsentRecord : "student-consent"
+    User ||--o{ Report : "reporter"
+    User ||--o{ Report : "reported"
+    Conversation |o--o{ Report : "related"
+    CoachProfile ||--o{ CoachAvailability : "slot"
+    CoachProfile ||--o{ Session : "coach"
+    User ||--o{ Session : "student"
+    Subscription ||--o{ Session : "within"
+    CoachAvailability |o--o| Session : "reserved (UNIQUE)"
+    User ||--o{ Conversation : "student"
+    CoachProfile ||--o{ Conversation : "coach"
+    Conversation ||--o{ Message : "messages"
+    User ||--o{ Message : "sender"
+    CoachProfile ||--o{ Review : "receives"
+    User ||--o{ Review : "writes"
+    Subscription ||--o| Review : "evaluates"
+    User ||--o{ Subscription : "student"
+    CoachProfile ||--o{ Subscription : "coach"
+    Package ||--o{ Subscription : "package"
+    Subscription ||--o{ Payment : "payments"
+    Payment |o--o{ Payment : "refund-source"
+    User ||--o{ Notification : "recipient"
+
+    User {
+        bigint id PK
+        string name
+        string email UK
+        string password_hash "null if Google-only"
+        enum role "STUDENT|COACH|ADMIN"
+        date date_of_birth
+        string city
+        enum status "ACTIVE|SUSPENDED|DELETED"
+        instant created_at
+        instant updated_at
+        int version
+    }
+
+    RefreshToken {
+        bigint id PK
+        bigint user_id FK
+        string token_hash UK
+        instant expires_at
+        boolean revoked
+        instant created_at
+    }
+
+    StudentProfile {
+        bigint id PK
+        bigint user_id FK "UK"
+        enum grade "GRADE_9|GRADE_10|GRADE_11|GRADE_12|GRADUATE"
+        enum track "NUMERICAL|EQUAL_WEIGHT|VERBAL|LANGUAGE"
+        string target_university
+        string target_department
+        int target_score
+        int initial_tyt_turkish
+        int initial_tyt_math
+        int initial_tyt_science
+        int initial_tyt_social
+    }
+
+    ConsentRecord {
+        bigint id PK
+        bigint student_user_id FK
+        string guardian_name
+        string guardian_phone
+        string guardian_email
+        string consent_text_version
+        instant approved_at
+        string ip
+    }
+
+    Report {
+        bigint id PK
+        bigint reporter_id FK
+        bigint reported_user_id FK
+        bigint conversation_id FK "null"
+        string reason
+        enum status "OPEN|UNDER_REVIEW|RESOLVED"
+        bigint reviewing_admin_id FK "null"
+        text resolution_note "null"
+        instant resolved_at "null"
+        instant created_at
+    }
+
+    CoachProfile {
+        bigint id PK
+        bigint user_id FK "UK"
+        bigint university_id FK
+        string department
+        int exam_year
+        int exam_rank
+        string exam_type "coach own exam (descriptive)"
+        string photo_url
+        string video_url
+        text about
+        int coaching_experience_months
+        int max_student_capacity
+        int active_student_count "counter (atomic)"
+        enum approval_status "PENDING|APPROVED|REJECTED"
+        text admin_note
+        boolean payout_account_ready
+        instant created_at
+        instant updated_at
+        int version
+    }
+
+    CoachSubject {
+        bigint id PK
+        bigint coach_profile_id FK "UK(coach+track)"
+        enum track "NUMERICAL|EQUAL_WEIGHT|VERBAL|LANGUAGE"
+    }
+
+    University {
+        bigint id PK
+        string name
+        string city
+        boolean is_active
+    }
+
+    CoachAvailability {
+        bigint id PK
+        bigint coach_profile_id FK
+        instant start_time "UTC, UK(coach+start_time)"
+        int duration_minutes
+        boolean is_booked
+    }
+
+    Session {
+        bigint id PK
+        bigint coach_profile_id FK
+        bigint student_user_id FK
+        bigint subscription_id FK
+        bigint availability_id FK "UK (double-booking guarantee)"
+        instant start_time "UTC"
+        string platform
+        enum status "PLANNED|COMPLETED|CANCELLED_BY_STUDENT|CANCELLED_BY_COACH|NO_SHOW"
+        string meet_link
+        instant created_at
+    }
+
+    Conversation {
+        bigint id PK
+        bigint student_user_id FK
+        bigint coach_profile_id FK "UK(student+coach)"
+        instant last_message_at
+        instant created_at
+    }
+
+    Message {
+        bigint id PK
+        bigint conversation_id FK
+        bigint sender_id FK
+        text content
+        string attachment_url "beta: restricted/admin-visible"
+        instant read_at "null"
+        instant created_at
+    }
+
+    Review {
+        bigint id PK
+        bigint coach_profile_id FK
+        bigint student_user_id FK
+        bigint subscription_id FK "P1; UK(coach+student)"
+        text content
+        int rating
+        instant created_at
+    }
+
+    Package {
+        bigint id PK
+        string name
+        decimal price
+        decimal list_price
+        int discount_percentage
+        enum duration_type "MONTHLY|THREE_MONTH|SIX_MONTH"
+        int weekly_sessions
+        string exam_type
+        date target_exam_date
+        boolean is_popular
+        text features
+        boolean is_free
+        boolean is_active
+    }
+
+    Subscription {
+        bigint id PK
+        bigint student_user_id FK
+        bigint coach_id FK "-> CoachProfile"
+        bigint package_id FK
+        decimal price "snapshot"
+        date start_date
+        date end_date
+        enum status "PENDING_PAYMENT|ACTIVE|EXPIRED|CANCELLED"
+        enum payout_status "PENDING|PAID"
+        instant created_at
+    }
+
+    Payment {
+        bigint id PK
+        bigint subscription_id FK
+        decimal amount
+        decimal commission_rate "snapshot"
+        decimal commission_amount "snapshot"
+        decimal coach_payout_amount "snapshot"
+        enum type "CHARGE|REFUND"
+        enum status "INITIATED|SUCCESSFUL|FAILED|REFUNDED"
+        string idempotency_key UK
+        string iyzico_payment_id
+        bigint source_payment_id FK "null (refund -> original)"
+        instant created_at
+    }
+
+    Notification {
+        bigint id PK
+        bigint user_id FK
+        string type
+        string title
+        text content
+        instant read_at "null"
+        string related_type "SESSION|MESSAGE|PAYMENT..."
+        bigint related_id
+        instant created_at
+    }
+
+    LeadForm {
+        bigint id PK
+        string full_name
+        string phone
+        string phone_owner
+        string email
+        text message
+        instant created_at
+    }

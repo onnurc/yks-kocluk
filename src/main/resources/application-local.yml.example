@@ -1,0 +1,14 @@
+# ============================================================================
+# TEMPLATE — copy to application-local.yml (which is gitignored) and fill in.
+# Documents the keys local dev expects. NEVER commit the real application-local.yml.
+#
+#   cp application-local.yml.example application-local.yml
+#   ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+#
+# Use the Neon POOLED connection string. sslmode=require is mandatory for Neon.
+# ============================================================================
+spring:
+  datasource:
+    url: jdbc:postgresql://<NEON_POOLED_HOST>/<DATABASE>?sslmode=require
+    username: <NEON_USER>
+    password: <NEON_PASSWORD>

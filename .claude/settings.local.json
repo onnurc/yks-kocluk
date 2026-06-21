@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(timeout 70 ./mvnw spring-boot:run)",
+      "Bash(docker info *)",
+      "Bash(colima start *)",
+      "Bash(./mvnw verify *)",
+      "Bash(./mvnw -o clean test-compile)",
+      "Bash(./mvnw -o clean compile)",
+      "Bash(docker run *)",
+      "Bash(rm -f /tmp/neonrun2.log)",
+      "Bash(./mvnw spring-boot:run -Dspring-boot.run.profiles=local)",
+      "Read(//private/tmp/**)",
+      "Bash(curl -s -w \"\\\\n[HTTP %{http_code}]\\\\n\" http://localhost:8080/api/v1/health)",
+      "Bash(curl -s -o /dev/null -w \"[HTTP %{http_code}]\\\\n\" -L http://localhost:8080/swagger-ui.html)",
+      "Bash(curl -s -o /dev/null -w \"[HTTP %{http_code}]\\\\n\" http://localhost:8080/v3/api-docs)",
+      "Bash(curl -s -o /dev/null -w \"[HTTP %{http_code}]\\\\n\" http://localhost:8080/actuator/health)",
+      "Bash(rm -f /tmp/neon_p2.log)"
+    ]
+  }
+}

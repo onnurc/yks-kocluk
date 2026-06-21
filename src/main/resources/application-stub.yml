@@ -1,0 +1,9 @@
+# ============================================================================
+# stub profile — runs the app with STUBBED external services (iyzico, Meet,
+# mail, R2) instead of real integrations. Inherits everything from the default
+# profile (incl. ddl-auto: validate). No external clients exist yet in Phase 0;
+# this flag becomes meaningful as those clients are added in later phases.
+# ============================================================================
+app:
+  external:
+    mode: stub

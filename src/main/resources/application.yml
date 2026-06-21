@@ -1,0 +1,75 @@
+# ============================================================================
+# Default profile — common configuration shared by all profiles.
+# No secrets here: the datasource URL comes from NEON_DATABASE_URL, which is
+# supplied locally by the gitignored application-local.yml (run with the
+# `local` profile) and by a real env var in deployed environments.
+# ============================================================================
+spring:
+  application:
+    name: yks-coaching-platform
+
+  datasource:
+    url: ${NEON_DATABASE_URL}
+    hikari:
+      maximum-pool-size: 10
+      pool-name: yks-hikari
+
+  jpa:
+    # Flyway owns the schema. Hibernate must NEVER create or alter it.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    placeholders:
+      # Dev-only default = BCrypt of "admin1234". Override in prod via ADMIN_PASSWORD_HASH
+      # (a pre-computed BCrypt hash, not plaintext). Used by V3__seed_admin.sql.
+      admin_password_hash: '${ADMIN_PASSWORD_HASH:$2y$10$yl6BvY2.9REyRTbV.9FYP.2xPDn2C1ZhDaggZQLcYAyRBc9Ri4.HC}'
+
+  jackson:
+    time-zone: UTC
+
+  # CLAUDE.md pagination convention: max page size = 100 across every listing endpoint.
+  data:
+    web:
+      pageable:
+        max-page-size: 100
+
+  # Google OAuth2 login. Real creds come from application-local.yml / deploy env vars;
+  # dummy defaults keep the context bootable when creds are absent (login just won't work).
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:dummy-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:dummy-client-secret}
+            scope: openid,email,profile
+            redirect-uri: "{baseUrl}/login/oauth2/code/google"
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  jwt:
+    # HS256 signing key (>= 32 bytes). Supplied via JWT_SECRET (application-local.yml / env).
+    secret: ${JWT_SECRET}
+    access-ttl: 15m
+    refresh-ttl: 30d
+  oauth2:
+    frontend-redirect-uri: ${OAUTH2_FRONTEND_REDIRECT_URI:http://localhost:3000/oauth/callback}
