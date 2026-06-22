@@ -73,3 +73,8 @@ app:
     refresh-ttl: 30d
   oauth2:
     frontend-redirect-uri: ${OAUTH2_FRONTEND_REDIRECT_URI:http://localhost:3000/oauth/callback}
+  resend:
+    # Resend API key — secret, env only (RESEND_API_KEY in application-local.yml / env). No default.
+    api-key: ${RESEND_API_KEY}
+    # Sender address. Resend's onboarding sender works in sandbox without domain verification.
+    from: ${RESEND_FROM:onboarding@resend.dev}

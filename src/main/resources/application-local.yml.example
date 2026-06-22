@@ -12,3 +12,10 @@ spring:
     url: jdbc:postgresql://<NEON_POOLED_HOST>/<DATABASE>?sslmode=require
     username: <NEON_USER>
     password: <NEON_PASSWORD>
+
+app:
+  jwt:
+    secret: <JWT_SECRET>            # HS256 signing key, >= 32 bytes
+  resend:
+    api-key: <RESEND_API_KEY>       # Resend secret key (re_...). NEVER commit the real value.
+    from: onboarding@resend.dev     # sandbox sender; or your verified-domain address
