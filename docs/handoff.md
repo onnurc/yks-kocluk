@@ -3,16 +3,16 @@
 Single-file resume point for a fresh session. **Factual, based on the code as it exists now**
 (not the v4 plan). For binding rules see `CLAUDE.md`; for phase intent see `PHASES.md`.
 
-_Last updated: 2026-06-21._
+_Last updated: 2026-06-27._
 
 ---
 
 ## Status at a glance
 
-- **Phases complete:** 0, 0.5, 1, 2, 3, 4 (4a–4d), 5a, 5b, 5c.
-- **In progress / next:** 6 (real video — Jitsi fallback).
-- **Tests:** `./mvnw verify` is **GREEN — 110 tests**.
-- **Neon (prod DB):** Flyway at **v9** (all of V1–V9 applied live). Schema matches tests.
+- **Phases complete:** 0, 0.5, 1, 2, 3, 4 (4a–4d), 5a, 5b, 5c, **6 (real Meet — Jitsi), 7 (real Mail — Resend)**.
+- **In progress / next:** 8 (Payment — iyzico). **No longer blocked: iyzico sandbox is now provisioned** (see Known gaps / Phase 0.5).
+- **Tests:** `./mvnw verify` is **GREEN — 122 tests** (1 skipped: the `@Disabled` live Resend smoke).
+- **Neon (prod DB):** Flyway at **v9** (all of V1–V9 applied live). Schema matches tests. **Phases 6 & 7 added no migration.**
 - **Build:** Java 21, Spring Boot 4.0.6, Maven. (`pom.xml` `java.version` = 21.)
 
 ### Stack (as wired)
@@ -38,8 +38,10 @@ all entities extend `BaseEntity` (id, created_at, updated_at, version) with JPA 
 ```
 
 - **`application-local.yml`** (gitignored, NOT committed) supplies `NEON_DATABASE_URL` (jdbc form,
-  pooled host with `-pooler`, credentials as `user`/`password` query params, `channelBinding=require`)
-  and `JWT_SECRET`. Template is `application-local.yml.example`.
+  pooled host with `-pooler`, credentials as `user`/`password` query params, `channelBinding=require`),
+  `JWT_SECRET`, and **`RESEND_API_KEY`** (Phase 7). Template is `application-local.yml.example`.
+  Resend sender defaults to `onboarding@resend.dev` (sandbox; sends to the account owner without
+  domain verification). **iyzico sandbox keys are NOT in here yet** — add when Phase 8 starts.
 - **Admin seed (V3):** `admin@yks.local` / dev password **`admin1234`** (dev-only BCrypt hash baked
   into V3; prod overrides via `ADMIN_PASSWORD_HASH`). Use it to approve coaches in smoke tests.
 
@@ -52,8 +54,11 @@ all entities extend `BaseEntity` (id, created_at, updated_at, version) with JPA 
 Flyway V1 baseline; Testcontainers wired (real Postgres). `ddl-auto: validate` — Flyway owns schema.
 
 ### Phase 0.5 — Risk PoC (throwaway)
-Findings: iyzico sandbox blocked (no creds → stub continues, real in Phase 8); Google Meet needs
-Workspace → **Jitsi fallback** chosen for Phase 6.
+Findings: iyzico sandbox was blocked at PoC time (no creds → stub continued); Google Meet needs
+Workspace → **Jitsi fallback** chosen for Phase 6. **Update (2026-06-27): iyzico sandbox is now
+provisioned** (merchant **3429394**; sandbox API key + secret live in the iyzico sandbox panel,
+not yet in repo/config) → **Phase 8 is no longer blocked on credentials.** Production iyzico
+application (real company/tax info) still deferred to launch.
 
 ### Phase 1 — Auth  (V2)
 - Entities: `User` (email unique, passwordHash nullable, role, status, googleSub, emailVerified),
@@ -183,16 +188,66 @@ Phase 8 layers the payment lifecycle on top.
   `@PreAuthorize`) + `AdminConversationIntegrationTest` (Testcontainers).
 - **No migration** — schema unchanged (still V9). **Deferred:** admin-access audit log → Phase 9.
 
+### Phase 6 — Real video: Jitsi  (commit `150597f`, 116 tests)
+- **What:** replaced `StubMeetClient` with **`JitsiMeetClient`** (real impl of the `MeetClient` seam).
+  Generates `https://meet.jit.si/yks-{UUID}` locally from `UUID.randomUUID()` (v4 — **unguessable**,
+  the mandated entropy source; minors-facing). **No HTTP call, no I/O** — a Jitsi room *is* its URL,
+  created when the first participant opens it. Method is total (no checked exceptions). Base URL is a
+  hardcoded constant (no config property — YAGNI until self-hosting).
+- **Wiring:** `JitsiMeetClient` `@Profile("!test")`, `StubMeetClient` `@Profile("test")` — mutually
+  exclusive ⇒ exactly one `MeetClient` bean per profile, no `@Primary`. (Caught that `StubMeetClient`
+  was an unguarded `@Component`; a second impl without gating would have failed startup.)
+- **Seam untouched:** `MeetClient` interface, `SessionNotificationListener` (AFTER_COMMIT),
+  `SessionService.setMeetLink` (REQUIRES_NEW) — all unchanged. The Phase 4d failure-swallow test
+  (`SessionNotificationListenerTest`) still stands as proof a client throw never rolls back the booking.
+- **No migration** (`meet_link` already V8). Tests: `JitsiMeetClientTest` (UUID v4, two calls differ),
+  `MeetClientWiringTest` (`ApplicationContextRunner` — exactly one bean per profile, no DB).
+
+### Phase 7 — Real email: Resend  (commit `1a2072d`, 122 tests; live send confirmed)
+- **Scope (locked):** real **Resend transport + booking-confirmation email ONLY**. The real
+  deliverable is the reusable transport every later (A) email plugs into. **Nothing time-driven.**
+- **What:** `StubMailClient` → `@Profile("test")`; new **`ResendMailClient`** `@Profile("!test")` posts
+  to `https://api.resend.com/emails` via Spring `RestClient` (baseUrl constant, `Authorization: Bearer
+  <key>`), inline Turkish HTML body, start time rendered **Europe/Istanbul**. `MailClient` keeps its
+  single method `sendSessionBooked` — no new methods.
+- **Config:** `ResendProperties` (`@ConfigurationProperties("app.resend")`: `apiKey`, `from`) +
+  `ResendConfig` (`@Profile("!test") @EnableConfigurationProperties`, supplies the `RestClient.Builder`
+  with **connect 3s / read 5s** timeouts via `SimpleClientHttpRequestFactory`). `RESEND_API_KEY` is
+  env-only (no default); `from` defaults to `onboarding@resend.dev`.
+- **Failure semantics (double backstop):** `sendSessionBooked` is total — wraps `retrieve()` in
+  try/catch, logs the Resend message id on 2xx, **swallows-and-logs** any error/timeout. On top of the
+  listener's own catch. A Resend outage/hang can **never** block the after-commit thread or roll back
+  the committed booking.
+- **Test isolation:** `ResendConfig` is `@Profile("!test")`, so under `test` the stub is active and
+  **zero network** is wired — full-context tests hit no HTTP and need no Resend key.
+- **No migration.** Tests: `ResendMailClientTest` (`MockRestServiceServer` — request shape on 2xx,
+  500 → does-not-throw), `MailClientWiringTest` (exactly one `MailClient` per profile),
+  `ResendLiveSmokeTest` (**`@Disabled` in the repo**; env-var-guarded; flipped locally only at smoke time).
+- **Live smoke PASSED (2026-06-27):** real send `onboarding@resend.dev` → `onurcetinkaya149@gmail.com`,
+  Resend message id `34f773d3-64c5-4a7e-b9a4-b68db3e38649`, HTTP 2xx. Key used for the smoke was
+  rotated afterward (see Known gaps → resolved).
+
 ---
 
 ## What's next
 
 | Phase | Scope |
 | --- | --- |
-| **6** | Real video: implement `MeetClient` for real (Google Meet needs Workspace → **Jitsi fallback** per Phase 0.5). Replaces the stub. |
-| **7** | Notifications: implement `MailClient` for real via **Resend**. Replaces the stub. |
-| **8** | Payment lifecycle (**iyzico**): `Payment` entity, idempotency key UNIQUE, webhook status, refund = new row (`type=REFUND`, `source_payment_id`), commission snapshot. Subscription becomes **payment-gated** (no longer direct-activate). Refund-before-payout ordering. |
+| **8** | Payment lifecycle (**iyzico**): `Payment` entity, idempotency key UNIQUE, webhook status, refund = new row (`type=REFUND`, `source_payment_id`), commission snapshot. Subscription becomes **payment-gated** (no longer direct-activate). Refund-before-payout ordering. **Sandbox now provisioned** (merchant 3429394) — start with sandbox keys in `application-local.yml`. |
 | **9** | KVKK / hardening: `ConsentRecord` (under-18), `Report` + user suspension (`User.status=SUSPENDED`), PII anonymization on delete. **Admin-access audit log** (log admin reads of minors' threads — KVKK; closes the 5c interim gap). Consider mid-session WS token-expiry enforcement here (tie to suspension). |
+
+### Deferred slices (carved out of the doc's original phasing — deliberate, see below)
+
+| Slice | Scope |
+| --- | --- |
+| **Scheduling / Reminders** (own phase) | The two **time-driven** emails deferred out of Phase 7: **session reminder** (X h before start) and **end-of-month re-purchase reminder** (no auto-renew → business-critical). Needs a scheduled job — its own hard problems: **multi-instance double-fire** (single-runner vs. lock), **`reminder_sent_at` idempotency** (a marker so a re-run/overlap can't double-send), and **month-end catch-up** (app down at month-end must not silently skip the revenue-critical reminder). The Phase 7 Resend transport is the seam these plug into. |
+| **In-app `Notification` entity** (own slice) | Persisted in-app notifications (`Notification`: `user_id`, `type`, `title`, `content`, `read_at`, `related_type`, `related_id`) + list/mark-read endpoints. **Not built.** Structurally independent of the email transport (no shared code) → its own vertical slice (entity→repo→service→controller→DTO→mapper→**V10 migration**→tests). May pair naturally with the Scheduling phase (shared triggers). |
+
+> **PHASES.md divergence (recorded, deliberate):** `PHASES.md` Phase 7 bundles "persist in-app
+> notifications (`Notification` entity)" **into** the notification phase. We **split it out**: Phase 7 =
+> outbound Resend email only; the in-app `Notification` entity is its own future slice. Same
+> split-a-big-phase move already used for Phase 4 (4a–4d) and Phase 5 (5a–5c) — consistent with how this
+> project is run. The two (B) time-driven emails were likewise carved into the Scheduling phase.
 
 ---
 
@@ -203,8 +258,10 @@ Phase 8 layers the payment lifecycle on top.
 - **Mid-session WebSocket token expiry is not enforced** — a JWT is validated only at CONNECT; an
   already-open session is not force-closed when its access token later expires (client is expected to
   reconnect). Revisit in **Phase 9** alongside suspension (a suspended/expired user should be cut off).
-- **iyzico sandbox approval still pending** (no creds). Stub `IyzicoClient` continues; real integration
-  is Phase 8.
+- **iyzico sandbox — PROVISIONED (2026-06-27).** Merchant **3429394**; sandbox API key + secret are in
+  the iyzico sandbox panel, **not yet copied into `application-local.yml`/config**. Stub `IyzicoClient`
+  still in place; real integration is **Phase 8** (no longer blocked on credentials). **Production iyzico
+  application** (real company/tax info) still deferred to launch.
 - **Google OAuth2 not live-tested** (no Workspace/creds); login wiring exists but is inert without creds.
 - **Reviews don't exist** → `CoachStats.rating` is always null (totalSessions is real). A future phase
   adds Reviews; wiring rating is localized to `CoachStatsService`.
@@ -215,15 +272,24 @@ Phase 8 layers the payment lifecycle on top.
   specific seeded conversation ids (not page-wide totals), but the shared, non-rollback `@SpringBootTest`
   context accumulates rows across classes; the list-based tests fetch a large page (size 1000) to stay correct.
   **Tech-debt:** add per-class cleanup (or a transactional/isolated fixture) so the large-page workaround can go.
-- **Repo is under active iCloud sync** — `~/Library/Mobile Documents/com~apple~CloudDocs/Desktop` is a
-  symlink to `~/Desktop`, so `~/Desktop/demo` (incl. the real-secret `application-local.yml`) is syncing to
-  iCloud now. This is the source of the `" 2"` conflict copies AND puts secrets in iCloud. **Action item:**
-  move the repo to a non-synced path (e.g. `~/dev/demo`) **before** `git init`; re-create
-  `application-local.yml` there from the `.example`; rotate the Neon password.
-- **Not a git repository yet** — Phase 0–5c is unversioned. `.gitignore` already covers `target/` and
-  `application-local.yml`, but is inert until `git init`. Before first commit, verify with `git status` that
-  no `application-local.yml` is staged.
-- **Neon password** was shared in plaintext during setup — rotate it before any real launch.
+- _(Resolved)_ **iCloud sync + repo not versioned** — repo moved to `~/dev/demo` (non-synced) and
+  `git init` done (initial commit `cda5c73`); see "Security rotations — RESOLVED" below.
+
+---
+
+## Security rotations — RESOLVED (2026-06-27)
+
+Both standing credential-rotation action items are **DONE** (no longer open):
+
+- **Neon password — ROTATED.** Old `npg_KlC7…` (shared in plaintext during setup) replaced with a fresh
+  password reset from the Neon console. `NEON_DATABASE_URL` in the gitignored `application-local.yml`
+  updated (jdbc form, pooled `-pooler` host, `sslmode=require&channelBinding=require` preserved).
+  Verified by booting `-Plocal`: connects to Neon, Flyway validates 9 migrations, schema at V9.
+- **Resend API key — ROTATED.** The key used for the Phase 7 live smoke (exposed in chat) was replaced
+  with a fresh key; `RESEND_API_KEY` in `application-local.yml` updated. Old key retired.
+- Both secrets live **only** in the gitignored `application-local.yml` — verified absent from every
+  tracked/committed file. Repo now lives at `~/dev/demo` (non-iCloud-synced); `git init` done
+  (initial commit `cda5c73`).
 
 ---
 
