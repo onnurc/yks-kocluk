@@ -233,14 +233,14 @@ Phase 8 layers the payment lifecycle on top.
 
 | Phase | Scope |
 | --- | --- |
-| **8** | Payment lifecycle (**iyzico**): `Payment` entity, idempotency key UNIQUE, webhook status, refund = new row (`type=REFUND`, `source_payment_id`), commission snapshot. Subscription becomes **payment-gated** (no longer direct-activate). Refund-before-payout ordering. **Sandbox now provisioned** (merchant 3429394) — start with sandbox keys in `application-local.yml`. |
+| **8** | Payment lifecycle (**iyzico**), **auto-renew model** (see "Monetization model" below): `Payment` entity, idempotency key UNIQUE, webhook status, refund = new row (`type=REFUND`, `source_payment_id`), commission snapshot. **Saved-card tokenization + scheduled monthly charge**; subscription **auto-renews until cancelled** and becomes **payment-gated** (no longer direct-activate); cancellation stops the next charge. Refund-before-payout ordering. **Fund distribution kept as an isolated SEAM** (model TBD — see below). **Build stub-first** (`IyzicoClient` stub → full auto-renew flow → real sandbox → prod). Sandbox provisioned (merchant 3429394). |
 | **9** | KVKK / hardening: `ConsentRecord` (under-18), `Report` + user suspension (`User.status=SUSPENDED`), PII anonymization on delete. **Admin-access audit log** (log admin reads of minors' threads — KVKK; closes the 5c interim gap). Consider mid-session WS token-expiry enforcement here (tie to suspension). |
 
 ### Deferred slices (carved out of the doc's original phasing — deliberate, see below)
 
 | Slice | Scope |
 | --- | --- |
-| **Scheduling / Reminders** (own phase) | The two **time-driven** emails deferred out of Phase 7: **session reminder** (X h before start) and **end-of-month re-purchase reminder** (no auto-renew → business-critical). Needs a scheduled job — its own hard problems: **multi-instance double-fire** (single-runner vs. lock), **`reminder_sent_at` idempotency** (a marker so a re-run/overlap can't double-send), and **month-end catch-up** (app down at month-end must not silently skip the revenue-critical reminder). The Phase 7 Resend transport is the seam these plug into. |
+| **Scheduling / Reminders** (own phase) | The two **time-driven** emails deferred out of Phase 7: **session reminder** (X h before start) and the **renewal notice** (informational, now that auto-renew is in scope: *"your subscription auto-renews on X — you can cancel"*; **no longer** a "remember to re-purchase" prompt). Needs a scheduled job — its own hard problems: **multi-instance double-fire** (single-runner vs. lock), **`reminder_sent_at` idempotency** (a marker so a re-run/overlap can't double-send), and **catch-up** (app down at the trigger time must not silently skip a notice). The Phase 7 Resend transport is the seam these plug into. May share triggers with the auto-renew charge job (Phase 8). |
 | **In-app `Notification` entity** (own slice) | Persisted in-app notifications (`Notification`: `user_id`, `type`, `title`, `content`, `read_at`, `related_type`, `related_id`) + list/mark-read endpoints. **Not built.** Structurally independent of the email transport (no shared code) → its own vertical slice (entity→repo→service→controller→DTO→mapper→**V10 migration**→tests). May pair naturally with the Scheduling phase (shared triggers). |
 
 > **PHASES.md divergence (recorded, deliberate):** `PHASES.md` Phase 7 bundles "persist in-app
@@ -249,12 +249,36 @@ Phase 8 layers the payment lifecycle on top.
 > split-a-big-phase move already used for Phase 4 (4a–4d) and Phase 5 (5a–5c) — consistent with how this
 > project is run. The two (B) time-driven emails were likewise carved into the Scheduling phase.
 
+### Monetization model (CHANGED 2026-06-27 — reverses the earlier one-time-purchase model)
+
+- **Auto-renew is now IN SCOPE** (reverses "one-time monthly purchase / no auto-renew / single charge").
+  Subscriptions **auto-renew monthly until the user cancels**. Requires **saved-card tokenization** +
+  a **scheduled monthly charge**. (The old "iyzico single-charge, no recurring" DO-NOT / rejected-proposal
+  in CLAUDE.md has been removed — recurring is the model now.)
+- **Fund-distribution model is NOT finalized** (pending the user's accountant). Two candidates:
+  **(A)** iyzico **Marketplace / sub-merchant** — iyzico auto-splits funds to coach + platform; **(B)**
+  **single platform merchant** — all funds to the platform, which tracks each coach's earnings and pays
+  out manually/batch. **Design rule:** build subscription / renewal / cancellation logic now; keep
+  **fund distribution / payout as an isolated SEAM** — do not hardcode either model. (The earlier
+  "no escrow / Marketplace" rejected-proposal is now **OPEN / under review**, not settled.)
+- **Build strategy = stub-first (Path B), same pattern as MeetClient/MailClient:** `IyzicoClient`
+  interface + **stub** impl first → build & test the **entire auto-renew flow** (renewal fields,
+  cancellation, scheduled-charge job, emails) against a stub returning "success" — no real money, no
+  company. Then **real iyzico sandbox** (saved-card + recurring) — still no company. **Production (real
+  money) is last**, a config/URL/key swap, gated on company formation.
+- **Legal + company deferred to pre-launch (DELIBERATE sequencing).** Legal review (auto-renew, minor
+  consent, fund distribution, KVKK) and company formation are handled by the user in parallel; **development
+  does NOT block on them.** Full system is built stub-first then sandbox-first; only production go-live waits
+  on legal + company.
+
 ---
 
 ## Known gaps (intentional, scheduled)
 
-- **Subscriptions activate WITHOUT payment.** 4a creates `Subscription` directly as ACTIVE. **Phase 8**
-  introduces the iyzico-gated lifecycle. Until then there is no charge.
+- **Subscriptions activate WITHOUT payment, and never auto-renew or expire yet.** 4a creates `Subscription`
+  directly as ACTIVE; nothing reads `end_at`, nothing writes `EXPIRED`, and there is no charge. **Phase 8**
+  introduces the **payment-gated auto-renew lifecycle** (saved-card + scheduled monthly charge + cancellation),
+  built **stub-first**. Until then there is no charge and no renewal.
 - **Mid-session WebSocket token expiry is not enforced** — a JWT is validated only at CONNECT; an
   already-open session is not force-closed when its access token later expires (client is expected to
   reconnect). Revisit in **Phase 9** alongside suspension (a suspended/expired user should be cut off).
