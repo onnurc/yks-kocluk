@@ -78,3 +78,8 @@ app:
     api-key: ${RESEND_API_KEY}
     # Sender address. Resend's onboarding sender works in sandbox without domain verification.
     from: ${RESEND_FROM:onboarding@resend.dev}
+  payment:
+    # Commission fraction snapshotted onto each Payment (0.20 = 20%). Platform-set.
+    commission-rate: ${PAYMENT_COMMISSION_RATE:0.20}
+    # Daily charge attempts in the PAST_DUE grace window before a subscription EXPIRES.
+    retry-days: ${PAYMENT_RETRY_DAYS:3}

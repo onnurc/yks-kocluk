@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class SubscriptionService {
@@ -76,6 +77,10 @@ public class SubscriptionService {
         subscription.setStatus(SubscriptionStatus.ACTIVE);
         subscription.setStartAt(now);
         subscription.setEndAt(now.plus(pkg.getDurationDays(), ChronoUnit.DAYS));
+        // Phase 8 auto-renew: on by default. Saved-card seam — the stub stamps a fake token now;
+        // real iyzico tokenization replaces it in Stage 2 (no flow change here).
+        subscription.setAutoRenew(true);
+        subscription.setSavedCardToken("stub-card-token-" + UUID.randomUUID());
 
         try {
             // saveAndFlush so the partial-unique index (one ACTIVE per student+coach) fires now,
