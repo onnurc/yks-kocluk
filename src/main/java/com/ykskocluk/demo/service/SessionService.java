@@ -8,7 +8,6 @@ import com.ykskocluk.demo.entity.Session;
 import com.ykskocluk.demo.entity.Subscription;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.SessionStatus;
-import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.mapper.SessionMapper;
 import com.ykskocluk.demo.repository.CoachAvailabilityRepository;
@@ -90,9 +89,10 @@ public class SessionService {
 
         CoachProfile coach = slot.getCoachProfile();
 
-        // (3) Must have an ACTIVE subscription with this coach — the booking gate (reused by Phase 5).
+        // (3) Must have a LIVE subscription with this coach — ACTIVE or PAST_DUE (grace window:
+        // access stays open while a failed renewal is being retried). EXPIRED/CANCELLED → blocked.
         Subscription subscription = subscriptionRepository
-                .findByStudentIdAndCoachProfileIdAndStatus(studentUserId, coach.getId(), SubscriptionStatus.ACTIVE)
+                .findLiveSubscription(studentUserId, coach.getId())
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "NO_ACTIVE_SUBSCRIPTION",
                         "Bu koç ile aktif aboneliğiniz yok"));
 

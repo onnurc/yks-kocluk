@@ -35,6 +35,17 @@ public interface CoachProfileRepository extends JpaRepository<CoachProfile, Long
     int incrementActiveStudentCountIfRoom(@Param("id") Long id);
 
     /**
+     * Atomic capacity release on a subscription expiry (Phase 8). Floored at 0 by the
+     * {@code active_student_count > 0} guard, so a stray double-expire can never go negative.
+     */
+    @Modifying
+    @Query("""
+            update CoachProfile c set c.activeStudentCount = c.activeStudentCount - 1
+             where c.id = :id and c.activeStudentCount > 0
+            """)
+    int decrementActiveStudentCount(@Param("id") Long id);
+
+    /**
      * Discovery search over APPROVED coaches only. All filters are optional (null = ignore).
      * Track is matched via the CoachSubject join table (no string filtering).
      */
