@@ -261,4 +261,33 @@ class SubscriptionBillingServiceTest {
         assertThat(rows.get(0).getStatus()).isEqualTo(PaymentStatus.SUCCESS);
         assertThat(rows.get(0).getProviderReference()).isEqualTo("ref-resumed");
     }
+
+    @Test
+    void todaysInFlightPending_isSkipped_notResumed_andNotCharged() {
+        Subscription s = sub(coach(1), SubscriptionStatus.ACTIVE, NOW.minus(1, ChronoUnit.HOURS), 0, true);
+
+        // Another run has already reserved TODAY's attempt and is mid-charge: a PENDING row with
+        // today's key (NOW is 2026-07-01T09:00Z → 2026-07-01 in Europe/Istanbul).
+        String todayKey = "charge:" + s.getId() + ":2026-07-01";
+        Payment inFlight = new Payment();
+        inFlight.setSubscription(s);
+        inFlight.setType(PaymentType.CHARGE);
+        inFlight.setStatus(PaymentStatus.PENDING);
+        inFlight.setAmount(new BigDecimal("1500.00"));
+        inFlight.setIdempotencyKey(todayKey);
+        inFlight.setCommissionRate(new BigDecimal("0.2000"));
+        inFlight.setCommissionAmount(new BigDecimal("300.00"));
+        inFlight.setCoachPayoutAmount(new BigDecimal("1200.00"));
+        paymentRepository.saveAndFlush(inFlight);
+
+        BillingOutcome outcome = billingService.processDue(s.getId(), NOW);
+
+        // today's-PENDING → back off (distinct from prior-day-PENDING → resume). The other run owns it.
+        assertThat(outcome).isEqualTo(BillingOutcome.SKIPPED_ALREADY_PROCESSED);
+        verify(iyzicoClient, never()).charge(any(), any(), any());          // never charged
+        List<Payment> rows = payments(s.getId());
+        assertThat(rows).hasSize(1);                                        // no new row created
+        assertThat(rows.get(0).getIdempotencyKey()).isEqualTo(todayKey);
+        assertThat(rows.get(0).getStatus()).isEqualTo(PaymentStatus.PENDING); // left untouched for the owner
+    }
 }
