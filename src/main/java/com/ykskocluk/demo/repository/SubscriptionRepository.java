@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,4 +39,16 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
      * active or past). Never-subscribed → no messaging. Enforced server-side.
      */
     boolean existsByStudentIdAndCoachProfileId(Long studentId, Long coachProfileId);
+
+    /**
+     * Due set for the renewal job (Phase 8c): ACTIVE subs past end_at (renewal due) plus all
+     * PAST_DUE subs (retry, or expiry when auto-renew is off). EXPIRED/CANCELLED are terminal and
+     * never selected — so a retry-exhausted sub (already EXPIRED at its 3rd failure) is not re-attempted.
+     */
+    @Query("""
+            select s.id from Subscription s
+             where (s.status = com.ykskocluk.demo.enums.SubscriptionStatus.ACTIVE and s.endAt <= :now)
+                or  s.status = com.ykskocluk.demo.enums.SubscriptionStatus.PAST_DUE
+            """)
+    List<Long> findDueSubscriptionIds(@Param("now") Instant now);
 }

@@ -83,3 +83,5 @@ app:
     commission-rate: ${PAYMENT_COMMISSION_RATE:0.20}
     # Daily charge attempts in the PAST_DUE grace window before a subscription EXPIRES.
     retry-days: ${PAYMENT_RETRY_DAYS:3}
+    # Renewal job schedule — daily 03:00 Europe/Istanbul (zone set on the @Scheduled).
+    renewal-cron: ${PAYMENT_RENEWAL_CRON:0 0 3 * * *}
