@@ -1,5 +1,6 @@
 package com.ykskocluk.demo.repository;
 
+import com.ykskocluk.demo.dto.SubscriptionEmailView;
 import com.ykskocluk.demo.entity.Subscription;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -51,4 +52,12 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
                 or  s.status = com.ykskocluk.demo.enums.SubscriptionStatus.PAST_DUE
             """)
     List<Long> findDueSubscriptionIds(@Param("now") Instant now);
+
+    /** Email snapshot for the renewal job's after-commit mail dispatch (no lazy entity access). */
+    @Query("""
+            select new com.ykskocluk.demo.dto.SubscriptionEmailView(
+                     s.student.email, s.coachProfile.user.fullName, s.endAt, s.pkg.price, s.failedChargeCount)
+              from Subscription s where s.id = :id
+            """)
+    SubscriptionEmailView findEmailViewById(@Param("id") Long id);
 }

@@ -71,7 +71,7 @@ class SubscriptionServiceTest {
         lenient().when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(new User()));
         lenient().when(subscriptionMapper.toResponse(any())).thenReturn(
                 new SubscriptionResponse(1L, COACH_ID, "Coach", PKG_ID, "Aylık 1x", 1,
-                        SubscriptionStatus.ACTIVE, Instant.now(), Instant.now()));
+                        SubscriptionStatus.ACTIVE, true, Instant.now(), Instant.now()));
     }
 
     private SubscriptionCreateRequest request() {

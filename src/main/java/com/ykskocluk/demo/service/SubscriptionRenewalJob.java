@@ -1,5 +1,8 @@
 package com.ykskocluk.demo.service;
 
+import com.ykskocluk.demo.config.PaymentProperties;
+import com.ykskocluk.demo.dto.SubscriptionEmailView;
+import com.ykskocluk.demo.integration.MailClient;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,11 +28,17 @@ public class SubscriptionRenewalJob {
 
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionBillingService billingService;
+    private final MailClient mailClient;
+    private final PaymentProperties paymentProperties;
 
     public SubscriptionRenewalJob(SubscriptionRepository subscriptionRepository,
-                                  SubscriptionBillingService billingService) {
+                                  SubscriptionBillingService billingService,
+                                  MailClient mailClient,
+                                  PaymentProperties paymentProperties) {
         this.subscriptionRepository = subscriptionRepository;
         this.billingService = billingService;
+        this.mailClient = mailClient;
+        this.paymentProperties = paymentProperties;
     }
 
     /** Daily at 03:00 Europe/Istanbul (low traffic), overridable via {@code app.payment.renewal-cron}. */
@@ -50,14 +59,48 @@ public class SubscriptionRenewalJob {
 
         Map<BillingOutcome, Integer> tally = new EnumMap<>(BillingOutcome.class);
         for (Long id : dueIds) {
+            BillingOutcome outcome;
             try {
-                BillingOutcome outcome = billingService.processDue(id, now);
+                outcome = billingService.processDue(id, now);
                 tally.merge(outcome, 1, Integer::sum);
             } catch (Exception e) {
                 // Isolate failures: one subscription's unexpected error must not stop the rest.
                 log.error("Renewal failed for subscription {}: {}", id, e.getMessage(), e);
+                continue;
             }
+            // After-commit (processDue's tx2 has committed; no tx open here): best-effort email.
+            dispatchEmail(outcome, id);
         }
         log.info("Renewal job done: {}", tally);
+    }
+
+    /**
+     * Best-effort email for one processed subscription, keyed to the billing outcome. Wrapped in its
+     * own try/catch so a mail failure (on top of the client's own swallow) can never affect billing
+     * state or the rest of the batch. SKIPPED outcomes send nothing (and skip the lookup).
+     */
+    private void dispatchEmail(BillingOutcome outcome, Long subscriptionId) {
+        if (outcome == BillingOutcome.SKIPPED_ALREADY_PROCESSED || outcome == BillingOutcome.SKIPPED_NOT_DUE) {
+            return;
+        }
+        try {
+            SubscriptionEmailView v = subscriptionRepository.findEmailViewById(subscriptionId);
+            if (v == null) {
+                return;
+            }
+            switch (outcome) {
+                case CHARGED_SUCCESS ->
+                        mailClient.sendRenewalSucceeded(v.studentEmail(), v.coachName(), v.endAt(), v.amount());
+                case CHARGED_FAILED_PAST_DUE ->
+                        mailClient.sendPaymentFailed(v.studentEmail(), v.coachName(),
+                                v.failedChargeCount(), paymentProperties.retryDays());
+                case CHARGED_FAILED_EXPIRED, EXPIRED_NO_RENEW ->
+                        mailClient.sendSubscriptionExpired(v.studentEmail(), v.coachName());
+                default -> { /* no email */ }
+            }
+        } catch (Exception e) {
+            log.error("Email dispatch failed for subscription {} (outcome {}): {}",
+                    subscriptionId, outcome, e.getMessage(), e);
+        }
     }
 }

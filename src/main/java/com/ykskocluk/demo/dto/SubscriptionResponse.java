@@ -12,6 +12,7 @@ public record SubscriptionResponse(
         String packageName,
         int weeklySessions,
         SubscriptionStatus status,
+        boolean autoRenew,
         Instant startAt,
         Instant endAt
 ) {

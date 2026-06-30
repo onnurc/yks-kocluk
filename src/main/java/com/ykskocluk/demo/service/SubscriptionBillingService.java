@@ -9,6 +9,7 @@ import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.integration.ChargeResult;
 import com.ykskocluk.demo.integration.IyzicoClient;
+import com.ykskocluk.demo.mapper.SubscriptionMapper;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PaymentRepository;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
@@ -54,6 +55,7 @@ public class SubscriptionBillingService {
     private final CoachProfileRepository coachProfileRepository;
     private final IyzicoClient iyzicoClient;
     private final PaymentProperties paymentProperties;
+    private final SubscriptionMapper subscriptionMapper;
     private final TransactionTemplate tx;
 
     public SubscriptionBillingService(SubscriptionRepository subscriptionRepository,
@@ -61,12 +63,14 @@ public class SubscriptionBillingService {
                                       CoachProfileRepository coachProfileRepository,
                                       IyzicoClient iyzicoClient,
                                       PaymentProperties paymentProperties,
+                                      SubscriptionMapper subscriptionMapper,
                                       PlatformTransactionManager transactionManager) {
         this.subscriptionRepository = subscriptionRepository;
         this.paymentRepository = paymentRepository;
         this.coachProfileRepository = coachProfileRepository;
         this.iyzicoClient = iyzicoClient;
         this.paymentProperties = paymentProperties;
+        this.subscriptionMapper = subscriptionMapper;
         this.tx = new TransactionTemplate(transactionManager);
     }
 
@@ -213,9 +217,14 @@ public class SubscriptionBillingService {
     /**
      * Student cancels: auto-renew off + cancelledAt stamped, but the subscription stays live until
      * end_at (no refund, no immediate cutoff). It EXPIRES at end_at on the next renewal run.
+     *
+     * <p><strong>Idempotent:</strong> cancelling an already-cancelled (auto-renew off) live sub is a
+     * no-op — current state is returned, {@code cancelledAt} is not re-stamped, and
+     * {@code newlyCancelled} is false so the controller sends no second email. EXPIRED/CANCELLED →
+     * {@code SUBSCRIPTION_NOT_CANCELLABLE}; not the owner → {@code NOT_SUBSCRIPTION_OWNER}.
      */
-    public void cancel(Long subscriptionId, Long studentUserId) {
-        tx.executeWithoutResult(status -> {
+    public CancelResult cancel(Long subscriptionId, Long studentUserId) {
+        return tx.execute(status -> {
             Subscription sub = subscriptionRepository.findById(subscriptionId)
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SUBSCRIPTION_NOT_FOUND",
                             "Abonelik bulunamadı"));
@@ -227,10 +236,14 @@ public class SubscriptionBillingService {
                 throw new ApiException(HttpStatus.CONFLICT, "SUBSCRIPTION_NOT_CANCELLABLE",
                         "Yalnızca aktif abonelikler iptal edilebilir");
             }
-            sub.setAutoRenew(false);
-            sub.setCancelledAt(Instant.now());
-            log.info("Subscription {} cancelled by student {} — live until {}",
-                    subscriptionId, studentUserId, sub.getEndAt());
+            boolean newlyCancelled = sub.isAutoRenew();   // was on → this call turns it off
+            if (newlyCancelled) {
+                sub.setAutoRenew(false);
+                sub.setCancelledAt(Instant.now());
+                log.info("Subscription {} cancelled by student {} — live until {}",
+                        subscriptionId, studentUserId, sub.getEndAt());
+            }
+            return new CancelResult(subscriptionMapper.toResponse(sub), newlyCancelled, sub.getStudent().getEmail());
         });
     }
 }
