@@ -9,10 +9,13 @@ _Last updated: 2026-06-27._
 
 ## Status at a glance
 
-- **Phases complete:** 0, 0.5, 1, 2, 3, 4 (4a–4d), 5a, 5b, 5c, **6 (real Meet — Jitsi), 7 (real Mail — Resend)**.
-- **In progress / next:** 8 (Payment — iyzico). **No longer blocked: iyzico sandbox is now provisioned** (see Known gaps / Phase 0.5).
-- **Tests:** `./mvnw verify` is **GREEN — 122 tests** (1 skipped: the `@Disabled` live Resend smoke).
-- **Neon (prod DB):** Flyway at **v9** (all of V1–V9 applied live). Schema matches tests. **Phases 6 & 7 added no migration.**
+- **Phases complete:** 0, 0.5, 1, 2, 3, 4 (4a–4d), 5a, 5b, 5c, 6 (real Meet — Jitsi), 7 (real Mail — Resend),
+  **8 Stage 1 (8a–8d) — auto-renew lifecycle, STUB-first iyzico**.
+- **In progress / next:** 8 **Stage 2** (real iyzico **sandbox**: saved-card tokenization + recurring charge,
+  replacing `StubIyzicoClient`). Then Phase 9 (KVKK / hardening).
+- **Tests:** `./mvnw verify` is **GREEN — 157 tests** (1 skipped: the `@Disabled` live Resend smoke).
+- **Neon (prod DB):** Flyway at **v10** (all of V1–V10 applied live; V10 = payments/auto-renew). Schema
+  matches tests; `ddl-auto:validate` passes on `-Plocal` boot. **8b/8c/8d added no migration.**
 - **Build:** Java 21, Spring Boot 4.0.6, Maven. (`pom.xml` `java.version` = 21.)
 
 ### Stack (as wired)
@@ -227,20 +230,71 @@ Phase 8 layers the payment lifecycle on top.
   Resend message id `34f773d3-64c5-4a7e-b9a4-b68db3e38649`, HTTP 2xx. Key used for the smoke was
   rotated afterward (see Known gaps → resolved).
 
+### Phase 8 Stage 1 — Auto-renew lifecycle, STUB-first  (V10; commits `c0277e6` 8a · `4db867b`/`a585ec2` 8b · `520a980` 8c · `ece8807` 8d)
+
+**The whole auto-renew flow works end-to-end behind a stub `IyzicoClient` — no real money, no company.**
+Real iyzico is Stage 2 (sandbox).
+
+**8a — model & seam (V10).**
+- `SubscriptionStatus` += **`PAST_DUE`** ({ACTIVE, PAST_DUE, EXPIRED, CANCELLED}). `Subscription` += `autoRenew`
+  (default true), `savedCardToken`, `cancelledAt`, `failedChargeCount`, `lastChargeAttemptAt`. **`end_at` is the
+  renewal trigger** (no separate next-renewal field).
+- `Payment` entity: `type` (CHARGE/REFUND), `amount`, `status` (**PENDING**/SUCCESS/FAILED), **`idempotency_key`
+  UNIQUE**, `provider_reference`, commission snapshot (`commission_rate/amount/coach_payout_amount`),
+  `source_payment_id` (refund seam, unused). V10 also **widened the live-sub partial-unique index** to
+  `where status in ('ACTIVE','PAST_DUE')`.
+- **`IyzicoClient`** interface (4th sanctioned seam) + **`StubIyzicoClient`** (plain `@Component`, always succeeds,
+  `stub-ref-{uuid}`). Subscription creation stamps `autoRenew=true` + a `stub-card-token-{uuid}`.
+  `app.payment.commission-rate` (0.20) / `retry-days` (3).
+
+**8b — billing lifecycle core (`SubscriptionBillingService`).** `processDue(subId, now)` with explicit tx
+boundaries via `TransactionTemplate`: **tx1 reserve PENDING (UNIQUE key)** → **charge OUTSIDE any tx** →
+**tx2 finalize + advance**. Crash between tx1 and charge → next run **resumes** the stale PENDING with its
+own key (provider-idempotent → never a double charge); a concurrent same-day run finds today's PENDING and
+**SKIPs**. Commission snapshotted at reserve (frozen). Capacity **decrement** on every →EXPIRED (atomic,
+floored at 0). **Booking gate widened to {ACTIVE, PAST_DUE}** (grace keeps access open). Mandatory idempotency
+concurrency test + every lifecycle branch tested.
+
+**8c — scheduled job (`SubscriptionRenewalJob`).** `@EnableScheduling` (in `SchedulingConfig`, `@Profile("!test")`
+so it never auto-fires in tests), daily cron `0 0 3 * * *` Europe/Istanbul. Selects due set (ACTIVE past end_at
+∪ all PAST_DUE) and delegates to `processDue`; per-subscription try/catch. Overlapping-run idempotency tested.
+**Single-instance beta; UNIQUE(idempotency_key) makes multi-instance safe (≤1 charge/sub/day).**
+
+**8d — cancel endpoint + emails.** `POST /api/v1/subscriptions/{id}/cancel` (STUDENT, ownership in service) →
+200 `SubscriptionResponse` (now exposes `autoRenew`; `savedCardToken` never exposed). **Idempotent**
+(re-cancel = no-op, no re-stamp, no second email; terminal → 409). Four emails via `MailClient` (Stub + Resend,
+best-effort), dispatched **after** the billing tx commits — renewals from the job, cancellation from the
+controller, each in its own try/catch: `CHARGED_SUCCESS`→renewal, `CHARGED_FAILED_PAST_DUE`→payment-failed
+(per retry, "attempt N/3"), `CHARGED_FAILED_EXPIRED`+`EXPIRED_NO_RENEW`→expired, cancel→confirmation.
+
+**Locked auto-renew rules (as built):** renew on the `end_at` day (charge → push `end_at` +`durationDays`,
+stay ACTIVE); on failure → **PAST_DUE** grace, **retry once/day for 3 attempts**, each failure emails; 3rd
+failure → **EXPIRED** + capacity freed; cancel sets `auto_renew=false` + keeps access **until `end_at`** then
+EXPIRES (no refund, no immediate cutoff).
+
+**Fund-distribution / payout = STILL AN UNFILLED SEAM** — `Payment` snapshots commission, but nothing pays
+coaches; model **A (iyzico Marketplace sub-merchant) vs B (single-merchant manual payout) pending the
+accountant**. Not hardcoded into the flow.
+
+**Stage 2 (next) swaps in:** a real `RealIyzicoClient @Profile("!test")` (saved-card **tokenization** + **recurring
+charge**) replacing the stub, the stub flipping to `@Profile("test")` — same final shape as Meet/Mail. Sandbox
+keys (merchant 3429394) go in `application-local.yml`. No core-flow change expected (the seam is the only swap).
+
 ---
 
 ## What's next
 
 | Phase | Scope |
 | --- | --- |
-| **8** | Payment lifecycle (**iyzico**), **auto-renew model** (see "Monetization model" below): `Payment` entity, idempotency key UNIQUE, webhook status, refund = new row (`type=REFUND`, `source_payment_id`), commission snapshot. **Saved-card tokenization + scheduled monthly charge**; subscription **auto-renews until cancelled** and becomes **payment-gated** (no longer direct-activate); cancellation stops the next charge. Refund-before-payout ordering. **Fund distribution kept as an isolated SEAM** (model TBD — see below). **Build stub-first** (`IyzicoClient` stub → full auto-renew flow → real sandbox → prod). Sandbox provisioned (merchant 3429394). |
+| **8 Stage 1** | ✅ **DONE** (8a–8d, stub-first) — see "What each phase delivered → Phase 8 Stage 1". Full auto-renew lifecycle behind `StubIyzicoClient`. |
+| **8 Stage 2** | Real iyzico **sandbox**: `RealIyzicoClient @Profile("!test")` doing saved-card **tokenization** + **recurring charge**, replacing the stub (stub → `@Profile("test")`). Sandbox keys (merchant 3429394) into `application-local.yml`. No core-flow change — the `IyzicoClient` seam is the only swap. Then a live sandbox smoke (like the Resend one). **Production (real money) is later, gated on company formation** — a config/URL/key swap. Refund execution + **fund distribution/payout (model A vs B)** still deferred (payout pending accountant). |
 | **9** | KVKK / hardening: `ConsentRecord` (under-18), `Report` + user suspension (`User.status=SUSPENDED`), PII anonymization on delete. **Admin-access audit log** (log admin reads of minors' threads — KVKK; closes the 5c interim gap). Consider mid-session WS token-expiry enforcement here (tie to suspension). |
 
 ### Deferred slices (carved out of the doc's original phasing — deliberate, see below)
 
 | Slice | Scope |
 | --- | --- |
-| **Scheduling / Reminders** (own phase) | The two **time-driven** emails deferred out of Phase 7: **session reminder** (X h before start) and the **renewal notice** (informational, now that auto-renew is in scope: *"your subscription auto-renews on X — you can cancel"*; **no longer** a "remember to re-purchase" prompt). Needs a scheduled job — its own hard problems: **multi-instance double-fire** (single-runner vs. lock), **`reminder_sent_at` idempotency** (a marker so a re-run/overlap can't double-send), and **catch-up** (app down at the trigger time must not silently skip a notice). The Phase 7 Resend transport is the seam these plug into. May share triggers with the auto-renew charge job (Phase 8). |
+| **Scheduling / Reminders** (own phase) | The two **time-driven** emails still deferred: **session reminder** (X h before start) and a **pre-renewal notice** (*"your subscription auto-renews on X — you can cancel"*, sent ahead of the charge). **Scheduling infra now EXISTS** (Phase 8c: `@EnableScheduling` in `SchedulingConfig`, `SubscriptionRenewalJob`), so these can hang off the same daily job (or a sibling). Still needs a **`reminder_sent_at` marker** for idempotency + a catch-up story. Note: the *renewal-succeeded / payment-failed / expired* emails already ship (8d) — what's left here is the **proactive pre-event reminders**, not the post-event ones. |
 | **In-app `Notification` entity** (own slice) | Persisted in-app notifications (`Notification`: `user_id`, `type`, `title`, `content`, `read_at`, `related_type`, `related_id`) + list/mark-read endpoints. **Not built.** Structurally independent of the email transport (no shared code) → its own vertical slice (entity→repo→service→controller→DTO→mapper→**V10 migration**→tests). May pair naturally with the Scheduling phase (shared triggers). |
 
 > **PHASES.md divergence (recorded, deliberate):** `PHASES.md` Phase 7 bundles "persist in-app
@@ -275,10 +329,15 @@ Phase 8 layers the payment lifecycle on top.
 
 ## Known gaps (intentional, scheduled)
 
-- **Subscriptions activate WITHOUT payment, and never auto-renew or expire yet.** 4a creates `Subscription`
-  directly as ACTIVE; nothing reads `end_at`, nothing writes `EXPIRED`, and there is no charge. **Phase 8**
-  introduces the **payment-gated auto-renew lifecycle** (saved-card + scheduled monthly charge + cancellation),
-  built **stub-first**. Until then there is no charge and no renewal.
+- **Subscriptions still activate WITHOUT a real charge — but the full auto-renew lifecycle now runs on a STUB.**
+  Phase 8 Stage 1 (done) charges/renews/retries/expires/cancels via `StubIyzicoClient` (always succeeds), so no
+  real money moves yet and creation isn't payment-gated at signup. **Stage 2** swaps in real iyzico sandbox
+  (tokenization + recurring charge). `end_at`-driven renewal, PAST_DUE→EXPIRED, and capacity release are all live
+  against the stub.
+- **Fund distribution / payout to coaches is an unfilled SEAM.** `Payment` snapshots commission per charge, but
+  nothing pays coaches out — model **A (iyzico Marketplace sub-merchant) vs B (single-merchant manual payout)**
+  is **pending the accountant**, deliberately not hardcoded. Refund execution is likewise deferred (the table
+  supports a `type=REFUND` / `source_payment_id` row).
 - **Mid-session WebSocket token expiry is not enforced** — a JWT is validated only at CONNECT; an
   already-open session is not force-closed when its access token later expires (client is expected to
   reconnect). Revisit in **Phase 9** alongside suspension (a suspended/expired user should be cut off).
@@ -338,15 +397,17 @@ Both standing credential-rotation action items are **DONE** (no longer open):
 
 ---
 
-## Migrations (V1–V9, all applied to Neon)
+## Migrations (V1–V10, all applied to Neon)
 
 V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subscriptions ·
-V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging.
+V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging · **V10 payments_autorenew**
+(subscription auto-renew fields, `payments` ledger with UNIQUE idempotency_key, widened live-sub index).
 
 ## Critical-path tests (the ones to never break)
 `AuthServiceTest` · `SubscriptionCapacityConcurrencyTest` · `SessionDoubleBookingConcurrencyTest` ·
 `SessionQuotaBoundaryTest` · `SessionLifecycleTest` · `MessageServiceTest` / `MessageGateIntegrationTest`
-(child-safety gate) · `WebSocketAuthTest` (STOMP auth).
+(child-safety gate) · `WebSocketAuthTest` (STOMP auth) · **`SubscriptionRenewalConcurrencyTest`** /
+**`SubscriptionBillingServiceTest`** (payment idempotency + auto-renew lifecycle).
 
 ---
 
