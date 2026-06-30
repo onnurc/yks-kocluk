@@ -44,7 +44,7 @@ class StubPaymentEnabledTest {
     void whenEnabledAndStudent_succeeds() throws Exception {
         SubscriptionResponse dummyResponse = new SubscriptionResponse(
                 1L, 2L, "Coach Name", 3L, "Pkg Name",
-                2, SubscriptionStatus.ACTIVE, Instant.now(), Instant.now()
+                2, SubscriptionStatus.ACTIVE, true, Instant.now(), Instant.now()
         );
         when(subscriptionService.succeedPayment(eq(100L), any())).thenReturn(dummyResponse);
 

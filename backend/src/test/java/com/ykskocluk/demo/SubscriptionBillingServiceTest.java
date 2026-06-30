@@ -12,8 +12,10 @@ import com.ykskocluk.demo.enums.PaymentType;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.enums.UserStatus;
+import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.integration.ChargeResult;
 import com.ykskocluk.demo.integration.IyzicoClient;
+import com.ykskocluk.demo.service.CancelResult;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PackageRepository;
 import com.ykskocluk.demo.repository.PaymentRepository;
@@ -35,6 +37,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -289,5 +292,56 @@ class SubscriptionBillingServiceTest {
         assertThat(rows).hasSize(1);                                        // no new row created
         assertThat(rows.get(0).getIdempotencyKey()).isEqualTo(todayKey);
         assertThat(rows.get(0).getStatus()).isEqualTo(PaymentStatus.PENDING); // left untouched for the owner
+    }
+
+    // --- cancel idempotency (8d) ---
+
+    @Test
+    void cancel_fresh_turnsAutoRenewOff_newlyCancelledTrue() {
+        Subscription s = sub(coach(1), SubscriptionStatus.ACTIVE, NOW.plus(10, ChronoUnit.DAYS), 0, true);
+
+        CancelResult result = billingService.cancel(s.getId(), s.getStudent().getId());
+
+        assertThat(result.newlyCancelled()).isTrue();
+        assertThat(result.subscription().autoRenew()).isFalse();
+        assertThat(result.studentEmail()).isEqualTo(s.getStudent().getEmail());
+        Subscription reloaded = subscriptionRepository.findById(s.getId()).orElseThrow();
+        assertThat(reloaded.isAutoRenew()).isFalse();
+        assertThat(reloaded.getCancelledAt()).isNotNull();
+        assertThat(reloaded.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE); // stays live until end_at
+    }
+
+    @Test
+    void cancel_reCancel_isNoOp_doesNotRestamp_newlyCancelledFalse() {
+        Subscription s = sub(coach(1), SubscriptionStatus.ACTIVE, NOW.plus(10, ChronoUnit.DAYS), 0, true);
+
+        CancelResult first = billingService.cancel(s.getId(), s.getStudent().getId());
+        assertThat(first.newlyCancelled()).isTrue();
+        Instant firstCancelledAt = subscriptionRepository.findById(s.getId()).orElseThrow().getCancelledAt();
+
+        CancelResult second = billingService.cancel(s.getId(), s.getStudent().getId());
+
+        assertThat(second.newlyCancelled()).isFalse();                 // no second email will fire
+        Instant secondCancelledAt = subscriptionRepository.findById(s.getId()).orElseThrow().getCancelledAt();
+        assertThat(secondCancelledAt).isEqualTo(firstCancelledAt);     // cancelledAt not re-stamped
+    }
+
+    @Test
+    void cancel_terminalSubscription_throwsConflict() {
+        Subscription s = sub(coach(1), SubscriptionStatus.EXPIRED, NOW.minus(1, ChronoUnit.DAYS), 3, false);
+
+        assertThatThrownBy(() -> billingService.cancel(s.getId(), s.getStudent().getId()))
+                .isInstanceOf(ApiException.class)
+                .satisfies(e -> assertThat(((ApiException) e).getErrorCode()).isEqualTo("SUBSCRIPTION_NOT_CANCELLABLE"));
+    }
+
+    @Test
+    void cancel_byNonOwner_throwsForbidden() {
+        Subscription s = sub(coach(1), SubscriptionStatus.ACTIVE, NOW.plus(10, ChronoUnit.DAYS), 0, true);
+        Long notTheOwner = student().getId();
+
+        assertThatThrownBy(() -> billingService.cancel(s.getId(), notTheOwner))
+                .isInstanceOf(ApiException.class)
+                .satisfies(e -> assertThat(((ApiException) e).getErrorCode()).isEqualTo("NOT_SUBSCRIPTION_OWNER"));
     }
 }

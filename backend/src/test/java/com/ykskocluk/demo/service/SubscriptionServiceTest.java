@@ -102,7 +102,7 @@ class SubscriptionServiceTest {
     lenient().when(subscriptionMapper.toResponse(any())).thenAnswer(invocation -> {
         Subscription subscription = invocation.getArgument(0);
         return new SubscriptionResponse(1L, COACH_ID, "Coach", PKG_ID, "Aylık 1x", 1,
-            subscription.getStatus(), subscription.getStartAt(), subscription.getEndAt());
+            subscription.getStatus(), subscription.isAutoRenew(), subscription.getStartAt(), subscription.getEndAt());
     });
     lenient().when(iyzicoClient.initializeCheckout(any(), any(), any(), any()))
         .thenReturn(new CheckoutResult("stub-checkout-token", "https://checkout.stub.local/pay/stub-checkout-token"));

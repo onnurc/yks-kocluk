@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -67,6 +68,36 @@ class ResendMailClientTest {
         assertThatCode(() ->
                 client.sendSessionBooked(TO, "Ayşe Koç", Instant.parse("2026-06-22T18:00:00Z"), LINK))
                 .doesNotThrowAnyException();
+
+        server[0].verify();
+    }
+
+    @Test
+    void renewalSucceeded_postsExpectedSubjectAndBody() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.to[0]").value(TO))
+                .andExpect(jsonPath("$.subject").value("Aboneliğiniz yenilendi"))
+                .andExpect(jsonPath("$.html", containsString("1500")))
+                .andRespond(withSuccess("{\"id\":\"msg_x\"}", APPLICATION_JSON));
+
+        client.sendRenewalSucceeded(TO, "Ayşe Koç", Instant.parse("2026-07-20T00:00:00Z"), new BigDecimal("1500.00"));
+
+        server[0].verify();
+    }
+
+    @Test
+    void paymentFailed_resendReturns500_isSwallowed() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+
+        server[0].expect(requestTo("https://api.resend.com/emails")).andRespond(withServerError());
+
+        // Every new method is best-effort too — a 500 must never propagate.
+        assertThatCode(() -> client.sendPaymentFailed(TO, "Ayşe Koç", 1, 3)).doesNotThrowAnyException();
 
         server[0].verify();
     }

@@ -108,7 +108,7 @@ class SubscriptionCancelRenewalIntegrationTest {
         String student = register(studentEmail, "STUDENT");
         Subscription saved = seedActiveSubscription(studentEmail, coachId);
 
-        mockMvc.perform(post("/api/v1/subscriptions/" + saved.getId() + "/cancel-renewal")
+        mockMvc.perform(post("/api/v1/subscriptions/" + saved.getId() + "/cancel")
                         .header("Authorization", "Bearer " + student))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
@@ -129,7 +129,7 @@ class SubscriptionCancelRenewalIntegrationTest {
         Subscription saved = seedActiveSubscription(ownerEmail, coachId);
         String otherStudent = register("student-other@example.com", "STUDENT");
 
-        mockMvc.perform(post("/api/v1/subscriptions/" + saved.getId() + "/cancel-renewal")
+        mockMvc.perform(post("/api/v1/subscriptions/" + saved.getId() + "/cancel")
                         .header("Authorization", "Bearer " + otherStudent))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("NOT_SUBSCRIPTION_OWNER"));
@@ -139,7 +139,7 @@ class SubscriptionCancelRenewalIntegrationTest {
     void cancelRenewal_nonStudent_forbiddenBySecurity() throws Exception {
         String coach = register("coach-cancel-authz@example.com", "COACH");
 
-        mockMvc.perform(post("/api/v1/subscriptions/1/cancel-renewal")
+        mockMvc.perform(post("/api/v1/subscriptions/1/cancel")
                         .header("Authorization", "Bearer " + coach))
                 .andExpect(status().isForbidden());
     }
@@ -161,7 +161,7 @@ class SubscriptionCancelRenewalIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         int subscriptionId = JsonPath.read(created, "$.id");
 
-        mockMvc.perform(post("/api/v1/subscriptions/" + subscriptionId + "/cancel-renewal")
+        mockMvc.perform(post("/api/v1/subscriptions/" + subscriptionId + "/cancel")
                         .header("Authorization", "Bearer " + student))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("SUBSCRIPTION_NOT_CANCELLABLE"));

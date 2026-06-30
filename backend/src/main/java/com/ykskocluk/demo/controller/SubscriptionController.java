@@ -3,9 +3,13 @@ package com.ykskocluk.demo.controller;
 import com.ykskocluk.demo.dto.SubscriptionCreateRequest;
 import com.ykskocluk.demo.dto.SubscriptionCheckoutResponse;
 import com.ykskocluk.demo.dto.SubscriptionResponse;
+import com.ykskocluk.demo.integration.MailClient;
+import com.ykskocluk.demo.service.CancelResult;
 import com.ykskocluk.demo.service.SubscriptionBillingService;
 import com.ykskocluk.demo.service.SubscriptionService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,13 +28,18 @@ import java.util.List;
 @PreAuthorize("hasRole('STUDENT')")
 public class SubscriptionController {
 
+    private static final Logger log = LoggerFactory.getLogger(SubscriptionController.class);
+
     private final SubscriptionService subscriptionService;
-    private final SubscriptionBillingService subscriptionBillingService;
+    private final SubscriptionBillingService billingService;
+    private final MailClient mailClient;
 
     public SubscriptionController(SubscriptionService subscriptionService,
-                                  SubscriptionBillingService subscriptionBillingService) {
+                                 SubscriptionBillingService billingService,
+                                 MailClient mailClient) {
         this.subscriptionService = subscriptionService;
-        this.subscriptionBillingService = subscriptionBillingService;
+        this.billingService = billingService;
+        this.mailClient = mailClient;
     }
 
     @PostMapping
@@ -50,9 +59,23 @@ public class SubscriptionController {
         return subscriptionService.checkout(studentUserId, request);
     }
 
-    @PostMapping("/{id}/cancel-renewal")
-    public SubscriptionResponse cancelRenewal(@AuthenticationPrincipal Long studentUserId,
-                                              @PathVariable Long id) {
-        return subscriptionBillingService.cancel(id, studentUserId);
+    /**
+     * Turns auto-renew off; access continues until {@code endAt} (no refund, no immediate cutoff).
+     * Idempotent — re-cancelling returns the current state and fires no second email. The
+     * confirmation email is dispatched AFTER the cancel transaction has committed (best-effort).
+     */
+    @PostMapping("/{id}/cancel")
+    public SubscriptionResponse cancel(@AuthenticationPrincipal Long studentUserId, @PathVariable Long id) {
+        CancelResult result = billingService.cancel(id, studentUserId);
+        if (result.newlyCancelled()) {
+            try {
+                mailClient.sendCancellationConfirmed(result.studentEmail(),
+                        result.subscription().coachName(), result.subscription().endAt());
+            } catch (Exception e) {
+                // Best-effort: cancellation is already committed; never let a mail failure surface.
+                log.error("Cancellation email failed for subscription {}: {}", id, e.getMessage(), e);
+            }
+        }
+        return result.subscription();
     }
 }

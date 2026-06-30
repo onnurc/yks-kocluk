@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -33,11 +34,11 @@ public class ResendMailClient implements MailClient {
     private static final Logger log = LoggerFactory.getLogger(ResendMailClient.class);
 
     private static final String BASE_URL = "https://api.resend.com";
-    private static final String SUBJECT = "Görüşmeniz planlandı";
     private static final ZoneId ISTANBUL = ZoneId.of("Europe/Istanbul");
+    private static final Locale TR = Locale.of("tr", "TR");
     // Store UTC, display Europe/Istanbul (CLAUDE.md). e.g. "22 Haziran 2026, 21:00".
-    private static final DateTimeFormatter WHEN_FORMAT =
-            DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", Locale.of("tr", "TR"));
+    private static final DateTimeFormatter WHEN_FORMAT = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", TR);
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("d MMMM yyyy", TR);
 
     private final RestClient restClient;
     private final ResendProperties properties;
@@ -52,32 +53,78 @@ public class ResendMailClient implements MailClient {
 
     @Override
     public void sendSessionBooked(String toEmail, String coachName, Instant startTime, String meetLink) {
+        String when = WHEN_FORMAT.format(startTime.atZone(ISTANBUL));
+        send(toEmail, "Görüşmeniz planlandı", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Görüşmeniz planlandı</h2>
+                  <p>Koçunuz <strong>%s</strong> ile görüşmeniz <strong>%s</strong> tarihinde planlandı.</p>
+                  <p><a href="%s">Görüşmeye katıl</a></p>
+                </div>
+                """.formatted(coachName, when, meetLink));
+    }
+
+    @Override
+    public void sendRenewalSucceeded(String toEmail, String coachName, Instant nextEndAt, BigDecimal amount) {
+        String next = DATE_FORMAT.format(nextEndAt.atZone(ISTANBUL));
+        send(toEmail, "Aboneliğiniz yenilendi", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Aboneliğiniz yenilendi</h2>
+                  <p>Koçunuz <strong>%s</strong> ile aboneliğiniz yenilendi. Tahsil edilen tutar:
+                     <strong>%s TL</strong>. Sonraki yenileme tarihi: <strong>%s</strong>.</p>
+                </div>
+                """.formatted(coachName, amount.toPlainString(), next));
+    }
+
+    @Override
+    public void sendPaymentFailed(String toEmail, String coachName, int attemptNumber, int maxAttempts) {
+        send(toEmail, "Ödeme alınamadı", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Ödeme alınamadı</h2>
+                  <p>Koçunuz <strong>%s</strong> ile aboneliğinizin yenileme ödemesi alınamadı
+                     (deneme %d/%d). Lütfen kart bilgilerinizi kontrol edin — erişiminiz şimdilik açık.</p>
+                </div>
+                """.formatted(coachName, attemptNumber, maxAttempts));
+    }
+
+    @Override
+    public void sendSubscriptionExpired(String toEmail, String coachName) {
+        send(toEmail, "Aboneliğiniz sona erdi", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Aboneliğiniz sona erdi</h2>
+                  <p>Koçunuz <strong>%s</strong> ile aboneliğiniz sona erdi ve erişiminiz kapandı.
+                     Devam etmek için yeniden abone olabilirsiniz.</p>
+                </div>
+                """.formatted(coachName));
+    }
+
+    @Override
+    public void sendCancellationConfirmed(String toEmail, String coachName, Instant accessUntil) {
+        String until = DATE_FORMAT.format(accessUntil.atZone(ISTANBUL));
+        send(toEmail, "Abonelik iptaliniz alındı", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Abonelik iptaliniz alındı</h2>
+                  <p>Koçunuz <strong>%s</strong> ile aboneliğiniz yenilenmeyecek. Erişiminiz
+                     <strong>%s</strong> tarihine kadar açık kalacaktır.</p>
+                </div>
+                """.formatted(coachName, until));
+    }
+
+    /** Single best-effort POST to Resend — swallows-and-logs every error (timeouts included). */
+    private void send(String toEmail, String subject, String html) {
         try {
-            var request = new ResendEmailRequest(
-                    properties.from(), List.of(toEmail), SUBJECT, buildHtml(coachName, startTime, meetLink));
+            var request = new ResendEmailRequest(properties.from(), List.of(toEmail), subject, html);
             ResendEmailResponse response = restClient.post()
                     .uri("/emails")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(request)
                     .retrieve()
                     .body(ResendEmailResponse.class);
-            log.info("[Resend] booking confirmation sent to {} (id {})",
-                    toEmail, response != null ? response.id() : "<none>");
+            log.info("[Resend] '{}' sent to {} (id {})", subject, toEmail,
+                    response != null ? response.id() : "<none>");
         } catch (Exception e) {
-            // Best-effort: the booking is already committed. Log the Resend failure and move on.
-            log.error("[Resend] failed to send booking confirmation to {}: {}", toEmail, e.getMessage(), e);
+            // Best-effort: the originating DB tx is already committed. Log and move on, never throw.
+            log.error("[Resend] failed to send '{}' to {}: {}", subject, toEmail, e.getMessage(), e);
         }
-    }
-
-    private String buildHtml(String coachName, Instant startTime, String meetLink) {
-        String when = WHEN_FORMAT.format(startTime.atZone(ISTANBUL));
-        return """
-                <div style="font-family:sans-serif;line-height:1.5">
-                  <h2>Görüşmeniz planlandı</h2>
-                  <p>Koçunuz <strong>%s</strong> ile görüşmeniz <strong>%s</strong> tarihinde planlandı.</p>
-                  <p><a href="%s">Görüşmeye katıl</a></p>
-                </div>
-                """.formatted(coachName, when, meetLink);
     }
 
     /** Resend send-email request body. */
