@@ -69,9 +69,15 @@ class SubscriptionServiceTest {
                 .thenReturn(Optional.of(coach));
 
         lenient().when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(new User()));
-        lenient().when(subscriptionMapper.toResponse(any())).thenReturn(
-                new SubscriptionResponse(1L, COACH_ID, "Coach", PKG_ID, "Aylık 1x", 1,
-                        SubscriptionStatus.ACTIVE, Instant.now(), Instant.now()));
+    lenient().when(subscriptionRepository.findLiveSubscription(STUDENT_ID, COACH_ID))
+        .thenReturn(Optional.empty());
+    lenient().when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(
+        STUDENT_ID, COACH_ID, SubscriptionStatus.PENDING_PAYMENT)).thenReturn(false);
+    lenient().when(subscriptionMapper.toResponse(any())).thenAnswer(invocation -> {
+        Subscription subscription = invocation.getArgument(0);
+        return new SubscriptionResponse(1L, COACH_ID, "Coach", PKG_ID, "Aylık 1x", 1,
+            subscription.getStatus(), subscription.getStartAt(), subscription.getEndAt());
+    });
     }
 
     private SubscriptionCreateRequest request() {
@@ -79,36 +85,39 @@ class SubscriptionServiceTest {
     }
 
     @Test
-    void subscribe_success_incrementsCapacityAndCreatesActive() {
+    void subscribe_success_createsPendingPayment_andDoesNotIncrementCapacity() {
+        when(subscriptionRepository.findLiveSubscription(STUDENT_ID, COACH_ID)).thenReturn(Optional.empty());
         when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(
-                STUDENT_ID, COACH_ID, SubscriptionStatus.ACTIVE)).thenReturn(false);
-        when(coachProfileRepository.incrementActiveStudentCountIfRoom(COACH_ID)).thenReturn(1);
+                STUDENT_ID, COACH_ID, SubscriptionStatus.PENDING_PAYMENT)).thenReturn(false);
+        when(subscriptionRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.subscribe(STUDENT_ID, request());
+        SubscriptionResponse response = service.subscribe(STUDENT_ID, request());
 
-        verify(coachProfileRepository).incrementActiveStudentCountIfRoom(COACH_ID);
+        assertThat(response.status()).isEqualTo(SubscriptionStatus.PENDING_PAYMENT);
+        verify(coachProfileRepository, never()).incrementActiveStudentCountIfRoom(COACH_ID);
         verify(subscriptionRepository).saveAndFlush(any(Subscription.class));
     }
 
     @Test
-    void subscribe_coachFull_throwsConflict_andDoesNotSave() {
-        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(
-                STUDENT_ID, COACH_ID, SubscriptionStatus.ACTIVE)).thenReturn(false);
-        when(coachProfileRepository.incrementActiveStudentCountIfRoom(COACH_ID)).thenReturn(0);
+    void subscribe_existingLiveSubscription_throwsConflict_noCapacityChange() {
+        when(subscriptionRepository.findLiveSubscription(STUDENT_ID, COACH_ID))
+                .thenReturn(Optional.of(new Subscription()));
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.subscribe(STUDENT_ID, request()));
-        assertThat(ex.getErrorCode()).isEqualTo("COACH_FULL");
+        assertThat(ex.getErrorCode()).isEqualTo("ALREADY_SUBSCRIBED");
+        verify(coachProfileRepository, never()).incrementActiveStudentCountIfRoom(COACH_ID);
         verify(subscriptionRepository, never()).saveAndFlush(any());
     }
 
     @Test
-    void subscribe_alreadyActive_throwsConflict_noCapacityChange() {
+    void subscribe_existingPendingPayment_throwsConflict_noCapacityChange() {
         when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(
-                STUDENT_ID, COACH_ID, SubscriptionStatus.ACTIVE)).thenReturn(true);
+                STUDENT_ID, COACH_ID, SubscriptionStatus.PENDING_PAYMENT)).thenReturn(true);
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.subscribe(STUDENT_ID, request()));
         assertThat(ex.getErrorCode()).isEqualTo("ALREADY_SUBSCRIBED");
         verify(coachProfileRepository, never()).incrementActiveStudentCountIfRoom(eq(COACH_ID));
+        verify(subscriptionRepository, never()).saveAndFlush(any());
     }
 
     @Test

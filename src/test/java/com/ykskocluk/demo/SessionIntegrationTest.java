@@ -1,6 +1,15 @@
 package com.ykskocluk.demo;
 
 import com.jayway.jsonpath.JsonPath;
+import com.ykskocluk.demo.entity.CoachProfile;
+import com.ykskocluk.demo.entity.Package;
+import com.ykskocluk.demo.entity.Subscription;
+import com.ykskocluk.demo.entity.User;
+import com.ykskocluk.demo.enums.SubscriptionStatus;
+import com.ykskocluk.demo.repository.CoachProfileRepository;
+import com.ykskocluk.demo.repository.PackageRepository;
+import com.ykskocluk.demo.repository.SubscriptionRepository;
+import com.ykskocluk.demo.repository.UserRepository;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +40,10 @@ class SessionIntegrationTest {
 
     @Autowired
     MockMvc mockMvc;
+        @Autowired UserRepository userRepository;
+        @Autowired CoachProfileRepository coachProfileRepository;
+        @Autowired PackageRepository packageRepository;
+        @Autowired SubscriptionRepository subscriptionRepository;
 
     private String register(String email, String role) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
@@ -91,13 +104,28 @@ class SessionIntegrationTest {
         return ((Number) JsonPath.read(json, "$[0].id")).longValue();
     }
 
-    private void subscribe(String studentToken, int coachId, long packageId) throws Exception {
+        private void subscribe(String studentToken, int coachId, long packageId) throws Exception {
         mockMvc.perform(post("/api/v1/subscriptions")
                         .header("Authorization", "Bearer " + studentToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"coachId\":%d,\"packageId\":%d}".formatted(coachId, packageId)))
                 .andExpect(status().isCreated());
     }
+
+        private void seedActiveSubscription(String studentEmail, int coachId) {
+                User student = userRepository.findByEmail(studentEmail).orElseThrow();
+                CoachProfile coach = coachProfileRepository.findById((long) coachId).orElseThrow();
+                Package pkg = packageRepository.findByActiveTrueOrderByPriceAsc().get(0);
+
+                Subscription subscription = new Subscription();
+                subscription.setStudent(student);
+                subscription.setCoachProfile(coach);
+                subscription.setPkg(pkg);
+                subscription.setStatus(SubscriptionStatus.ACTIVE);
+                subscription.setStartAt(Instant.now().minus(1, ChronoUnit.DAYS));
+                subscription.setEndAt(Instant.now().plus(29, ChronoUnit.DAYS));
+                subscriptionRepository.saveAndFlush(subscription);
+        }
 
     @Test
     void book_flow_listings_andSlotLeavesOpenView() throws Exception {
@@ -106,8 +134,9 @@ class SessionIntegrationTest {
         int coachId = (int) c[1];
         int slotId = createSlot(coach);
 
-        String student = register("student-sess@example.com", "STUDENT");
-        subscribe(student, coachId, firstPackageId(student));
+                String studentEmail = "student-sess@example.com";
+                String student = register(studentEmail, "STUDENT");
+                seedActiveSubscription(studentEmail, coachId);
 
         // book -> 201 PLANNED
         mockMvc.perform(post("/api/v1/sessions")
@@ -152,6 +181,24 @@ class SessionIntegrationTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("NO_ACTIVE_SUBSCRIPTION"));
     }
+
+        @Test
+        void book_withPendingPaymentSubscription_isRejected() throws Exception {
+                Object[] c = approvedCoach("coach-sess-pending@example.com");
+                String coach = (String) c[0];
+                int coachId = (int) c[1];
+                int slotId = createSlot(coach);
+
+                String student = register("student-sess-pending@example.com", "STUDENT");
+                subscribe(student, coachId, firstPackageId(student));
+
+                mockMvc.perform(post("/api/v1/sessions")
+                                                .header("Authorization", "Bearer " + student)
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content("{\"availabilityId\":%d}".formatted(slotId)))
+                                .andExpect(status().isConflict())
+                                .andExpect(jsonPath("$.errorCode").value("NO_ACTIVE_SUBSCRIPTION"));
+        }
 
     @Test
     void authorization_coachCannotBook() throws Exception {

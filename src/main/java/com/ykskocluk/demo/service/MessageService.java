@@ -7,6 +7,7 @@ import com.ykskocluk.demo.entity.Conversation;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Message;
 import com.ykskocluk.demo.entity.User;
+import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.mapper.ConversationMapper;
 import com.ykskocluk.demo.mapper.MessageMapper;
@@ -29,7 +30,7 @@ import java.util.List;
  *
  * <p>Child-safety gate (server-side, never trust the client):
  * <ul>
- *   <li>Opening a conversation requires an active OR past Subscription with the coach.</li>
+ *   <li>Opening a conversation requires a non-pending Subscription with the coach.</li>
  *   <li>Every send and read re-checks conversation membership.</li>
  * </ul>
  */
@@ -66,8 +67,9 @@ public class MessageService {
         CoachProfile coach = coachProfileRepository.findById(coachProfileId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "COACH_NOT_FOUND", "Koç bulunamadı"));
 
-        // The gate: must have an active or past subscription with this coach.
-        if (!subscriptionRepository.existsByStudentIdAndCoachProfileId(studentUserId, coachProfileId)) {
+        // The gate: must have a non-pending subscription with this coach.
+        if (!subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatusNot(
+                studentUserId, coachProfileId, SubscriptionStatus.PENDING_PAYMENT)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "MESSAGING_NOT_ALLOWED",
                     "Yalnızca abone olduğunuz koçlarla mesajlaşabilirsiniz");
         }

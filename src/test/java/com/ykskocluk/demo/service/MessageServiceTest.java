@@ -6,6 +6,7 @@ import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Conversation;
 import com.ykskocluk.demo.entity.Message;
 import com.ykskocluk.demo.entity.User;
+import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.mapper.ConversationMapper;
 import com.ykskocluk.demo.mapper.MessageMapper;
@@ -84,7 +85,8 @@ class MessageServiceTest {
     @Test
     void openConversation_noSubscriptionEver_throws403() {
         when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
-        when(subscriptionRepository.existsByStudentIdAndCoachProfileId(STUDENT_ID, COACH_PROFILE_ID))
+        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatusNot(
+                STUDENT_ID, COACH_PROFILE_ID, SubscriptionStatus.PENDING_PAYMENT))
                 .thenReturn(false);
 
         ApiException ex = catchThrowableOfType(ApiException.class,
@@ -97,7 +99,8 @@ class MessageServiceTest {
     @Test
     void openConversation_pastOrActiveSubscription_allowed_createsConversation() {
         when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
-        when(subscriptionRepository.existsByStudentIdAndCoachProfileId(STUDENT_ID, COACH_PROFILE_ID))
+        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatusNot(
+                STUDENT_ID, COACH_PROFILE_ID, SubscriptionStatus.PENDING_PAYMENT))
                 .thenReturn(true); // any status — active or past
         when(conversationRepository.findByStudentIdAndCoachProfileId(STUDENT_ID, COACH_PROFILE_ID))
                 .thenReturn(Optional.empty());

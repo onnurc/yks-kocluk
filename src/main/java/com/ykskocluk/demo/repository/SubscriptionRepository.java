@@ -22,7 +22,7 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
 
     /**
      * Booking gate (Phase 8): a subscription that grants access — ACTIVE or PAST_DUE (grace window).
-     * The V10 partial-unique index guarantees at most one live sub per (student, coach), so Optional is safe.
+     * The live-subscription unique index guarantees at most one live sub per (student, coach), so Optional is safe.
      */
     @Query("""
             select s from Subscription s
@@ -34,11 +34,11 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     Optional<Subscription> findLiveSubscription(@Param("studentId") Long studentId,
                                                 @Param("coachProfileId") Long coachProfileId);
 
-    /**
-     * Message gate: true if the student has EVER subscribed to this coach (any status —
-     * active or past). Never-subscribed → no messaging. Enforced server-side.
-     */
-    boolean existsByStudentIdAndCoachProfileId(Long studentId, Long coachProfileId);
+    /** Message gate: true if the student has any non-pending subscription with this coach.
+     * Never-subscribed or pending-only → no messaging. Enforced server-side. */
+    boolean existsByStudentIdAndCoachProfileIdAndStatusNot(Long studentId,
+                                                           Long coachProfileId,
+                                                           SubscriptionStatus status);
 
     /**
      * Due set for the renewal job (Phase 8c): ACTIVE subs past end_at (renewal due) plus all

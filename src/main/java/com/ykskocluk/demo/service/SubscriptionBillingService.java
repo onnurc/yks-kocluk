@@ -143,6 +143,7 @@ public class SubscriptionBillingService {
     private Branch decideBranch(Subscription sub, Instant now) {
         boolean due = !sub.getEndAt().isAfter(now);   // end_at <= now
         return switch (sub.getStatus()) {
+            case PENDING_PAYMENT -> Branch.NOT_DUE;
             case ACTIVE -> !due ? Branch.NOT_DUE : (sub.isAutoRenew() ? Branch.CHARGE : Branch.EXPIRE_NO_RENEW);
             // PAST_DUE is already overdue: retry while auto-renew is on, else stop and expire.
             case PAST_DUE -> sub.isAutoRenew() ? Branch.CHARGE : Branch.EXPIRE_NO_RENEW;

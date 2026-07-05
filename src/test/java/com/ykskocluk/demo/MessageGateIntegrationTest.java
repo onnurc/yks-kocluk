@@ -37,8 +37,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * The child-safety message gate (mandatory critical path), end-to-end. Uses repo-built
- * users/subscriptions + minted JWTs so subscription status (active / past / none) is
- * controlled precisely.
+ * users/subscriptions + minted JWTs so subscription status (active / past / pending / none)
+ * is controlled precisely.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -121,6 +121,19 @@ class MessageGateIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.coachProfileId").value(coach.getId().intValue()));
     }
+
+        @Test
+        void open_pendingPaymentSubscription_forbidden() throws Exception {
+                User student = persistUser(Role.STUDENT);
+                CoachProfile coach = persistCoach();
+                subscribe(student, coach, SubscriptionStatus.PENDING_PAYMENT);
+
+                mockMvc.perform(post("/api/v1/conversations").header("Authorization", token(student))
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content("{\"coachId\":%d}".formatted(coach.getId())))
+                                .andExpect(status().isForbidden())
+                                .andExpect(jsonPath("$.errorCode").value("MESSAGING_NOT_ALLOWED"));
+        }
 
     // --- Full flow + read receipts (checkpoint 5) ---
 

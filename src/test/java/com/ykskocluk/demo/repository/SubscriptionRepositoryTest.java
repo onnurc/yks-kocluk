@@ -109,9 +109,21 @@ class SubscriptionRepositoryTest {
         subscriptionRepository.saveAndFlush(sub(student, coach, pkg, SubscriptionStatus.ACTIVE));
 
         // A second LIVE row (PAST_DUE) for the same (student, coach) must be rejected by the
-        // widened partial-unique index (V10: ACTIVE + PAST_DUE).
+        // partial-unique index (ACTIVE + PAST_DUE + PENDING_PAYMENT).
         assertThatThrownBy(() ->
                 subscriptionRepository.saveAndFlush(sub(student, coach, pkg, SubscriptionStatus.PAST_DUE)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void liveSubscriptionGuard_pendingPaymentBlocksDuplicate_ofActivePair() {
+        User student = persistStudent();
+        CoachProfile coach = persistCoach();
+        Package pkg = persistPackage();
+        subscriptionRepository.saveAndFlush(sub(student, coach, pkg, SubscriptionStatus.ACTIVE));
+
+        assertThatThrownBy(() ->
+                subscriptionRepository.saveAndFlush(sub(student, coach, pkg, SubscriptionStatus.PENDING_PAYMENT)))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

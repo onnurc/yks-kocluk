@@ -16,7 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * End-to-end Phase 4a: subscribe to a coach (direct activation), duplicate guard, listing,
+ * End-to-end Phase 4a: subscribe to a coach (pending payment), duplicate guard, listing,
  * package listing, and the authorization rules.
  */
 @SpringBootTest
@@ -85,16 +85,16 @@ class SubscriptionIntegrationTest {
 
         String body = "{\"coachId\":%d,\"packageId\":%d}".formatted(coachId, packageId);
 
-        // subscribe -> 201 ACTIVE
+        // subscribe -> 201 PENDING_PAYMENT
         mockMvc.perform(post("/api/v1/subscriptions")
                         .header("Authorization", "Bearer " + student)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
                 .andExpect(jsonPath("$.coachProfileId").value(coachId))
                 .andExpect(jsonPath("$.weeklySessions").value(1));
 
-        // duplicate active subscription -> 409
+        // duplicate subscription -> 409
         mockMvc.perform(post("/api/v1/subscriptions")
                         .header("Authorization", "Bearer " + student)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
@@ -104,7 +104,8 @@ class SubscriptionIntegrationTest {
         // listing
         mockMvc.perform(get("/api/v1/subscriptions/me").header("Authorization", "Bearer " + student))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].coachProfileId").value(coachId));
+                .andExpect(jsonPath("$[0].coachProfileId").value(coachId))
+                .andExpect(jsonPath("$[0].status").value("PENDING_PAYMENT"));
     }
 
     @Test
