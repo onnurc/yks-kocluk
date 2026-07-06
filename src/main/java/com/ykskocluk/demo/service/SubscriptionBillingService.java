@@ -1,12 +1,14 @@
 package com.ykskocluk.demo.service;
 
 import com.ykskocluk.demo.config.PaymentProperties;
+import com.ykskocluk.demo.dto.SubscriptionResponse;
 import com.ykskocluk.demo.entity.Payment;
 import com.ykskocluk.demo.entity.Subscription;
 import com.ykskocluk.demo.enums.PaymentStatus;
 import com.ykskocluk.demo.enums.PaymentType;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.exception.ApiException;
+import com.ykskocluk.demo.mapper.SubscriptionMapper;
 import com.ykskocluk.demo.integration.ChargeResult;
 import com.ykskocluk.demo.integration.IyzicoClient;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
@@ -54,6 +56,7 @@ public class SubscriptionBillingService {
     private final CoachProfileRepository coachProfileRepository;
     private final IyzicoClient iyzicoClient;
     private final PaymentProperties paymentProperties;
+    private final SubscriptionMapper subscriptionMapper;
     private final TransactionTemplate tx;
 
     public SubscriptionBillingService(SubscriptionRepository subscriptionRepository,
@@ -61,12 +64,14 @@ public class SubscriptionBillingService {
                                       CoachProfileRepository coachProfileRepository,
                                       IyzicoClient iyzicoClient,
                                       PaymentProperties paymentProperties,
+                                      SubscriptionMapper subscriptionMapper,
                                       PlatformTransactionManager transactionManager) {
         this.subscriptionRepository = subscriptionRepository;
         this.paymentRepository = paymentRepository;
         this.coachProfileRepository = coachProfileRepository;
         this.iyzicoClient = iyzicoClient;
         this.paymentProperties = paymentProperties;
+        this.subscriptionMapper = subscriptionMapper;
         this.tx = new TransactionTemplate(transactionManager);
     }
 
@@ -215,8 +220,8 @@ public class SubscriptionBillingService {
      * Student cancels: auto-renew off + cancelledAt stamped, but the subscription stays live until
      * end_at (no refund, no immediate cutoff). It EXPIRES at end_at on the next renewal run.
      */
-    public void cancel(Long subscriptionId, Long studentUserId) {
-        tx.executeWithoutResult(status -> {
+    public SubscriptionResponse cancel(Long subscriptionId, Long studentUserId) {
+        return tx.execute(status -> {
             Subscription sub = subscriptionRepository.findById(subscriptionId)
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SUBSCRIPTION_NOT_FOUND",
                             "Abonelik bulunamadı"));
@@ -232,6 +237,7 @@ public class SubscriptionBillingService {
             sub.setCancelledAt(Instant.now());
             log.info("Subscription {} cancelled by student {} — live until {}",
                     subscriptionId, studentUserId, sub.getEndAt());
+            return subscriptionMapper.toResponse(sub);
         });
     }
 }
