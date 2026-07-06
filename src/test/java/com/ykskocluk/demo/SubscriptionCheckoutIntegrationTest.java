@@ -158,4 +158,77 @@ class SubscriptionCheckoutIntegrationTest {
                         .content("{\"coachId\":1,\"packageId\":1}"))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    void succeedPayment_e2e_flow_success_andIdempotency() throws Exception {
+        String admin = adminToken();
+        int coachId = approvedCoachProfileId("coach-succeed@example.com", admin);
+        String student = register("student-succeed@example.com", "STUDENT");
+        long packageId = firstPackageId(student);
+
+        String body = "{\"coachId\":%d,\"packageId\":%d}".formatted(coachId, packageId);
+        String checkoutRes = mockMvc.perform(post("/api/v1/subscriptions/checkout")
+                        .header("Authorization", "Bearer " + student)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        long subscriptionId = JsonPath.read(checkoutRes, "$.subscriptionId");
+        long paymentId = JsonPath.read(checkoutRes, "$.paymentId");
+
+        // Verify initial state
+        Subscription initialSub = subscriptionRepository.findById(subscriptionId).orElseThrow();
+        assertThat(initialSub.getStatus()).isEqualTo(SubscriptionStatus.PENDING_PAYMENT);
+        assertThat(coachProfileRepository.findById((long) coachId).orElseThrow().getActiveStudentCount()).isZero();
+
+        // Perform succeed payment
+        mockMvc.perform(post("/api/v1/payments/" + paymentId + "/stub/succeed")
+                        .header("Authorization", "Bearer " + student))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+        // Verify updated state
+        Subscription activeSub = subscriptionRepository.findById(subscriptionId).orElseThrow();
+        assertThat(activeSub.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(activeSub.getStartAt()).isNotNull();
+        assertThat(activeSub.getEndAt()).isNotNull();
+        assertThat(paymentRepository.findById(paymentId).orElseThrow().getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        assertThat(paymentRepository.findById(paymentId).orElseThrow().getProviderReference()).isNotNull();
+        assertThat(coachProfileRepository.findById((long) coachId).orElseThrow().getActiveStudentCount()).isEqualTo(1);
+
+        // Perform succeed payment again (idempotency)
+        mockMvc.perform(post("/api/v1/payments/" + paymentId + "/stub/succeed")
+                        .header("Authorization", "Bearer " + student))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+        // Capacity should not be double incremented
+        assertThat(coachProfileRepository.findById((long) coachId).orElseThrow().getActiveStudentCount()).isEqualTo(1);
+    }
+
+    @Test
+    void succeedPayment_unauthorizedStudent_forbidden() throws Exception {
+        String admin = adminToken();
+        int coachId = approvedCoachProfileId("coach-succeed-authz@example.com", admin);
+        String studentA = register("student-succeed-a@example.com", "STUDENT");
+        String studentB = register("student-succeed-b@example.com", "STUDENT");
+        long packageId = firstPackageId(studentA);
+
+        String body = "{\"coachId\":%d,\"packageId\":%d}".formatted(coachId, packageId);
+        String checkoutRes = mockMvc.perform(post("/api/v1/subscriptions/checkout")
+                        .header("Authorization", "Bearer " + studentA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        long paymentId = JsonPath.read(checkoutRes, "$.paymentId");
+
+        // Try to succeed using studentB's token
+        mockMvc.perform(post("/api/v1/payments/" + paymentId + "/stub/succeed")
+                        .header("Authorization", "Bearer " + studentB))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("NOT_PAYMENT_OWNER"));
+    }
 }

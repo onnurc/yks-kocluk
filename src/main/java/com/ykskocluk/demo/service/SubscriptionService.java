@@ -150,4 +150,44 @@ public class SubscriptionService {
 
         return paymentRepository.saveAndFlush(payment);
     }
+
+    @Transactional
+    public SubscriptionResponse succeedPayment(Long paymentId, Long studentUserId) {
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Ödeme bulunamadı"));
+
+        if (!payment.getSubscription().getStudent().getId().equals(studentUserId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "NOT_PAYMENT_OWNER", "Bu ödeme size ait değil");
+        }
+
+        if (payment.getStatus() == PaymentStatus.SUCCESS) {
+            return subscriptionMapper.toResponse(payment.getSubscription());
+        }
+
+        if (payment.getStatus() == PaymentStatus.FAILED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAYMENT_STATUS", "Başarısız ödemeler onaylanamaz");
+        }
+
+        Subscription subscription = payment.getSubscription();
+        if (subscription.getStatus() != SubscriptionStatus.PENDING_PAYMENT) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SUBSCRIPTION_STATUS", "Abonelik ödeme bekler durumda değil");
+        }
+
+        int updated = coachProfileRepository.incrementActiveStudentCountIfRoom(subscription.getCoachProfile().getId());
+        if (updated == 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "COACH_FULL", "Koçun kontenjanı dolu");
+        }
+
+        payment.setStatus(PaymentStatus.SUCCESS);
+        payment.setProviderReference("stub-provider-ref-" + UUID.randomUUID());
+        paymentRepository.saveAndFlush(payment);
+
+        Instant now = Instant.now();
+        subscription.setStatus(SubscriptionStatus.ACTIVE);
+        subscription.setStartAt(now);
+        subscription.setEndAt(now.plus(subscription.getPkg().getDurationDays(), ChronoUnit.DAYS));
+        subscriptionRepository.saveAndFlush(subscription);
+
+        return subscriptionMapper.toResponse(subscription);
+    }
 }

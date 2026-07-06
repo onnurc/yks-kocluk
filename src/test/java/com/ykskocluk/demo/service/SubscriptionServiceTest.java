@@ -180,4 +180,150 @@ class SubscriptionServiceTest {
         verify(coachProfileRepository, never()).incrementActiveStudentCountIfRoom(COACH_ID);
         verify(paymentRepository).saveAndFlush(any(Payment.class));
     }
+
+    @Test
+    void succeedPayment_success_marksActiveAndSucceedsPayment_incrementsCapacity() {
+        Subscription sub = new Subscription();
+        sub.setStatus(SubscriptionStatus.PENDING_PAYMENT);
+        Package pkg = new Package();
+        pkg.setDurationDays(30);
+        pkg.setWeeklySessions(1);
+        pkg.setName("Aylık 1x");
+        sub.setPkg(pkg);
+        User student = new User();
+        ReflectionTestUtils.setField(student, "id", STUDENT_ID);
+        sub.setStudent(student);
+        CoachProfile coach = new CoachProfile();
+        ReflectionTestUtils.setField(coach, "id", COACH_ID);
+        sub.setCoachProfile(coach);
+
+        Payment payment = new Payment();
+        ReflectionTestUtils.setField(payment, "id", 100L);
+        payment.setStatus(PaymentStatus.PENDING);
+        payment.setSubscription(sub);
+
+        when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
+        when(coachProfileRepository.incrementActiveStudentCountIfRoom(COACH_ID)).thenReturn(1);
+
+        SubscriptionResponse response = service.succeedPayment(100L, STUDENT_ID);
+
+        assertThat(response.status()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        assertThat(payment.getProviderReference()).startsWith("stub-provider-ref-");
+        assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(sub.getStartAt()).isNotNull();
+        assertThat(sub.getEndAt()).isNotNull();
+
+        verify(coachProfileRepository).incrementActiveStudentCountIfRoom(COACH_ID);
+        verify(paymentRepository).saveAndFlush(payment);
+        verify(subscriptionRepository).saveAndFlush(sub);
+    }
+
+    @Test
+    void succeedPayment_alreadySuccess_returnsImmediately_noCapacityIncrement() {
+        Subscription sub = new Subscription();
+        sub.setStatus(SubscriptionStatus.ACTIVE);
+        User student = new User();
+        ReflectionTestUtils.setField(student, "id", STUDENT_ID);
+        sub.setStudent(student);
+
+        Payment payment = new Payment();
+        ReflectionTestUtils.setField(payment, "id", 100L);
+        payment.setStatus(PaymentStatus.SUCCESS);
+        payment.setSubscription(sub);
+
+        when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
+
+        SubscriptionResponse response = service.succeedPayment(100L, STUDENT_ID);
+
+        assertThat(response.status()).isEqualTo(SubscriptionStatus.ACTIVE);
+        verify(coachProfileRepository, never()).incrementActiveStudentCountIfRoom(any());
+        verify(paymentRepository, never()).saveAndFlush(any());
+        verify(subscriptionRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void succeedPayment_unauthorizedStudent_throwsForbidden() {
+        Subscription sub = new Subscription();
+        User student = new User();
+        ReflectionTestUtils.setField(student, "id", 999L);
+        sub.setStudent(student);
+
+        Payment payment = new Payment();
+        ReflectionTestUtils.setField(payment, "id", 100L);
+        payment.setSubscription(sub);
+
+        when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
+
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.succeedPayment(100L, STUDENT_ID));
+        assertThat(ex.getErrorCode()).isEqualTo("NOT_PAYMENT_OWNER");
+        assertThat(ex.getStatus()).isEqualTo(org.springframework.http.HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void succeedPayment_failedPaymentStatus_throwsBadRequest() {
+        Subscription sub = new Subscription();
+        User student = new User();
+        ReflectionTestUtils.setField(student, "id", STUDENT_ID);
+        sub.setStudent(student);
+
+        Payment payment = new Payment();
+        ReflectionTestUtils.setField(payment, "id", 100L);
+        payment.setStatus(PaymentStatus.FAILED);
+        payment.setSubscription(sub);
+
+        when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
+
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.succeedPayment(100L, STUDENT_ID));
+        assertThat(ex.getErrorCode()).isEqualTo("INVALID_PAYMENT_STATUS");
+        assertThat(ex.getStatus()).isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void succeedPayment_subscriptionNotPendingPayment_throwsBadRequest() {
+        Subscription sub = new Subscription();
+        sub.setStatus(SubscriptionStatus.ACTIVE);
+        User student = new User();
+        ReflectionTestUtils.setField(student, "id", STUDENT_ID);
+        sub.setStudent(student);
+
+        Payment payment = new Payment();
+        ReflectionTestUtils.setField(payment, "id", 100L);
+        payment.setStatus(PaymentStatus.PENDING);
+        payment.setSubscription(sub);
+
+        when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
+
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.succeedPayment(100L, STUDENT_ID));
+        assertThat(ex.getErrorCode()).isEqualTo("INVALID_SUBSCRIPTION_STATUS");
+        assertThat(ex.getStatus()).isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void succeedPayment_coachFull_throwsConflict_rollsBack() {
+        Subscription sub = new Subscription();
+        sub.setStatus(SubscriptionStatus.PENDING_PAYMENT);
+        User student = new User();
+        ReflectionTestUtils.setField(student, "id", STUDENT_ID);
+        sub.setStudent(student);
+        CoachProfile coach = new CoachProfile();
+        ReflectionTestUtils.setField(coach, "id", COACH_ID);
+        sub.setCoachProfile(coach);
+
+        Payment payment = new Payment();
+        ReflectionTestUtils.setField(payment, "id", 100L);
+        payment.setStatus(PaymentStatus.PENDING);
+        payment.setSubscription(sub);
+
+        when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
+        when(coachProfileRepository.incrementActiveStudentCountIfRoom(COACH_ID)).thenReturn(0);
+
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.succeedPayment(100L, STUDENT_ID));
+        assertThat(ex.getErrorCode()).isEqualTo("COACH_FULL");
+        assertThat(ex.getStatus()).isEqualTo(org.springframework.http.HttpStatus.CONFLICT);
+
+        verify(coachProfileRepository).incrementActiveStudentCountIfRoom(COACH_ID);
+        verify(paymentRepository, never()).saveAndFlush(any());
+        verify(subscriptionRepository, never()).saveAndFlush(any());
+    }
 }
