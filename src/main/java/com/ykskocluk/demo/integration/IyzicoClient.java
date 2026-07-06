@@ -10,6 +10,11 @@ import java.math.BigDecimal;
 public interface IyzicoClient {
 
     /**
+     * Starts a checkout session for a pending subscription payment.
+     */
+    CheckoutResult initializeCheckout(Long subscriptionId, Long paymentId, BigDecimal amount, String idempotencyKey);
+
+    /**
      * Charges a saved card for a recurring subscription renewal. {@code idempotencyKey} makes the
      * same logical charge safe to retry — the provider (and our own {@code UNIQUE} key) must not
      * double-charge for the same key.

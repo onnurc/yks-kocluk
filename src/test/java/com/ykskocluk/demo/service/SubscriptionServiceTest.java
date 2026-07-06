@@ -1,17 +1,25 @@
 package com.ykskocluk.demo.service;
 
+import com.ykskocluk.demo.config.PaymentProperties;
+import com.ykskocluk.demo.dto.SubscriptionCheckoutResponse;
 import com.ykskocluk.demo.dto.SubscriptionCreateRequest;
 import com.ykskocluk.demo.dto.SubscriptionResponse;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Package;
+import com.ykskocluk.demo.entity.Payment;
 import com.ykskocluk.demo.entity.Subscription;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
+import com.ykskocluk.demo.enums.PaymentStatus;
+import com.ykskocluk.demo.enums.PaymentType;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.exception.ApiException;
+import com.ykskocluk.demo.integration.CheckoutResult;
+import com.ykskocluk.demo.integration.IyzicoClient;
 import com.ykskocluk.demo.mapper.SubscriptionMapper;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PackageRepository;
+import com.ykskocluk.demo.repository.PaymentRepository;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
 import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,8 +49,11 @@ class SubscriptionServiceTest {
     @Mock PackageRepository packageRepository;
     @Mock CoachProfileRepository coachProfileRepository;
     @Mock UserRepository userRepository;
+    @Mock PaymentRepository paymentRepository;
+    @Mock IyzicoClient iyzicoClient;
     @Mock SubscriptionMapper subscriptionMapper;
 
+    PaymentProperties paymentProperties;
     SubscriptionService service;
 
     private static final long COACH_ID = 7L;
@@ -51,8 +62,10 @@ class SubscriptionServiceTest {
 
     @BeforeEach
     void setUp() {
+        paymentProperties = new PaymentProperties(new BigDecimal("0.2000"), 3);
         service = new SubscriptionService(subscriptionRepository, packageRepository,
-                coachProfileRepository, userRepository, subscriptionMapper);
+            coachProfileRepository, userRepository, paymentRepository, paymentProperties,
+            iyzicoClient, subscriptionMapper);
 
         Package pkg = new Package();
         ReflectionTestUtils.setField(pkg, "id", PKG_ID);
@@ -78,6 +91,8 @@ class SubscriptionServiceTest {
         return new SubscriptionResponse(1L, COACH_ID, "Coach", PKG_ID, "Aylık 1x", 1,
             subscription.getStatus(), subscription.getStartAt(), subscription.getEndAt());
     });
+    lenient().when(iyzicoClient.initializeCheckout(any(), any(), any(), any()))
+        .thenReturn(new CheckoutResult("stub-checkout-token", "https://checkout.stub.local/pay/stub-checkout-token"));
     }
 
     private SubscriptionCreateRequest request() {
@@ -137,5 +152,32 @@ class SubscriptionServiceTest {
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.subscribe(STUDENT_ID, request()));
         assertThat(ex.getErrorCode()).isEqualTo("COACH_NOT_FOUND");
+    }
+
+    @Test
+    void checkout_success_createsPendingPayment_andReturnsInitializationInfo() {
+        when(subscriptionRepository.findLiveSubscription(STUDENT_ID, COACH_ID)).thenReturn(Optional.empty());
+        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(
+                STUDENT_ID, COACH_ID, SubscriptionStatus.PENDING_PAYMENT)).thenReturn(false);
+        when(subscriptionRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            Subscription subscription = invocation.getArgument(0);
+            ReflectionTestUtils.setField(subscription, "id", 11L);
+            return subscription;
+        });
+        when(paymentRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            Payment payment = invocation.getArgument(0);
+            ReflectionTestUtils.setField(payment, "id", 22L);
+            return payment;
+        });
+
+        SubscriptionCheckoutResponse response = service.checkout(STUDENT_ID, request());
+
+        assertThat(response.subscriptionId()).isEqualTo(11L);
+        assertThat(response.paymentId()).isEqualTo(22L);
+        assertThat(response.subscriptionStatus()).isEqualTo(SubscriptionStatus.PENDING_PAYMENT);
+        assertThat(response.paymentStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(response.checkoutToken()).isEqualTo("stub-checkout-token");
+        verify(coachProfileRepository, never()).incrementActiveStudentCountIfRoom(COACH_ID);
+        verify(paymentRepository).saveAndFlush(any(Payment.class));
     }
 }

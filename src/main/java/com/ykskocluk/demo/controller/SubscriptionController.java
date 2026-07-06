@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.controller;
 
 import com.ykskocluk.demo.dto.SubscriptionCreateRequest;
+import com.ykskocluk.demo.dto.SubscriptionCheckoutResponse;
 import com.ykskocluk.demo.dto.SubscriptionResponse;
 import com.ykskocluk.demo.service.SubscriptionBillingService;
 import com.ykskocluk.demo.service.SubscriptionService;
@@ -41,6 +42,12 @@ public class SubscriptionController {
     @GetMapping("/me")
     public List<SubscriptionResponse> mySubscriptions(@AuthenticationPrincipal Long studentUserId) {
         return subscriptionService.mySubscriptions(studentUserId);
+    }
+
+    @PostMapping("/checkout")
+    public SubscriptionCheckoutResponse checkout(@AuthenticationPrincipal Long studentUserId,
+                                                 @Valid @RequestBody SubscriptionCreateRequest request) {
+        return subscriptionService.checkout(studentUserId, request);
     }
 
     @PostMapping("/{id}/cancel-renewal")
