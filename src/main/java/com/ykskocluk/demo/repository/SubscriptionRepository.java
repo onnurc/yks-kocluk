@@ -34,11 +34,18 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     Optional<Subscription> findLiveSubscription(@Param("studentId") Long studentId,
                                                 @Param("coachProfileId") Long coachProfileId);
 
-    /** Message gate: true if the student has any non-pending subscription with this coach.
-     * Never-subscribed or pending-only → no messaging. Enforced server-side. */
-    boolean existsByStudentIdAndCoachProfileIdAndStatusNot(Long studentId,
-                                                           Long coachProfileId,
-                                                           SubscriptionStatus status);
+    /** Message gate: true if the student has any subscription with this coach that is not PENDING_PAYMENT or TERMINATED.
+     * Never-subscribed, pending-only, or terminated-only → no messaging. Enforced server-side. */
+    @Query("""
+            select count(s) > 0 from Subscription s
+             where s.student.id = :studentId
+               and s.coachProfile.id = :coachProfileId
+               and s.status not in (com.ykskocluk.demo.enums.SubscriptionStatus.PENDING_PAYMENT,
+                                    com.ykskocluk.demo.enums.SubscriptionStatus.TERMINATED)
+            """)
+    boolean existsByStudentIdAndCoachProfileIdAndStatusNot(@Param("studentId") Long studentId,
+                                                           @Param("coachProfileId") Long coachProfileId,
+                                                           @Param("status") SubscriptionStatus status);
 
     /**
      * Due set for the renewal job (Phase 8c): ACTIVE subs past end_at (renewal due) plus all

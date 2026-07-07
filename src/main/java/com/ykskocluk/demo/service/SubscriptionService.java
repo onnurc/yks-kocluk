@@ -9,6 +9,7 @@ import com.ykskocluk.demo.dto.SubscriptionResponse;
 import com.ykskocluk.demo.dto.IyzicoWebhookRequest;
 import com.ykskocluk.demo.dto.IyzicoWebhookResponse;
 import com.ykskocluk.demo.dto.RefundResponse;
+import com.ykskocluk.demo.dto.AdminSubscriptionTerminateResponse;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Package;
 import com.ykskocluk.demo.entity.Payment;
@@ -314,6 +315,55 @@ public class SubscriptionService {
                 refundAmount,
                 newRemaining,
                 "İade işlemi başarıyla gerçekleştirildi"
+        );
+    }
+
+    @Transactional
+    public AdminSubscriptionTerminateResponse terminateSubscription(Long id, String reason) {
+        Subscription subscription = subscriptionRepository.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SUBSCRIPTION_NOT_FOUND",
+                        "Abonelik bulunamadı"));
+
+        if (subscription.getStatus() == SubscriptionStatus.TERMINATED) {
+            return new AdminSubscriptionTerminateResponse(
+                    id,
+                    SubscriptionStatus.TERMINATED.name(),
+                    subscription.getCancelledAt(),
+                    "Abonelik zaten sonlandırılmış durumda"
+            );
+        }
+
+        if (subscription.getStatus() == SubscriptionStatus.EXPIRED || subscription.getStatus() == SubscriptionStatus.CANCELLED) {
+            subscription.setStatus(SubscriptionStatus.TERMINATED);
+            subscription.setCancelledAt(Instant.now());
+            subscription.setTerminationReason(reason);
+            subscriptionRepository.saveAndFlush(subscription);
+            return new AdminSubscriptionTerminateResponse(
+                    id,
+                    SubscriptionStatus.TERMINATED.name(),
+                    subscription.getCancelledAt(),
+                    "Abonelik sonlandırıldı (zaten aktif değildi)"
+            );
+        }
+
+        boolean wasActive = (subscription.getStatus() == SubscriptionStatus.ACTIVE ||
+                             subscription.getStatus() == SubscriptionStatus.PAST_DUE);
+
+        subscription.setStatus(SubscriptionStatus.TERMINATED);
+        subscription.setCancelledAt(Instant.now());
+        subscription.setTerminationReason(reason);
+        subscription.setAutoRenew(false);
+        subscriptionRepository.saveAndFlush(subscription);
+
+        if (wasActive) {
+            coachProfileRepository.decrementActiveStudentCount(subscription.getCoachProfile().getId());
+        }
+
+        return new AdminSubscriptionTerminateResponse(
+                id,
+                SubscriptionStatus.TERMINATED.name(),
+                subscription.getCancelledAt(),
+                "Abonelik başarıyla sonlandırıldı"
         );
     }
 }

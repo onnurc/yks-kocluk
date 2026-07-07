@@ -152,7 +152,7 @@ public class SubscriptionBillingService {
             case ACTIVE -> !due ? Branch.NOT_DUE : (sub.isAutoRenew() ? Branch.CHARGE : Branch.EXPIRE_NO_RENEW);
             // PAST_DUE is already overdue: retry while auto-renew is on, else stop and expire.
             case PAST_DUE -> sub.isAutoRenew() ? Branch.CHARGE : Branch.EXPIRE_NO_RENEW;
-            case EXPIRED, CANCELLED -> Branch.NOT_DUE;
+            case EXPIRED, CANCELLED, TERMINATED -> Branch.NOT_DUE;
         };
     }
 

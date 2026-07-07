@@ -6,6 +6,7 @@ import com.ykskocluk.demo.dto.ConsentResponse;
 import com.ykskocluk.demo.enums.ConsentType;
 import com.ykskocluk.demo.security.JwtService;
 import com.ykskocluk.demo.service.ConsentService;
+import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -38,6 +39,9 @@ class ConsentControllerTest {
 
     @MockitoBean
     JwtService jwtService;
+
+    @MockitoBean
+    UserRepository userRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 

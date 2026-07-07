@@ -1,10 +1,10 @@
 package com.ykskocluk.demo.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ykskocluk.demo.dto.SuspendRequest;
-import com.ykskocluk.demo.dto.SuspendResponse;
+import com.ykskocluk.demo.dto.AdminSubscriptionTerminateRequest;
+import com.ykskocluk.demo.dto.AdminSubscriptionTerminateResponse;
 import com.ykskocluk.demo.security.JwtService;
-import com.ykskocluk.demo.service.UserService;
+import com.ykskocluk.demo.service.SubscriptionService;
 import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +17,8 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -26,11 +28,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Controller slice test for {@link AdminUserController} enforcing ADMIN authorization.
+ * Controller slice test for {@link AdminSubscriptionController} enforcing ADMIN authorization.
  */
-@WebMvcTest(AdminUserController.class)
-@Import(AdminUserControllerTest.MethodSecurityTestConfig.class)
-class AdminUserControllerTest {
+@WebMvcTest(AdminSubscriptionController.class)
+@Import(AdminSubscriptionControllerTest.MethodSecurityTestConfig.class)
+class AdminSubscriptionControllerTest {
 
     @TestConfiguration
     @EnableMethodSecurity
@@ -41,7 +43,7 @@ class AdminUserControllerTest {
     MockMvc mockMvc;
 
     @MockitoBean
-    UserService userService;
+    SubscriptionService subscriptionService;
 
     @MockitoBean
     JwtService jwtService;
@@ -53,28 +55,29 @@ class AdminUserControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    void admin_canSuspendUser() throws Exception {
-        SuspendRequest request = new SuspendRequest("Toxicity");
-        SuspendResponse response = new SuspendResponse(5L, "SUSPENDED", "Toxicity");
+    void admin_canTerminateSubscription() throws Exception {
+        AdminSubscriptionTerminateRequest request = new AdminSubscriptionTerminateRequest("Violation");
+        AdminSubscriptionTerminateResponse response = new AdminSubscriptionTerminateResponse(
+                100L, "TERMINATED", Instant.now(), "Abonelik başarıyla sonlandırıldı");
 
-        when(userService.suspendUser(eq(5L), eq("Toxicity"))).thenReturn(response);
+        when(subscriptionService.terminateSubscription(eq(100L), eq("Violation"))).thenReturn(response);
 
-        mockMvc.perform(post("/api/v1/admin/users/5/suspend")
+        mockMvc.perform(post("/api/v1/admin/subscriptions/100/terminate")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").value(5))
-                .andExpect(jsonPath("$.status").value("SUSPENDED"))
-                .andExpect(jsonPath("$.reason").value("Toxicity"));
+                .andExpect(jsonPath("$.subscriptionId").value(100))
+                .andExpect(jsonPath("$.status").value("TERMINATED"))
+                .andExpect(jsonPath("$.message").value("Abonelik başarıyla sonlandırıldı"));
     }
 
     @Test
     @WithMockUser(roles = "STUDENT")
-    void student_cannotSuspendUser_forbidden() throws Exception {
-        SuspendRequest request = new SuspendRequest("Toxicity");
+    void student_cannotTerminateSubscription_forbidden() throws Exception {
+        AdminSubscriptionTerminateRequest request = new AdminSubscriptionTerminateRequest("Violation");
 
-        mockMvc.perform(post("/api/v1/admin/users/5/suspend")
+        mockMvc.perform(post("/api/v1/admin/subscriptions/100/terminate")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -83,10 +86,10 @@ class AdminUserControllerTest {
 
     @Test
     @WithMockUser(roles = "COACH")
-    void coach_cannotSuspendUser_forbidden() throws Exception {
-        SuspendRequest request = new SuspendRequest("Toxicity");
+    void coach_cannotTerminateSubscription_forbidden() throws Exception {
+        AdminSubscriptionTerminateRequest request = new AdminSubscriptionTerminateRequest("Violation");
 
-        mockMvc.perform(post("/api/v1/admin/users/5/suspend")
+        mockMvc.perform(post("/api/v1/admin/subscriptions/100/terminate")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))

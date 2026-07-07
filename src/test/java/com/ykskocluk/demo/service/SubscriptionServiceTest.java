@@ -6,6 +6,7 @@ import com.ykskocluk.demo.dto.SubscriptionCreateRequest;
 import com.ykskocluk.demo.dto.SubscriptionResponse;
 import com.ykskocluk.demo.dto.IyzicoWebhookRequest;
 import com.ykskocluk.demo.dto.IyzicoWebhookResponse;
+import com.ykskocluk.demo.dto.AdminSubscriptionTerminateResponse;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Package;
 import com.ykskocluk.demo.entity.Payment;
@@ -610,5 +611,94 @@ class SubscriptionServiceTest {
         assertThat(ex.getStatus()).isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST);
 
         verify(paymentRepository, never()).saveAndFlush(argThat(p -> p.getType() == PaymentType.REFUND));
+    }
+
+    // --- admin subscription termination tests ---
+
+    @Test
+    void terminateSubscription_active_decrementsCapacity() {
+        Subscription sub = new Subscription();
+        ReflectionTestUtils.setField(sub, "id", 100L);
+        sub.setStatus(SubscriptionStatus.ACTIVE);
+        CoachProfile coach = new CoachProfile();
+        ReflectionTestUtils.setField(coach, "id", 50L);
+        sub.setCoachProfile(coach);
+
+        when(subscriptionRepository.findById(100L)).thenReturn(Optional.of(sub));
+
+        AdminSubscriptionTerminateResponse response = service.terminateSubscription(100L, "Violation of terms");
+
+        assertThat(response).isNotNull();
+        assertThat(response.status()).isEqualTo("TERMINATED");
+        assertThat(response.subscriptionId()).isEqualTo(100L);
+        assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.TERMINATED);
+        assertThat(sub.getTerminationReason()).isEqualTo("Violation of terms");
+
+        verify(coachProfileRepository).decrementActiveStudentCount(50L);
+        verify(subscriptionRepository).saveAndFlush(sub);
+    }
+
+    @Test
+    void terminateSubscription_pendingPayment_doesNotDecrementCapacity() {
+        Subscription sub = new Subscription();
+        ReflectionTestUtils.setField(sub, "id", 100L);
+        sub.setStatus(SubscriptionStatus.PENDING_PAYMENT);
+        CoachProfile coach = new CoachProfile();
+        ReflectionTestUtils.setField(coach, "id", 50L);
+        sub.setCoachProfile(coach);
+
+        when(subscriptionRepository.findById(100L)).thenReturn(Optional.of(sub));
+
+        AdminSubscriptionTerminateResponse response = service.terminateSubscription(100L, "Cleanup");
+
+        assertThat(response).isNotNull();
+        assertThat(response.status()).isEqualTo("TERMINATED");
+        assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.TERMINATED);
+        assertThat(sub.getTerminationReason()).isEqualTo("Cleanup");
+
+        verify(coachProfileRepository, never()).decrementActiveStudentCount(any(Long.class));
+        verify(subscriptionRepository).saveAndFlush(sub);
+    }
+
+    @Test
+    void terminateSubscription_alreadyTerminated_idempotent() {
+        Subscription sub = new Subscription();
+        ReflectionTestUtils.setField(sub, "id", 100L);
+        sub.setStatus(SubscriptionStatus.TERMINATED);
+        Instant terminatedAt = Instant.now().minusSeconds(100);
+        sub.setCancelledAt(terminatedAt);
+
+        when(subscriptionRepository.findById(100L)).thenReturn(Optional.of(sub));
+
+        AdminSubscriptionTerminateResponse response = service.terminateSubscription(100L, "Another reason");
+
+        assertThat(response).isNotNull();
+        assertThat(response.status()).isEqualTo("TERMINATED");
+        assertThat(response.terminatedAt()).isEqualTo(terminatedAt);
+        assertThat(response.message()).contains("zaten sonlandırılmış");
+
+        verify(coachProfileRepository, never()).decrementActiveStudentCount(any(Long.class));
+        verify(subscriptionRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void terminateSubscription_expiredOrCancelled_savesStatusButDoesNotDecrement() {
+        Subscription sub = new Subscription();
+        ReflectionTestUtils.setField(sub, "id", 100L);
+        sub.setStatus(SubscriptionStatus.EXPIRED);
+        CoachProfile coach = new CoachProfile();
+        ReflectionTestUtils.setField(coach, "id", 50L);
+        sub.setCoachProfile(coach);
+
+        when(subscriptionRepository.findById(100L)).thenReturn(Optional.of(sub));
+
+        AdminSubscriptionTerminateResponse response = service.terminateSubscription(100L, "Clean expired");
+
+        assertThat(response).isNotNull();
+        assertThat(response.status()).isEqualTo("TERMINATED");
+        assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.TERMINATED);
+
+        verify(coachProfileRepository, never()).decrementActiveStudentCount(any(Long.class));
+        verify(subscriptionRepository).saveAndFlush(sub);
     }
 }

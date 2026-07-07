@@ -5,6 +5,7 @@ import com.ykskocluk.demo.dto.RefundRequest;
 import com.ykskocluk.demo.dto.RefundResponse;
 import com.ykskocluk.demo.security.JwtService;
 import com.ykskocluk.demo.service.SubscriptionService;
+import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -48,6 +49,9 @@ class AdminPaymentControllerTest {
 
     @MockitoBean
     JwtService jwtService;
+
+    @MockitoBean
+    UserRepository userRepository;
 
     @Test
     @WithMockUser(roles = "ADMIN")

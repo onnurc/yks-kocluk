@@ -7,6 +7,7 @@ import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.security.JwtService;
 import com.ykskocluk.demo.service.AdminConversationService;
 import com.ykskocluk.demo.service.AdminConversationAccessAuditService;
+import com.ykskocluk.demo.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,6 +63,9 @@ class AdminConversationControllerTest {
     // dependency so the context loads. No bearer token is sent — auth comes from @WithMockUser.
     @MockitoBean
     JwtService jwtService;
+
+    @MockitoBean
+    UserRepository userRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 

@@ -1,6 +1,9 @@
 package com.ykskocluk.demo.security;
 
 import com.ykskocluk.demo.service.MessageService;
+import com.ykskocluk.demo.repository.UserRepository;
+import com.ykskocluk.demo.enums.UserStatus;
+import com.ykskocluk.demo.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import org.springframework.messaging.Message;
@@ -9,6 +12,7 @@ import org.springframework.messaging.MessagingException;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.context.ApplicationContext;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -39,10 +43,12 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private final JwtService jwtService;
     private final MessageService messageService;
+    private final ApplicationContext applicationContext;
 
-    public StompAuthChannelInterceptor(JwtService jwtService, MessageService messageService) {
+    public StompAuthChannelInterceptor(JwtService jwtService, MessageService messageService, ApplicationContext applicationContext) {
         this.jwtService = jwtService;
         this.messageService = messageService;
+        this.applicationContext = applicationContext;
     }
 
     @Override
@@ -69,9 +75,18 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             Jws<Claims> jws = jwtService.parse(header.substring(7));
             Claims claims = jws.getPayload();
             Long userId = Long.valueOf(claims.getSubject());
+
+            UserRepository userRepository = applicationContext.getBean(UserRepository.class);
+            User user = userRepository.findById(userId).orElse(null);
+            if (user != null && user.getStatus() == UserStatus.SUSPENDED) {
+                throw new MessagingException("Hesabınız askıya alınmıştır");
+            }
+
             String role = claims.get("role", String.class);
             return new UsernamePasswordAuthenticationToken(
                     userId, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+        } catch (MessagingException e) {
+            throw e;
         } catch (Exception e) {
             // Invalid signature, malformed, or expired token → reject the CONNECT.
             throw new MessagingException("Geçersiz veya süresi dolmuş belirteç");

@@ -13,6 +13,14 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.context.ApplicationContext;
+import com.ykskocluk.demo.repository.UserRepository;
+import com.ykskocluk.demo.enums.UserStatus;
+import com.ykskocluk.demo.entity.User;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import java.time.Instant;
+import java.util.Optional;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,9 +37,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtService jwtService;
+    private final ApplicationContext applicationContext;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
+    public JwtAuthenticationFilter(JwtService jwtService, ApplicationContext applicationContext) {
         this.jwtService = jwtService;
+        this.applicationContext = applicationContext;
     }
 
     @Override
@@ -47,6 +57,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 Claims claims = jwtService.parse(token).getPayload();
                 Long userId = Long.valueOf(claims.getSubject());
+
+                UserRepository userRepository = applicationContext.getBean(UserRepository.class);
+                Optional<User> userOpt = userRepository.findById(userId);
+                if (userOpt.isPresent() && userOpt.get().getStatus() == UserStatus.SUSPENDED) {
+                    response.setStatus(HttpStatus.FORBIDDEN.value());
+                    response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+                    response.setCharacterEncoding("UTF-8");
+                    response.getWriter().write("""
+                            {"type":"about:blank","title":"Forbidden","status":403,\
+                            "detail":"Hesabınız askıya alınmıştır","errorCode":"USER_SUSPENDED","timestamp":"%s"}\
+                            """.formatted(Instant.now()));
+                    return;
+                }
+
                 String role = claims.get("role", String.class);
                 var authority = new SimpleGrantedAuthority("ROLE_" + role);
                 var authentication = new UsernamePasswordAuthenticationToken(

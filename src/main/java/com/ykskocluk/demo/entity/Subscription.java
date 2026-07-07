@@ -71,4 +71,7 @@ public class Subscription extends BaseEntity {
 
     @Column(name = "last_charge_attempt_at")
     private Instant lastChargeAttemptAt;
+
+    @Column(name = "termination_reason", length = 2000)
+    private String terminationReason;
 }

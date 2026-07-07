@@ -4,6 +4,7 @@ import com.ykskocluk.demo.dto.PageResponse;
 import com.ykskocluk.demo.dto.ReportResponse;
 import com.ykskocluk.demo.security.JwtService;
 import com.ykskocluk.demo.service.ReportService;
+import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -41,6 +42,9 @@ class AdminReportControllerTest {
 
     @MockitoBean
     JwtService jwtService;
+
+    @MockitoBean
+    UserRepository userRepository;
 
     @Test
     @WithMockUser(roles = "ADMIN")
