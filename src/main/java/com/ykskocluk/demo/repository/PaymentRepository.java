@@ -15,4 +15,6 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     /** Crash-recovery: an unreconciled in-flight attempt to resume (re-charge with the same key). */
     Optional<Payment> findFirstBySubscriptionIdAndStatus(Long subscriptionId, PaymentStatus status);
+
+    List<Payment> findBySourcePaymentIdAndStatus(Long sourcePaymentId, PaymentStatus status);
 }

@@ -1,11 +1,14 @@
 package com.ykskocluk.demo.service;
 
 import com.ykskocluk.demo.config.PaymentProperties;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import com.ykskocluk.demo.dto.SubscriptionCheckoutResponse;
 import com.ykskocluk.demo.dto.SubscriptionCreateRequest;
 import com.ykskocluk.demo.dto.SubscriptionResponse;
 import com.ykskocluk.demo.dto.IyzicoWebhookRequest;
 import com.ykskocluk.demo.dto.IyzicoWebhookResponse;
+import com.ykskocluk.demo.dto.RefundResponse;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Package;
 import com.ykskocluk.demo.entity.Payment;
@@ -19,6 +22,7 @@ import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.mapper.SubscriptionMapper;
 import com.ykskocluk.demo.integration.CheckoutResult;
 import com.ykskocluk.demo.integration.IyzicoClient;
+import com.ykskocluk.demo.integration.RefundResult;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PackageRepository;
 import com.ykskocluk.demo.repository.PaymentRepository;
@@ -47,6 +51,7 @@ public class SubscriptionService {
     private final PaymentProperties paymentProperties;
     private final IyzicoClient iyzicoClient;
     private final SubscriptionMapper subscriptionMapper;
+    private final EntityManager entityManager;
 
     public SubscriptionService(SubscriptionRepository subscriptionRepository,
                                PackageRepository packageRepository,
@@ -55,7 +60,8 @@ public class SubscriptionService {
                                PaymentRepository paymentRepository,
                                PaymentProperties paymentProperties,
                                IyzicoClient iyzicoClient,
-                               SubscriptionMapper subscriptionMapper) {
+                               SubscriptionMapper subscriptionMapper,
+                               EntityManager entityManager) {
         this.subscriptionRepository = subscriptionRepository;
         this.packageRepository = packageRepository;
         this.coachProfileRepository = coachProfileRepository;
@@ -64,6 +70,7 @@ public class SubscriptionService {
         this.paymentProperties = paymentProperties;
         this.iyzicoClient = iyzicoClient;
         this.subscriptionMapper = subscriptionMapper;
+        this.entityManager = entityManager;
     }
 
     @Transactional
@@ -236,5 +243,77 @@ public class SubscriptionService {
 
             return new IyzicoWebhookResponse("PROCESSED", "Ödeme başarısız olarak işaretlendi");
         }
+    }
+
+    @Transactional
+    public RefundResponse refund(Long paymentId, BigDecimal refundAmount, String reason) {
+        if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_REFUND_AMOUNT", "İade tutarı sıfırdan büyük olmalıdır");
+        }
+
+        Payment originalPayment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Ödeme bulunamadı"));
+
+        if (originalPayment.getType() != PaymentType.CHARGE || originalPayment.getStatus() != PaymentStatus.SUCCESS) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAYMENT_STATUS", "Sadece başarılı ödemeler iade edilebilir");
+        }
+
+        // Calculate already refunded amount
+        List<Payment> existingRefunds = paymentRepository.findBySourcePaymentIdAndStatus(paymentId, PaymentStatus.SUCCESS);
+        BigDecimal totalRefunded = existingRefunds.stream()
+                .map(Payment::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal remainingRefundable = originalPayment.getAmount().subtract(totalRefunded);
+
+        if (refundAmount.compareTo(remainingRefundable) > 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "EXCEEDS_REFUNDABLE_AMOUNT",
+                    String.format("İade tutarı kalan iade edilebilir tutarı (%s TRY) aşamaz", remainingRefundable));
+        }
+
+        // Deterministic idempotency key to prevent duplicate refunds
+        int refundIndex = existingRefunds.size() + 1;
+        String refundKey = "refund:" + paymentId + ":" + refundIndex;
+
+        // Call Iyzico refund
+        RefundResult refundResult = iyzicoClient.refund(originalPayment.getProviderReference(), refundAmount, refundKey);
+
+        if (!refundResult.success()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PROVIDER_REFUND_FAILED",
+                    "Iyzico iade işlemi başarısız oldu: " + refundResult.errorMessage());
+        }
+
+        // Create REFUND payment row
+        Payment refundPayment = new Payment();
+        refundPayment.setSubscription(originalPayment.getSubscription());
+        refundPayment.setType(PaymentType.REFUND);
+        refundPayment.setAmount(refundAmount);
+        refundPayment.setStatus(PaymentStatus.SUCCESS);
+        refundPayment.setIdempotencyKey(refundKey);
+        refundPayment.setProviderReference(refundResult.providerReference());
+
+        // Snapshot commission details (pro-rata based on original rate)
+        BigDecimal rate = originalPayment.getCommissionRate();
+        BigDecimal refundCommission = refundAmount.multiply(rate).setScale(2, RoundingMode.HALF_UP);
+        refundPayment.setCommissionRate(rate);
+        refundPayment.setCommissionAmount(refundCommission);
+        refundPayment.setCoachPayoutAmount(refundAmount.subtract(refundCommission));
+        refundPayment.setSourcePayment(originalPayment);
+
+        paymentRepository.saveAndFlush(refundPayment);
+
+        // Force version increment on original payment to lock against concurrent modifications
+        entityManager.lock(originalPayment, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
+
+        BigDecimal newRemaining = remainingRefundable.subtract(refundAmount);
+
+        return new RefundResponse(
+                paymentId,
+                refundPayment.getId(),
+                refundPayment.getStatus().name(),
+                refundAmount,
+                newRemaining,
+                "İade işlemi başarıyla gerçekleştirildi"
+        );
     }
 }

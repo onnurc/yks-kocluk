@@ -19,6 +19,8 @@ import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.integration.CheckoutResult;
 import com.ykskocluk.demo.integration.IyzicoClient;
 import com.ykskocluk.demo.mapper.SubscriptionMapper;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PackageRepository;
 import com.ykskocluk.demo.repository.PaymentRepository;
@@ -39,10 +41,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import com.ykskocluk.demo.dto.RefundResponse;
+import com.ykskocluk.demo.integration.RefundResult;
+import java.util.List;
 
 @ExtendWith(MockitoExtension.class)
 class SubscriptionServiceTest {
@@ -54,6 +60,7 @@ class SubscriptionServiceTest {
     @Mock PaymentRepository paymentRepository;
     @Mock IyzicoClient iyzicoClient;
     @Mock SubscriptionMapper subscriptionMapper;
+    @Mock EntityManager entityManager;
 
     PaymentProperties paymentProperties;
     SubscriptionService service;
@@ -67,7 +74,7 @@ class SubscriptionServiceTest {
         paymentProperties = new PaymentProperties(new BigDecimal("0.2000"), 3);
         service = new SubscriptionService(subscriptionRepository, packageRepository,
             coachProfileRepository, userRepository, paymentRepository, paymentProperties,
-            iyzicoClient, subscriptionMapper);
+            iyzicoClient, subscriptionMapper, entityManager);
 
         Package pkg = new Package();
         ReflectionTestUtils.setField(pkg, "id", PKG_ID);
@@ -452,5 +459,156 @@ class SubscriptionServiceTest {
 
         assertThat(ex.getErrorCode()).isEqualTo("PAYMENT_NOT_FOUND");
         assertThat(ex.getStatus()).isEqualTo(org.springframework.http.HttpStatus.NOT_FOUND);
+    }
+
+    // --- refund tests ---
+
+    @Test
+    void refund_success_fullRefund_createsRefundPaymentAndUpdatesOriginal() {
+        Subscription sub = new Subscription();
+        Payment original = new Payment();
+        ReflectionTestUtils.setField(original, "id", 100L);
+        original.setSubscription(sub);
+        original.setType(PaymentType.CHARGE);
+        original.setStatus(PaymentStatus.SUCCESS);
+        original.setAmount(new BigDecimal("150.00"));
+        original.setCommissionRate(new BigDecimal("0.2000"));
+        original.setProviderReference("prov-ref-123");
+
+        when(paymentRepository.findById(100L)).thenReturn(Optional.of(original));
+        when(paymentRepository.findBySourcePaymentIdAndStatus(100L, PaymentStatus.SUCCESS))
+                .thenReturn(List.of());
+        when(iyzicoClient.refund(eq("prov-ref-123"), eq(new BigDecimal("150.00")), any()))
+                .thenReturn(new RefundResult(true, "refund-prov-ref-999", null, null));
+
+        RefundResponse response = service.refund(100L, new BigDecimal("150.00"), "Full Refund Reason");
+
+        assertThat(response).isNotNull();
+        assertThat(response.originalPaymentId()).isEqualTo(100L);
+        assertThat(response.refundStatus()).isEqualTo("SUCCESS");
+        assertThat(response.amount()).isEqualByComparingTo("150.00");
+        assertThat(response.remainingRefundableAmount()).isEqualByComparingTo("0.00");
+
+        verify(paymentRepository).saveAndFlush(argThat(p -> 
+                p.getType() == PaymentType.REFUND &&
+                p.getAmount().compareTo(new BigDecimal("150.00")) == 0 &&
+                p.getStatus() == PaymentStatus.SUCCESS &&
+                p.getCommissionAmount().compareTo(new BigDecimal("30.00")) == 0 && // 150 * 0.20
+                p.getCoachPayoutAmount().compareTo(new BigDecimal("120.00")) == 0 &&
+                p.getSourcePayment() == original
+        ));
+        verify(entityManager).lock(original, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
+    }
+
+    @Test
+    void refund_success_partialRefund_isAllowed() {
+        Subscription sub = new Subscription();
+        Payment original = new Payment();
+        ReflectionTestUtils.setField(original, "id", 100L);
+        original.setSubscription(sub);
+        original.setType(PaymentType.CHARGE);
+        original.setStatus(PaymentStatus.SUCCESS);
+        original.setAmount(new BigDecimal("150.00"));
+        original.setCommissionRate(new BigDecimal("0.2000"));
+        original.setProviderReference("prov-ref-123");
+
+        // Existing partial refund of 50.00
+        Payment prevRefund = new Payment();
+        prevRefund.setAmount(new BigDecimal("50.00"));
+        prevRefund.setStatus(PaymentStatus.SUCCESS);
+
+        when(paymentRepository.findById(100L)).thenReturn(Optional.of(original));
+        when(paymentRepository.findBySourcePaymentIdAndStatus(100L, PaymentStatus.SUCCESS))
+                .thenReturn(List.of(prevRefund));
+        // New refund request of 50.00 (remaining is 150.00 - 50.00 = 100.00)
+        when(iyzicoClient.refund(eq("prov-ref-123"), eq(new BigDecimal("50.00")), any()))
+                .thenReturn(new RefundResult(true, "refund-prov-ref-888", null, null));
+
+        RefundResponse response = service.refund(100L, new BigDecimal("50.00"), "Partial Refund Reason");
+
+        assertThat(response).isNotNull();
+        assertThat(response.amount()).isEqualByComparingTo("50.00");
+        assertThat(response.remainingRefundableAmount()).isEqualByComparingTo("50.00"); // 100 - 50 = 50 remaining
+    }
+
+    @Test
+    void refund_exceedsRemainingRefundable_throwsBadRequest() {
+        Subscription sub = new Subscription();
+        Payment original = new Payment();
+        ReflectionTestUtils.setField(original, "id", 100L);
+        original.setSubscription(sub);
+        original.setType(PaymentType.CHARGE);
+        original.setStatus(PaymentStatus.SUCCESS);
+        original.setAmount(new BigDecimal("150.00"));
+
+        Payment prevRefund = new Payment();
+        prevRefund.setAmount(new BigDecimal("120.00"));
+        prevRefund.setStatus(PaymentStatus.SUCCESS);
+
+        when(paymentRepository.findById(100L)).thenReturn(Optional.of(original));
+        when(paymentRepository.findBySourcePaymentIdAndStatus(100L, PaymentStatus.SUCCESS))
+                .thenReturn(List.of(prevRefund));
+
+        // Remaining is 30.00, requesting 40.00 should fail
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.refund(100L, new BigDecimal("40.00"), "Too high"));
+        assertThat(ex.getErrorCode()).isEqualTo("EXCEEDS_REFUNDABLE_AMOUNT");
+        assertThat(ex.getStatus()).isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void refund_nonPositiveAmount_throwsBadRequest() {
+        ApiException ex1 = catchThrowableOfType(ApiException.class, () -> service.refund(100L, BigDecimal.ZERO, "Zero"));
+        assertThat(ex1.getErrorCode()).isEqualTo("INVALID_REFUND_AMOUNT");
+
+        ApiException ex2 = catchThrowableOfType(ApiException.class, () -> service.refund(100L, new BigDecimal("-10.00"), "Negative"));
+        assertThat(ex2.getErrorCode()).isEqualTo("INVALID_REFUND_AMOUNT");
+    }
+
+    @Test
+    void refund_originalPaymentNotFound_throwsNotFound() {
+        when(paymentRepository.findById(100L)).thenReturn(Optional.empty());
+
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.refund(100L, new BigDecimal("10.00"), "Missing"));
+        assertThat(ex.getErrorCode()).isEqualTo("PAYMENT_NOT_FOUND");
+        assertThat(ex.getStatus()).isEqualTo(org.springframework.http.HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void refund_originalPaymentNotSuccessful_throwsBadRequest() {
+        Payment original = new Payment();
+        ReflectionTestUtils.setField(original, "id", 100L);
+        original.setType(PaymentType.CHARGE);
+        original.setStatus(PaymentStatus.FAILED); // not successful
+
+        when(paymentRepository.findById(100L)).thenReturn(Optional.of(original));
+
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.refund(100L, new BigDecimal("10.00"), "Failed payment"));
+        assertThat(ex.getErrorCode()).isEqualTo("INVALID_PAYMENT_STATUS");
+        assertThat(ex.getStatus()).isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void refund_providerCallFails_throwsBadRequest_andDoesNotSaveRefundRow() {
+        Subscription sub = new Subscription();
+        Payment original = new Payment();
+        ReflectionTestUtils.setField(original, "id", 100L);
+        original.setSubscription(sub);
+        original.setType(PaymentType.CHARGE);
+        original.setStatus(PaymentStatus.SUCCESS);
+        original.setAmount(new BigDecimal("150.00"));
+        original.setCommissionRate(new BigDecimal("0.2000"));
+        original.setProviderReference("prov-ref-123");
+
+        when(paymentRepository.findById(100L)).thenReturn(Optional.of(original));
+        when(paymentRepository.findBySourcePaymentIdAndStatus(100L, PaymentStatus.SUCCESS))
+                .thenReturn(List.of());
+        when(iyzicoClient.refund(eq("prov-ref-123"), eq(new BigDecimal("50.00")), any()))
+                .thenReturn(new RefundResult(false, null, "REFUND_ERROR", "Invalid transaction state"));
+
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.refund(100L, new BigDecimal("50.00"), "Reason"));
+        assertThat(ex.getErrorCode()).isEqualTo("PROVIDER_REFUND_FAILED");
+        assertThat(ex.getStatus()).isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST);
+
+        verify(paymentRepository, never()).saveAndFlush(argThat(p -> p.getType() == PaymentType.REFUND));
     }
 }

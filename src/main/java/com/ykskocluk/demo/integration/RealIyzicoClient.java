@@ -10,6 +10,8 @@ import com.iyzipay.model.Currency;
 import com.iyzipay.model.Locale;
 import com.iyzipay.model.PaymentGroup;
 import com.iyzipay.model.Status;
+import com.iyzipay.model.Refund;
+import com.iyzipay.request.CreateRefundRequest;
 import com.iyzipay.request.CreateCheckoutFormInitializeRequest;
 import com.ykskocluk.demo.config.IyzicoProperties;
 import org.slf4j.Logger;
@@ -134,5 +136,41 @@ public class RealIyzicoClient implements IyzicoClient {
         log.info("[RealIyzicoClient] Stub charge for saved card token={} amount={} (key={}) -> success, ref={}",
                 savedCardToken, amount, idempotencyKey, reference);
         return new ChargeResult(true, reference);
+    }
+
+    @Override
+    public RefundResult refund(String providerReference, BigDecimal amount, String idempotencyKey) {
+        log.info("[RealIyzicoClient] Requesting refund for ref={}, amount={}, key={}",
+                providerReference, amount, idempotencyKey);
+
+        // TODO: In a production-grade integration, iyzico requires paymentTransactionId for refunds.
+        // If providerReference stored is the overall paymentId instead of the item's paymentTransactionId,
+        // we would need to fetch the payment details from Iyzico first to resolve it, or ensure
+        // paymentTransactionId is recorded during the success webhook flow.
+        // For now, we attempt to call the iyzico refund endpoint directly assuming providerReference is the transaction ID.
+        
+        CreateRefundRequest request = new CreateRefundRequest();
+        request.setLocale(Locale.TR.getValue());
+        request.setConversationId(idempotencyKey);
+        request.setPaymentTransactionId(providerReference);
+        request.setPrice(amount);
+        request.setCurrency(Currency.TRY.name());
+        request.setIp("127.0.0.1"); // Dummy IP required by Iyzico API
+
+        try {
+            Refund refundResponse = Refund.create(request, options);
+            if (Status.SUCCESS.getValue().equals(refundResponse.getStatus())) {
+                String ref = refundResponse.getPaymentTransactionId() != null ? refundResponse.getPaymentTransactionId() : refundResponse.getPaymentId();
+                log.info("[RealIyzicoClient] Refund successful. Reference={}", ref);
+                return new RefundResult(true, ref, null, null);
+            } else {
+                log.error("[RealIyzicoClient] Refund failed. Status={}, ErrorCode={}, ErrorMessage={}",
+                        refundResponse.getStatus(), refundResponse.getErrorCode(), refundResponse.getErrorMessage());
+                return new RefundResult(false, null, refundResponse.getErrorCode(), refundResponse.getErrorMessage());
+            }
+        } catch (Exception e) {
+            log.error("[RealIyzicoClient] Exception during iyzico refund call", e);
+            return new RefundResult(false, null, "EXCEPTION", e.getMessage());
+        }
     }
 }

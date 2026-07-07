@@ -33,4 +33,12 @@ public class StubIyzicoClient implements IyzicoClient {
                 amount, idempotencyKey, reference);
         return new ChargeResult(true, reference);
     }
+
+    @Override
+    public RefundResult refund(String providerReference, BigDecimal amount, String idempotencyKey) {
+        String reference = "stub-refund-ref-" + UUID.randomUUID();
+        log.info("[STUB IyzicoClient] refunding {} for ref={} (key={}) -> success, ref={}",
+                amount, providerReference, idempotencyKey, reference);
+        return new RefundResult(true, reference, null, null);
+    }
 }

@@ -20,4 +20,9 @@ public interface IyzicoClient {
      * double-charge for the same key.
      */
     ChargeResult charge(String savedCardToken, BigDecimal amount, String idempotencyKey);
+
+    /**
+     * Refunds a charge payment transaction.
+     */
+    RefundResult refund(String providerReference, BigDecimal amount, String idempotencyKey);
 }
