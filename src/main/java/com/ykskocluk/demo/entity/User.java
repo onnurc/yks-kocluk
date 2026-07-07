@@ -47,4 +47,7 @@ public class User extends BaseEntity {
 
     @Column(name = "email_verified", nullable = false)
     private boolean emailVerified;
+
+    @Column(name = "suspension_reason", length = 2000)
+    private String suspensionReason;
 }
