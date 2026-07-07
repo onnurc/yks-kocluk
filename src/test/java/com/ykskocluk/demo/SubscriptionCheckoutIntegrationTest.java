@@ -231,4 +231,106 @@ class SubscriptionCheckoutIntegrationTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("NOT_PAYMENT_OWNER"));
     }
+
+    @Test
+    void webhook_succeeds_andIsIdempotent() throws Exception {
+        String admin = adminToken();
+        int coachId = approvedCoachProfileId("coach-webhook-succeed@example.com", admin);
+        String student = register("student-webhook-succeed@example.com", "STUDENT");
+        long packageId = firstPackageId(student);
+
+        String body = "{\"coachId\":%d,\"packageId\":%d}".formatted(coachId, packageId);
+        String checkoutRes = mockMvc.perform(post("/api/v1/subscriptions/checkout")
+                        .header("Authorization", "Bearer " + student)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        long subscriptionId = JsonPath.read(checkoutRes, "$.subscriptionId");
+        long paymentId = JsonPath.read(checkoutRes, "$.paymentId");
+
+        // Verify initial state
+        Subscription initialSub = subscriptionRepository.findById(subscriptionId).orElseThrow();
+        assertThat(initialSub.getStatus()).isEqualTo(SubscriptionStatus.PENDING_PAYMENT);
+
+        // Perform succeed payment via webhook (No Authorization header!)
+        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"paymentId\":%d,\"status\":\"SUCCESS\",\"providerReference\":\"webhook-ref-123\"}".formatted(paymentId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PROCESSED"));
+
+        // Verify updated state
+        Subscription activeSub = subscriptionRepository.findById(subscriptionId).orElseThrow();
+        assertThat(activeSub.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(paymentRepository.findById(paymentId).orElseThrow().getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        assertThat(coachProfileRepository.findById((long) coachId).orElseThrow().getActiveStudentCount()).isEqualTo(1);
+
+        // Duplicate successful webhook call
+        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"paymentId\":%d,\"status\":\"SUCCESS\",\"providerReference\":\"webhook-ref-123\"}".formatted(paymentId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IDEMPOTENT"));
+
+        // Capacity remains 1
+        assertThat(coachProfileRepository.findById((long) coachId).orElseThrow().getActiveStudentCount()).isEqualTo(1);
+    }
+
+    @Test
+    void webhook_fails_andIsIdempotent() throws Exception {
+        String admin = adminToken();
+        int coachId = approvedCoachProfileId("coach-webhook-fail@example.com", admin);
+        String student = register("student-webhook-fail@example.com", "STUDENT");
+        long packageId = firstPackageId(student);
+
+        String body = "{\"coachId\":%d,\"packageId\":%d}".formatted(coachId, packageId);
+        String checkoutRes = mockMvc.perform(post("/api/v1/subscriptions/checkout")
+                        .header("Authorization", "Bearer " + student)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        long subscriptionId = JsonPath.read(checkoutRes, "$.subscriptionId");
+        long paymentId = JsonPath.read(checkoutRes, "$.paymentId");
+
+        // Perform fail payment via webhook
+        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"paymentId\":%d,\"status\":\"FAILURE\"}".formatted(paymentId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PROCESSED"));
+
+        // Verify updated state
+        Subscription sub = subscriptionRepository.findById(subscriptionId).orElseThrow();
+        assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.PENDING_PAYMENT); // remains pending
+        assertThat(paymentRepository.findById(paymentId).orElseThrow().getStatus()).isEqualTo(PaymentStatus.FAILED);
+        assertThat(coachProfileRepository.findById((long) coachId).orElseThrow().getActiveStudentCount()).isZero(); // remains 0
+
+        // Duplicate failure webhook call
+        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"paymentId\":%d,\"status\":\"FAILURE\"}".formatted(paymentId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IDEMPOTENT"));
+    }
+
+    @Test
+    void webhook_invalidStatus_returnsBadRequest() throws Exception {
+        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"paymentId\":1,\"status\":\"INVALID_STATUS\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void webhook_unknownPaymentId_returnsNotFound() throws Exception {
+        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"paymentId\":999999,\"status\":\"SUCCESS\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("PAYMENT_NOT_FOUND"));
+    }
 }

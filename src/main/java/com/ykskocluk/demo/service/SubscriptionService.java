@@ -4,6 +4,8 @@ import com.ykskocluk.demo.config.PaymentProperties;
 import com.ykskocluk.demo.dto.SubscriptionCheckoutResponse;
 import com.ykskocluk.demo.dto.SubscriptionCreateRequest;
 import com.ykskocluk.demo.dto.SubscriptionResponse;
+import com.ykskocluk.demo.dto.IyzicoWebhookRequest;
+import com.ykskocluk.demo.dto.IyzicoWebhookResponse;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Package;
 import com.ykskocluk.demo.entity.Payment;
@@ -173,13 +175,19 @@ public class SubscriptionService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SUBSCRIPTION_STATUS", "Abonelik ödeme bekler durumda değil");
         }
 
+        completePaymentSuccess(payment, subscription, "stub-provider-ref-" + UUID.randomUUID());
+
+        return subscriptionMapper.toResponse(subscription);
+    }
+
+    private void completePaymentSuccess(Payment payment, Subscription subscription, String providerReference) {
         int updated = coachProfileRepository.incrementActiveStudentCountIfRoom(subscription.getCoachProfile().getId());
         if (updated == 0) {
             throw new ApiException(HttpStatus.CONFLICT, "COACH_FULL", "Koçun kontenjanı dolu");
         }
 
         payment.setStatus(PaymentStatus.SUCCESS);
-        payment.setProviderReference("stub-provider-ref-" + UUID.randomUUID());
+        payment.setProviderReference(providerReference);
         paymentRepository.saveAndFlush(payment);
 
         Instant now = Instant.now();
@@ -187,7 +195,46 @@ public class SubscriptionService {
         subscription.setStartAt(now);
         subscription.setEndAt(now.plus(subscription.getPkg().getDurationDays(), ChronoUnit.DAYS));
         subscriptionRepository.saveAndFlush(subscription);
+    }
 
-        return subscriptionMapper.toResponse(subscription);
+    @Transactional
+    public IyzicoWebhookResponse processWebhook(IyzicoWebhookRequest request) {
+        // TODO: Real signature verification belongs to later real iyzico integration
+
+        Payment payment = paymentRepository.findById(request.paymentId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Ödeme bulunamadı"));
+
+        if (!"SUCCESS".equalsIgnoreCase(request.status()) && !"FAILURE".equalsIgnoreCase(request.status())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "UNSUPPORTED_WEBHOOK_STATUS", "Geçersiz webhook durumu: " + request.status());
+        }
+
+        if ("SUCCESS".equalsIgnoreCase(request.status())) {
+            if (payment.getStatus() == PaymentStatus.SUCCESS) {
+                return new IyzicoWebhookResponse("IDEMPOTENT", "Abonelik ve ödeme zaten aktif edilmiş (idempotent)");
+            }
+            if (payment.getStatus() == PaymentStatus.FAILED) {
+                return new IyzicoWebhookResponse("IDEMPOTENT", "Ödeme zaten başarısız olarak işaretlenmiş");
+            }
+
+            Subscription subscription = payment.getSubscription();
+            if (subscription.getStatus() != SubscriptionStatus.PENDING_PAYMENT) {
+                return new IyzicoWebhookResponse("IDEMPOTENT", "Abonelik zaten aktif edilmiş (idempotent)");
+            }
+
+            completePaymentSuccess(payment, subscription, request.providerReference() != null ? request.providerReference() : "webhook-provider-ref-" + UUID.randomUUID());
+            return new IyzicoWebhookResponse("PROCESSED", "Ödeme başarıyla tamamlandı ve abonelik aktif edildi");
+        } else {
+            if (payment.getStatus() == PaymentStatus.FAILED) {
+                return new IyzicoWebhookResponse("IDEMPOTENT", "Ödeme zaten başarısız olarak işaretlenmiş (idempotent)");
+            }
+            if (payment.getStatus() == PaymentStatus.SUCCESS) {
+                return new IyzicoWebhookResponse("IDEMPOTENT", "Ödeme zaten başarıyla tamamlanmış");
+            }
+
+            payment.setStatus(PaymentStatus.FAILED);
+            paymentRepository.saveAndFlush(payment);
+
+            return new IyzicoWebhookResponse("PROCESSED", "Ödeme başarısız olarak işaretlendi");
+        }
     }
 }
