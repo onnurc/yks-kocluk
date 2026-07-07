@@ -85,3 +85,15 @@ app:
     retry-days: ${PAYMENT_RETRY_DAYS:3}
     # Renewal job schedule — daily 03:00 Europe/Istanbul (zone set on the @Scheduled).
     renewal-cron: ${PAYMENT_RENEWAL_CRON:0 0 3 * * *}
+
+# ============================================================================
+# Iyzico Payment Client Configuration
+# ============================================================================
+payments:
+  iyzico:
+    enabled: ${IYZICO_ENABLED:false}
+    mode: ${IYZICO_MODE:sandbox}
+    api-key: ${IYZICO_API_KEY:}
+    secret-key: ${IYZICO_SECRET_KEY:}
+    base-url: ${IYZICO_BASE_URL:https://sandbox-api.iyzipay.com}
+    callback-url: ${IYZICO_CALLBACK_URL:http://localhost:8080/api/v1/payments/iyzico/webhook}

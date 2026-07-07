@@ -8,6 +8,6 @@ import org.springframework.context.annotation.Configuration;
  * commission snapshot applies in every profile, including {@code test} with the stub iyzico client.
  */
 @Configuration
-@EnableConfigurationProperties(PaymentProperties.class)
+@EnableConfigurationProperties({PaymentProperties.class, IyzicoProperties.class})
 public class PaymentConfig {
 }
