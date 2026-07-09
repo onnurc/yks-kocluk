@@ -1,4 +1,4 @@
-# YKS Coaching Platform - Frontend Foundation (Phase 0)
+# YKS Coaching Platform - Frontend (Phase 1)
 
 This directory contains the React + Vite + TypeScript + ESLint frontend codebase for the YKS Coaching platform.
 
@@ -34,20 +34,33 @@ npm run build
 
 ---
 
-## 2. Scope & Foundation of Phase 0
+## 2. Phase 1 — Authentication Flows
 
-Phase 0 sets up the core architecture of the client application:
-*   **API Client (`src/api/httpClient.ts`):** Simple wrapper around native `fetch` supporting JSON parsing, problem-details format handling (`application/problem+json`), and auto-injecting Bearer JWT headers on demand.
-*   **Auth Token Storage (`src/auth/tokenStorage.ts`):** Manages local storage of tokens with comments on cookie transition plans.
-*   **Global Auth Context (`src/auth/AuthProvider.tsx`):** Tracks session, role, active user, loading, and suspended account redirects.
-*   **Route Protection:** Provides `ProtectedRoute` (unauthenticated user redirect) and `RoleRoute` (role-based view authorization).
-*   **Placeholder Pages:** Login, Register, Dashboard, Suspended User details, Admin views, and wildcard 404 screens.
+Phase 1 establishes complete end-to-end user session lifecycle flows:
+*   **Sign-in & Sign-up Forms (`LoginPage`, `RegisterPage`):** Fully controlled components verifying credentials, mapping custom attributes (`firstName`/`lastName` to `fullName`), and routing profiles dynamically based on roles.
+*   **Form Errors Panel (`FormError.tsx`):** Renders custom server details or invalid payload lists dynamically.
+*   **Redirect Guards:** Prevents already signed-in users from accessing credentials forms, redirecting them straight to active dashboards.
+*   **Logout Mechanics:** Triggers service calls to discard remote sessions and completely flushes client token storages locally.
 
 ---
 
-## 3. Next Steps & Phase Roadmap
+## 3. Manual Testing Guide
 
-*   **FE Phase 1 — Authentication:** Enhance registration forms, profile verification, and token expiration handling.
-*   **FE Phase 2 — Student Dashboard:** Integrate package selection, checkout forms, and display pending payment warnings.
-*   **FE Phase 3 — Booking System:** Connect schedule calendar events and limit booking slots based on subscription levels.
-*   **FE Phase 4 — Payment Gates:** Integrate sandbox Iyzico frames and test payment success webhooks.
+Ensure the backend server is running at `VITE_API_BASE_URL` before testing:
+
+### Test 3.1: Register New Student or Coach
+1.  Navigate to `/register`.
+2.  Input first name, last name, unique email address, password (>= 8 characters), and select either "Öğrenci" or "Koç".
+3.  Click "Kayıt Ol" -> Confirms registration and automatically logs in to `/dashboard`.
+
+### Test 3.2: Login Existing User
+1.  Navigate to `/login`.
+2.  Submit registered user credentials.
+3.  Upon success, verify you are redirected:
+    *   To `/admin` if the role is `ADMIN`.
+    *   To `/dashboard` if the role is `STUDENT` or `COACH`.
+
+### Test 3.3: Access Guards Validation
+1.  Ensure you are logged out. Try accessing `/dashboard` or `/admin` directly -> verify you are redirected to `/login`.
+2.  Log in as a `STUDENT` or `COACH`. Try accessing `/admin` directly -> verify you are redirected back to `/dashboard`.
+3.  Log in as any user. Try accessing `/login` or `/register` -> verify you are redirected straight back to your profile dashboard.
