@@ -1,7 +1,6 @@
 package com.ykskocluk.demo.service;
 
 import com.ykskocluk.demo.dto.AdminConversationAccessResponse;
-import com.ykskocluk.demo.entity.AdminConversationAccessLog;
 import com.ykskocluk.demo.entity.Conversation;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.exception.ApiException;
