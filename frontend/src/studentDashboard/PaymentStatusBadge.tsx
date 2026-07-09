@@ -7,7 +7,7 @@ export const PaymentStatusBadge: React.FC<{ status: PaymentStatus }> = ({ status
   let text: string = status;
 
   switch (status) {
-    case "SUCCEEDED":
+    case "SUCCESS":
       backgroundColor = "#28a745";
       text = "Başarılı";
       break;

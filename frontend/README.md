@@ -75,8 +75,16 @@ You can use the following seeded credentials to test login and session behaviors
     *   **Email:** `admin.demo@example.com`
     *   **Password:** `Password123!`
     *   **Role:** `ADMIN` / `ACTIVE`
-*   **Student Account:**
+*   **Student Account (No Subscription):**
     *   **Email:** `student.demo@example.com`
+    *   **Password:** `Password123!`
+    *   **Role:** `STUDENT` / `ACTIVE`
+*   **Student Account (Pending Payment):**
+    *   **Email:** `student.pending.demo@example.com`
+    *   **Password:** `Password123!`
+    *   **Role:** `STUDENT` / `ACTIVE`
+*   **Student Account (Active Subscription):**
+    *   **Email:** `student.active.demo@example.com`
     *   **Password:** `Password123!`
     *   **Role:** `STUDENT` / `ACTIVE`
 *   **Coach Account:**

@@ -10,7 +10,7 @@ export type SubscriptionStatus =
 
 export type PaymentStatus =
   | "PENDING"
-  | "SUCCEEDED"
+  | "SUCCESS"
   | "FAILED"
   | "REFUNDED";
 
