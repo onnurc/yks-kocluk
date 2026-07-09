@@ -64,3 +64,26 @@ Ensure the backend server is running at `VITE_API_BASE_URL` before testing:
 1.  Ensure you are logged out. Try accessing `/dashboard` or `/admin` directly -> verify you are redirected to `/login`.
 2.  Log in as a `STUDENT` or `COACH`. Try accessing `/admin` directly -> verify you are redirected back to `/dashboard`.
 3.  Log in as any user. Try accessing `/login` or `/register` -> verify you are redirected straight back to your profile dashboard.
+
+---
+
+## 4. Demo Login Credentials
+
+You can use the following seeded credentials to test login and session behaviors:
+
+*   **Admin Account:**
+    *   **Email:** `admin.demo@example.com`
+    *   **Password:** `Password123!`
+    *   **Role:** `ADMIN` / `ACTIVE`
+*   **Student Account:**
+    *   **Email:** `student.demo@example.com`
+    *   **Password:** `Password123!`
+    *   **Role:** `STUDENT` / `ACTIVE`
+*   **Coach Account:**
+    *   **Email:** `coach.demo@example.com`
+    *   **Password:** `Password123!`
+    *   **Role:** `COACH` / `ACTIVE`
+*   **Suspended Account:**
+    *   **Email:** `suspended.demo@example.com`
+    *   **Password:** `Password123!`
+    *   **Role:** `STUDENT` / `SUSPENDED`
