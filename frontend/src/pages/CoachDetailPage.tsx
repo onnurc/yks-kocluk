@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { coachDiscoveryApi } from "../coaches/coachDiscoveryApi";
 import type { CoachDetailResponse, PackageResponse } from "../coaches/coachDiscoveryTypes";
@@ -7,6 +7,9 @@ import { studentDashboardApi } from "../studentDashboard/studentDashboardApi";
 import type { StudentDashboardResponse } from "../studentDashboard/studentDashboardTypes";
 import { FormError } from "../components/FormError";
 import { CheckoutSection } from "../subscriptionCheckout/CheckoutSection";
+import { BookingSection } from "../booking/BookingSection";
+import { canMessageWithSubscription } from "../access/subscriptionAccess";
+import { messagingApi } from "../messaging/messagingApi";
 
 export const CoachDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +24,26 @@ export const CoachDetailPage: React.FC = () => {
   const [selectedPackage, setSelectedPackage] = useState<PackageResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<any | null>(null);
+
+  const navigate = useNavigate();
+  const [msgLoading, setMsgLoading] = useState<boolean>(false);
+
+  const handleOpenConversation = async () => {
+    if (msgLoading) return;
+    setMsgLoading(true);
+    try {
+      const response = await messagingApi.openConversation(coachId);
+      navigate(`/messages/${response.id}`);
+    } catch (err: any) {
+      alert("Mesajlaşma başlatılamadı.");
+    } finally {
+      setMsgLoading(false);
+    }
+  };
+
+  const sub = dashboardData?.subscription;
+  const isSubscribedToThisCoach = sub?.coachId === coachId;
+  const isMessageAllowed = isSubscribedToThisCoach && canMessageWithSubscription(sub?.status);
 
   const loadData = async () => {
     setLoading(true);
@@ -128,6 +151,32 @@ export const CoachDetailPage: React.FC = () => {
           </div>
         </div>
 
+        {user?.role === "STUDENT" && (
+          <div style={{ borderTop: "1px solid #eee", paddingTop: "1rem", paddingBottom: "0.5rem" }}>
+            {isMessageAllowed ? (
+              <button
+                disabled={msgLoading}
+                onClick={handleOpenConversation}
+                style={{
+                  padding: "0.5rem 1.25rem",
+                  backgroundColor: "#007bff",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontWeight: "bold",
+                  cursor: msgLoading ? "not-allowed" : "pointer",
+                }}
+              >
+                {msgLoading ? "Sohbet Açılıyor..." : "💬 Mesaj Gönder"}
+              </button>
+            ) : (
+              <p style={{ margin: 0, color: "#856404", fontSize: "0.9rem", fontStyle: "italic" }}>
+                🔒 Mesaj göndermek için bu koç ile aktif veya geçmiş bir aboneliğiniz olmalıdır.
+              </p>
+            )}
+          </div>
+        )}
+
         {coach.tracks && coach.tracks.length > 0 && (
           <div style={{ marginBottom: "1.5rem" }}>
             <strong style={{ display: "block", marginBottom: "0.5rem" }}>Uzmanlık Alanları (Alanlar):</strong>
@@ -214,6 +263,13 @@ export const CoachDetailPage: React.FC = () => {
           packageId={selectedPackage.id}
           packageName={selectedPackage.name}
           price={selectedPackage.price}
+          dashboardData={dashboardData}
+        />
+      )}
+
+      {user?.role === "STUDENT" && (
+        <BookingSection
+          coachId={coach.id}
           dashboardData={dashboardData}
         />
       )}

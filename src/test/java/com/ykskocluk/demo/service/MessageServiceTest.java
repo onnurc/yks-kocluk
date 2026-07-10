@@ -85,8 +85,7 @@ class MessageServiceTest {
     @Test
     void openConversation_noSubscriptionEver_throws403() {
         when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
-        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatusNot(
-                STUDENT_ID, COACH_PROFILE_ID, SubscriptionStatus.PENDING_PAYMENT))
+        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID))
                 .thenReturn(false);
 
         ApiException ex = catchThrowableOfType(ApiException.class,
@@ -97,11 +96,63 @@ class MessageServiceTest {
     }
 
     @Test
-    void openConversation_pastOrActiveSubscription_allowed_createsConversation() {
+    void openConversation_pendingPaymentSubscription_throws403() {
         when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
-        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatusNot(
-                STUDENT_ID, COACH_PROFILE_ID, SubscriptionStatus.PENDING_PAYMENT))
-                .thenReturn(true); // any status — active or past
+        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID))
+                .thenReturn(false);
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.openConversation(STUDENT_ID, COACH_PROFILE_ID));
+        assertThat(ex.getErrorCode()).isEqualTo("MESSAGING_NOT_ALLOWED");
+        verify(conversationRepository, never()).save(any());
+    }
+
+    @Test
+    void openConversation_expiredSubscription_throws403() {
+        when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
+        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID))
+                .thenReturn(false);
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.openConversation(STUDENT_ID, COACH_PROFILE_ID));
+        assertThat(ex.getErrorCode()).isEqualTo("MESSAGING_NOT_ALLOWED");
+        verify(conversationRepository, never()).save(any());
+    }
+
+    @Test
+    void openConversation_terminatedSubscription_throws403() {
+        when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
+        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID))
+                .thenReturn(false);
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.openConversation(STUDENT_ID, COACH_PROFILE_ID));
+        assertThat(ex.getErrorCode()).isEqualTo("MESSAGING_NOT_ALLOWED");
+        verify(conversationRepository, never()).save(any());
+    }
+
+    @Test
+    void openConversation_activeSubscription_allowed_createsConversation() {
+        when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
+        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID))
+                .thenReturn(true);
+        when(conversationRepository.findByStudentIdAndCoachProfileId(STUDENT_ID, COACH_PROFILE_ID))
+                .thenReturn(Optional.empty());
+        User student = new User();
+        ReflectionTestUtils.setField(student, "id", STUDENT_ID);
+        when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
+        when(conversationRepository.save(any(Conversation.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.openConversation(STUDENT_ID, COACH_PROFILE_ID);
+
+        verify(conversationRepository).save(any(Conversation.class));
+    }
+
+    @Test
+    void openConversation_pastDueSubscription_allowed_createsConversation() {
+        when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
+        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID))
+                .thenReturn(true);
         when(conversationRepository.findByStudentIdAndCoachProfileId(STUDENT_ID, COACH_PROFILE_ID))
                 .thenReturn(Optional.empty());
         User student = new User();
@@ -142,6 +193,7 @@ class MessageServiceTest {
     @Test
     void sendMessage_participant_persists_andBumpsLastMessageAt() {
         when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
+        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
         User student = conversation.getStudent();
         when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
         Instant sentAt = Instant.now();
@@ -159,6 +211,35 @@ class MessageServiceTest {
         assertThat(conversation.getLastMessageAt()).isEqualTo(sentAt); // bumped to the message's sent time
     }
 
+    @Test
+    void sendMessage_studentSubscriptionLaterInactive_throws403() {
+        when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
+        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(false);
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.sendMessage(STUDENT_ID, CONVERSATION_ID, "hi"));
+        assertThat(ex.getErrorCode()).isEqualTo("MESSAGING_NOT_ALLOWED");
+        verify(messageRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void sendMessage_coachAlwaysAllowed_evenIfStudentInactive() {
+        when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
+        when(userRepository.findById(COACH_USER_ID)).thenReturn(Optional.of(coach.getUser()));
+        Instant sentAt = Instant.now();
+        when(messageRepository.saveAndFlush(any(Message.class))).thenAnswer(inv -> {
+            Message m = inv.getArgument(0);
+            ReflectionTestUtils.setField(m, "createdAt", sentAt);
+            return m;
+        });
+        when(messageMapper.toResponse(any())).thenReturn(
+                new MessageResponse(1L, CONVERSATION_ID, COACH_USER_ID, "Coach", "hi student", sentAt, null));
+
+        service.sendMessage(COACH_USER_ID, CONVERSATION_ID, "hi student");
+
+        verify(messageRepository).saveAndFlush(any(Message.class));
+    }
+
     // --- mark-read delegates with the reader id (the "only other party" clause lives in the query) ---
 
     @Test
@@ -170,5 +251,113 @@ class MessageServiceTest {
 
         assertThat(flipped).isEqualTo(2);
         verify(messageRepository).markRead(eq(CONVERSATION_ID), eq(COACH_USER_ID), any());
+    }
+
+    // --- Phase 5 list and read tests ---
+
+    @Test
+    void myConversations_inactiveStudent_returnsEmptyList() {
+        User student = new User();
+        student.setRole(com.ykskocluk.demo.enums.Role.STUDENT);
+        when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
+        when(conversationRepository.findForUser(STUDENT_ID)).thenReturn(java.util.List.of(conversation));
+        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(false);
+
+        java.util.List<ConversationResponse> res = service.myConversations(STUDENT_ID);
+        assertThat(res).isEmpty();
+    }
+
+    @Test
+    void myConversations_studentWithOneActiveAndOneExpired_returnsOnlyActive() {
+        User student = new User();
+        student.setRole(com.ykskocluk.demo.enums.Role.STUDENT);
+        when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
+
+        Conversation activeConv = conversation; // coach profile id COACH_PROFILE_ID
+
+        Conversation expiredConv = new Conversation();
+        ReflectionTestUtils.setField(expiredConv, "id", 101L);
+        expiredConv.setStudent(student);
+        CoachProfile coachB = new CoachProfile();
+        ReflectionTestUtils.setField(coachB, "id", 202L);
+        User coachUserB = new User();
+        coachUserB.setFullName("Coach B");
+        coachB.setUser(coachUserB);
+        expiredConv.setCoachProfile(coachB);
+
+        when(conversationRepository.findForUser(STUDENT_ID)).thenReturn(java.util.List.of(activeConv, expiredConv));
+        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
+        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, 202L)).thenReturn(false);
+
+        java.util.List<ConversationResponse> res = service.myConversations(STUDENT_ID);
+        assertThat(res).hasSize(1);
+        assertThat(res.get(0).id()).isEqualTo(CONVERSATION_ID);
+    }
+
+    @Test
+    void myConversations_activeStudent_allowed() {
+        User student = new User();
+        student.setRole(com.ykskocluk.demo.enums.Role.STUDENT);
+        when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
+        when(conversationRepository.findForUser(STUDENT_ID)).thenReturn(java.util.List.of(conversation));
+        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
+
+        java.util.List<ConversationResponse> res = service.myConversations(STUDENT_ID);
+        assertThat(res).isNotEmpty();
+    }
+
+    @Test
+    void myConversations_pastDueStudent_allowed() {
+        User student = new User();
+        student.setRole(com.ykskocluk.demo.enums.Role.STUDENT);
+        when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
+        when(conversationRepository.findForUser(STUDENT_ID)).thenReturn(java.util.List.of(conversation));
+        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
+
+        java.util.List<ConversationResponse> res = service.myConversations(STUDENT_ID);
+        assertThat(res).isNotEmpty();
+    }
+
+    @Test
+    void myConversations_coachParticipant_alwaysAllowed() {
+        User coachUser = new User();
+        coachUser.setRole(com.ykskocluk.demo.enums.Role.COACH);
+        when(userRepository.findById(COACH_USER_ID)).thenReturn(Optional.of(coachUser));
+        when(conversationRepository.findForUser(COACH_USER_ID)).thenReturn(java.util.List.of(conversation));
+
+        java.util.List<ConversationResponse> res = service.myConversations(COACH_USER_ID);
+        assertThat(res).isNotEmpty();
+        verify(subscriptionRepository, never()).existsLiveSubscription(any(), any());
+    }
+
+    @Test
+    void history_inactiveStudent_throws403() {
+        when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
+        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(false);
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.history(STUDENT_ID, CONVERSATION_ID, org.springframework.data.domain.Pageable.unpaged()));
+        assertThat(ex.getErrorCode()).isEqualTo("MESSAGING_NOT_ALLOWED");
+    }
+
+    @Test
+    void history_activeStudent_allowed() {
+        when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
+        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
+        when(messageRepository.findByConversationIdOrderByCreatedAtDesc(eq(CONVERSATION_ID), any()))
+                .thenReturn(org.springframework.data.domain.Page.empty());
+
+        service.history(STUDENT_ID, CONVERSATION_ID, org.springframework.data.domain.Pageable.unpaged());
+        verify(messageRepository).findByConversationIdOrderByCreatedAtDesc(eq(CONVERSATION_ID), any());
+    }
+
+    @Test
+    void history_coachParticipant_alwaysAllowed() {
+        when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
+        when(messageRepository.findByConversationIdOrderByCreatedAtDesc(eq(CONVERSATION_ID), any()))
+                .thenReturn(org.springframework.data.domain.Page.empty());
+
+        service.history(COACH_USER_ID, CONVERSATION_ID, org.springframework.data.domain.Pageable.unpaged());
+        verify(subscriptionRepository, never()).existsLiveSubscription(any(), any());
     }
 }

@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import type { DashboardSubscription, DashboardPayment } from "./studentDashboardTypes";
 import { SubscriptionStatusBadge } from "./SubscriptionStatusBadge";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
@@ -51,6 +52,51 @@ export const ActiveSubscriptionCard: React.FC<ActiveSubscriptionCardProps> = ({ 
           Otomatik yenileme kapatılmıştır. Hizmete olan erişiminiz <strong>{formatDate(subscription.endAt)}</strong> tarihine kadar devam edecek ve bu tarihten sonra yenilenmeyecektir.
         </div>
       )}
+
+      <div style={{ marginTop: "1.5rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+        <Link
+          to={`/coaches/${subscription.coachId}`}
+          style={{
+            padding: "0.5rem 1rem",
+            backgroundColor: "#28a745",
+            color: "white",
+            textDecoration: "none",
+            borderRadius: "4px",
+            fontWeight: "bold",
+            fontSize: "0.9rem",
+          }}
+        >
+          Koç Profili & Randevu Al
+        </Link>
+        <Link
+          to="/bookings"
+          style={{
+            padding: "0.5rem 1rem",
+            backgroundColor: "#007bff",
+            color: "white",
+            textDecoration: "none",
+            borderRadius: "4px",
+            fontWeight: "bold",
+            fontSize: "0.9rem",
+          }}
+        >
+          Randevularım
+        </Link>
+        <Link
+          to="/messages"
+          style={{
+            padding: "0.5rem 1rem",
+            backgroundColor: "#17a2b8",
+            color: "white",
+            textDecoration: "none",
+            borderRadius: "4px",
+            fontWeight: "bold",
+            fontSize: "0.9rem",
+          }}
+        >
+          Mesajlarım
+        </Link>
+      </div>
     </div>
   );
 };

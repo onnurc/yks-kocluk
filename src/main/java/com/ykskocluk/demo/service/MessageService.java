@@ -67,9 +67,8 @@ public class MessageService {
         CoachProfile coach = coachProfileRepository.findById(coachProfileId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "COACH_NOT_FOUND", "Koç bulunamadı"));
 
-        // The gate: must have a non-pending subscription with this coach.
-        if (!subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatusNot(
-                studentUserId, coachProfileId, SubscriptionStatus.PENDING_PAYMENT)) {
+        // The gate: must have a live subscription with this coach.
+        if (!subscriptionRepository.existsLiveSubscription(studentUserId, coachProfileId)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "MESSAGING_NOT_ALLOWED",
                     "Yalnızca abone olduğunuz koçlarla mesajlaşabilirsiniz");
         }
@@ -93,6 +92,15 @@ public class MessageService {
     @Transactional
     public MessageResponse sendMessage(Long senderUserId, Long conversationId, String content) {
         Conversation conversation = requireParticipant(conversationId, senderUserId);
+
+        // If the sender is the student, verify they still have a live subscription
+        if (conversation.getStudent().getId().equals(senderUserId)) {
+            if (!subscriptionRepository.existsLiveSubscription(senderUserId, conversation.getCoachProfile().getId())) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "MESSAGING_NOT_ALLOWED",
+                        "Mesaj göndermek için aktif bir aboneliğiniz olmalıdır");
+            }
+        }
+
         User sender = userRepository.findById(senderUserId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
 
@@ -109,14 +117,32 @@ public class MessageService {
 
     @Transactional(readOnly = true)
     public List<ConversationResponse> myConversations(Long userId) {
-        return conversationRepository.findForUser(userId).stream()
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
+
+        List<Conversation> list = conversationRepository.findForUser(userId);
+        if (user.getRole() == com.ykskocluk.demo.enums.Role.STUDENT) {
+            list = list.stream()
+                    .filter(conversation -> subscriptionRepository.existsLiveSubscription(userId, conversation.getCoachProfile().getId()))
+                    .toList();
+        }
+        return list.stream()
                 .map(c -> toResponse(c, userId))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public PageResponse<MessageResponse> history(Long userId, Long conversationId, Pageable pageable) {
-        requireParticipant(conversationId, userId);
+        Conversation conversation = requireParticipant(conversationId, userId);
+
+        // If the reader is the student, verify they still have a live subscription
+        if (conversation.getStudent().getId().equals(userId)) {
+            if (!subscriptionRepository.existsLiveSubscription(userId, conversation.getCoachProfile().getId())) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "MESSAGING_NOT_ALLOWED",
+                        "Mesaj geçmişini görüntülemek için aktif bir aboneliğiniz olmalıdır");
+            }
+        }
+
         return PageResponse.from(
                 messageRepository.findByConversationIdOrderByCreatedAtDesc(conversationId, pageable)
                         .map(messageMapper::toResponse));

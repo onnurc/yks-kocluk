@@ -12,6 +12,9 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { CoachListPage } from "./pages/CoachListPage";
 import { CoachDetailPage } from "./pages/CoachDetailPage";
+import { BookingsPage } from "./pages/BookingsPage";
+import { MessagesPage } from "./pages/MessagesPage";
+import { ConversationPage } from "./pages/ConversationPage";
 import "./App.css";
 
 const App: React.FC = () => {
@@ -33,6 +36,9 @@ const App: React.FC = () => {
               <Route element={<RoleRoute allowedRoles={["STUDENT"]} />}>
                 <Route path="/coaches" element={<CoachListPage />} />
                 <Route path="/coaches/:id" element={<CoachDetailPage />} />
+                <Route path="/bookings" element={<BookingsPage />} />
+                <Route path="/messages" element={<MessagesPage />} />
+                <Route path="/messages/:conversationId" element={<ConversationPage />} />
               </Route>
 
               {/* Admin-only Routes */}

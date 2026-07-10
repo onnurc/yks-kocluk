@@ -21,6 +21,13 @@ export const AppLayout: React.FC = () => {
           {isAuthenticated && (
             <nav style={{ display: "flex", gap: "1rem" }}>
               <Link to="/dashboard" style={{ color: "#ccc", textDecoration: "none" }}>Anasayfa</Link>
+              {user?.role === "STUDENT" && (
+                <>
+                  <Link to="/coaches" style={{ color: "#ccc", textDecoration: "none" }}>Koç Keşfet</Link>
+                  <Link to="/bookings" style={{ color: "#ccc", textDecoration: "none" }}>Randevularım</Link>
+                  <Link to="/messages" style={{ color: "#ccc", textDecoration: "none" }}>Mesajlarım</Link>
+                </>
+              )}
               {user?.role === "ADMIN" && (
                 <Link to="/admin" style={{ color: "#ffc107", textDecoration: "none", fontWeight: "bold" }}>Admin Paneli</Link>
               )}
