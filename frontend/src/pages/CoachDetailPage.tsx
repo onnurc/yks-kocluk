@@ -6,6 +6,7 @@ import type { CoachDetailResponse, PackageResponse } from "../coaches/coachDisco
 import { studentDashboardApi } from "../studentDashboard/studentDashboardApi";
 import type { StudentDashboardResponse } from "../studentDashboard/studentDashboardTypes";
 import { FormError } from "../components/FormError";
+import { CheckoutSection } from "../subscriptionCheckout/CheckoutSection";
 
 export const CoachDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -84,10 +85,6 @@ export const CoachDetailPage: React.FC = () => {
     );
   }
 
-  // Determine subscription/checkout restriction messages
-  const userSubStatus = dashboardData?.subscription?.status;
-  const isPending = userSubStatus === "PENDING_PAYMENT";
-  const isActive = userSubStatus === "ACTIVE";
 
   return (
     <div style={{ padding: "2rem", maxWidth: "800px", margin: "0 auto" }}>
@@ -211,50 +208,14 @@ export const CoachDetailPage: React.FC = () => {
       </div>
 
       {selectedPackage && (
-        <div style={{ padding: "1.5rem", border: "1px solid #b8daff", borderRadius: "8px", backgroundColor: "#e2f0d9", color: "#2e5c1e" }}>
-          <h3 style={{ marginTop: 0, color: "#1e3d13" }}>Seçilen Paket Özeti</h3>
-          <div style={{ marginBottom: "1rem", fontSize: "0.95rem" }}>
-            <p style={{ margin: "0.25rem 0" }}><strong>Koç:</strong> {coach.fullName}</p>
-            <p style={{ margin: "0.25rem 0" }}><strong>Paket:</strong> {selectedPackage.name}</p>
-            <p style={{ margin: "0.25rem 0" }}><strong>Tutar:</strong> {selectedPackage.price} TRY</p>
-          </div>
-
-          {/* Conditional Warn banners */}
-          {isPending && (
-            <div style={{ padding: "0.75rem", border: "1px solid #ffeeba", borderRadius: "4px", backgroundColor: "#fff3cd", color: "#856404", marginBottom: "1rem", fontSize: "0.9rem" }}>
-              ⚠️ Zaten bekleyen bir ödeme işleminiz var. Yeni paket seçimi checkout aşamasında engellenecek.
-            </div>
-          )}
-
-          {isActive && (
-            <div style={{ padding: "0.75rem", border: "1px solid #bee5eb", borderRadius: "4px", backgroundColor: "#d1ecf1", color: "#0c5460", marginBottom: "1rem", fontSize: "0.9rem" }}>
-              ℹ️ Aktif aboneliğiniz bulunduğu için yeni checkout bu aşamada başlatılamaz.
-            </div>
-          )}
-
-          {!isPending && !isActive && (
-            <div style={{ padding: "0.75rem", border: "1px solid #ced4da", borderRadius: "4px", backgroundColor: "#f8f9fa", color: "#495057", marginBottom: "1rem", fontSize: "0.9rem" }}>
-              ℹ️ Ödeme ve checkout işlemi Phase 4'te eklenecek.
-            </div>
-          )}
-
-          <button
-            disabled
-            style={{
-              width: "100%",
-              padding: "0.75rem",
-              backgroundColor: "#6c757d",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              fontWeight: "bold",
-              cursor: "not-allowed",
-              fontSize: "1rem",
-            }}
-          >
-            Checkout Phase 4'te Aktif Olacak
-          </button>
-        </div>
+        <CheckoutSection
+          coachId={coach.id}
+          coachName={coach.fullName}
+          packageId={selectedPackage.id}
+          packageName={selectedPackage.name}
+          price={selectedPackage.price}
+          dashboardData={dashboardData}
+        />
       )}
     </div>
   );

@@ -97,3 +97,5 @@ payments:
     secret-key: ${IYZICO_SECRET_KEY:}
     base-url: ${IYZICO_BASE_URL:https://sandbox-api.iyzipay.com}
     callback-url: ${IYZICO_CALLBACK_URL:http://localhost:8080/api/v1/payments/iyzico/webhook}
+  stub:
+    success-enabled: ${PAYMENTS_STUB_SUCCESS_ENABLED:false}

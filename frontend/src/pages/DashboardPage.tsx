@@ -104,7 +104,7 @@ export const DashboardPage: React.FC = () => {
 
           {data.subscription && data.subscription.status === "PENDING_PAYMENT" && (
             <div>
-              <PendingPaymentWarning payment={data.payment} />
+              <PendingPaymentWarning payment={data.payment} onRefresh={fetchDashboard} />
               <div style={{ padding: "1.5rem", border: "1px solid #dee2e6", borderRadius: "8px", backgroundColor: "#fff" }}>
                 <h4>Abonelik Detayları</h4>
                 <p><strong>Koç:</strong> {data.subscription.coachName}</p>
