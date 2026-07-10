@@ -57,7 +57,7 @@ class AdminUserControllerTest {
         SuspendRequest request = new SuspendRequest("Toxicity");
         SuspendResponse response = new SuspendResponse(5L, "SUSPENDED", "Toxicity");
 
-        when(userService.suspendUser(eq(5L), eq("Toxicity"))).thenReturn(response);
+        when(userService.suspendUser(any(), eq(5L), eq("Toxicity"))).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/admin/users/5/suspend")
                         .with(csrf())

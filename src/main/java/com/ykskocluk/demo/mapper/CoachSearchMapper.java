@@ -21,6 +21,7 @@ public interface CoachSearchMapper {
             expression = "java(profile.getActiveStudentCount() < profile.getMaxStudentCapacity())")
     CoachSummaryResponse toSummary(CoachProfile profile, Set<Track> tracks, Double rating, int totalSessions);
 
+    @Mapping(target = "userId", source = "profile.user.id")
     @Mapping(target = "fullName", source = "profile.user.fullName")
     @Mapping(target = "universityName", source = "profile.university.name")
     @Mapping(target = "tracks", source = "tracks")

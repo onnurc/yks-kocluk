@@ -82,4 +82,30 @@ class ConsentServiceTest {
 
         verify(consentRecordRepository, never()).saveAndFlush(any());
     }
+
+    @Test
+    void recordConsent_invalidVersion_throwsBadRequest() {
+        User user = new User();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        ConsentCreateRequest request = new ConsentCreateRequest(ConsentType.KVKK, "v2.0");
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> consentService.recordConsent(1L, request, null));
+
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(ex.getErrorCode()).isEqualTo("INVALID_DOCUMENT_VERSION");
+    }
+
+    @Test
+    void getConsentStatus_success() {
+        when(consentRecordRepository.existsByUserIdAndConsentTypeAndDocumentVersion(1L, ConsentType.KVKK, "v1.0"))
+                .thenReturn(true);
+
+        var status = consentService.getConsentStatus(1L, ConsentType.KVKK);
+
+        assertThat(status.currentVersion()).isEqualTo("v1.0");
+        assertThat(status.hasConsented()).isTrue();
+    }
 }

@@ -107,10 +107,15 @@ class AdminConversationControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void messages_nonExistentConversation_notFound() throws Exception {
-        when(adminConversationService.getMessages(eq(999L), any()))
+        when(adminConversationService.getMessages(any(), eq(999L), any(), any()))
                 .thenThrow(new ApiException(HttpStatus.NOT_FOUND, "CONVERSATION_NOT_FOUND", "Konuşma bulunamadı"));
 
-        mockMvc.perform(get("/api/v1/admin/conversations/999/messages"))
+        AdminConversationAccessRequest request = new AdminConversationAccessRequest("Security check");
+
+        mockMvc.perform(post("/api/v1/admin/conversations/999/messages")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("CONVERSATION_NOT_FOUND"))
                 // no participant data leaked in the not-found body
@@ -175,5 +180,48 @@ class AdminConversationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void admin_messages_blankReason_badRequest() throws Exception {
+        AdminConversationAccessRequest request = new AdminConversationAccessRequest("   ");
+
+        mockMvc.perform(post("/api/v1/admin/conversations/5/messages")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "STUDENT")
+    void student_messages_forbidden() throws Exception {
+        AdminConversationAccessRequest request = new AdminConversationAccessRequest("Auditing");
+
+        mockMvc.perform(post("/api/v1/admin/conversations/5/messages")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "COACH")
+    void coach_messages_forbidden() throws Exception {
+        AdminConversationAccessRequest request = new AdminConversationAccessRequest("Auditing");
+
+        mockMvc.perform(post("/api/v1/admin/conversations/5/messages")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void get_messages_methodNotAllowed() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/conversations/5/messages"))
+                .andExpect(status().isMethodNotAllowed());
     }
 }

@@ -6,5 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 /**
  * Repository for {@link AdminConversationAccessLog}.
  */
-public interface AdminConversationAccessLogRepository extends JpaRepository<AdminConversationAccessLog, Long> {
+public interface AdminConversationAccessLogRepository
+        extends JpaRepository<AdminConversationAccessLog, Long> {
 }

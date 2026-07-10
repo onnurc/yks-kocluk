@@ -11,6 +11,7 @@ export interface CoachSummaryResponse {
 
 export interface CoachDetailResponse {
   id: number;
+  userId: number;
   fullName: string;
   headline: string;
   bio: string;

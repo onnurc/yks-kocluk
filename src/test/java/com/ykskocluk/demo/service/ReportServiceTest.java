@@ -5,6 +5,8 @@ import com.ykskocluk.demo.dto.ReportCreateRequest;
 import com.ykskocluk.demo.dto.ReportResponse;
 import com.ykskocluk.demo.entity.Report;
 import com.ykskocluk.demo.entity.User;
+import com.ykskocluk.demo.entity.Conversation;
+import com.ykskocluk.demo.entity.Message;
 import com.ykskocluk.demo.enums.ReportStatus;
 import com.ykskocluk.demo.enums.ReportTargetType;
 import com.ykskocluk.demo.exception.ApiException;
@@ -41,6 +43,12 @@ class ReportServiceTest {
     @Mock
     UserRepository userRepository;
 
+    @Mock
+    com.ykskocluk.demo.repository.ConversationRepository conversationRepository;
+
+    @Mock
+    com.ykskocluk.demo.repository.MessageRepository messageRepository;
+
     @InjectMocks
     ReportService reportService;
 
@@ -48,8 +56,23 @@ class ReportServiceTest {
     void createReport_success_savesReportAsOpen() {
         User reporter = new User();
         reporter.setEmail("reporter@example.com");
+        org.springframework.test.util.ReflectionTestUtils.setField(reporter, "id", 1L);
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(reporter));
+
+        Message msg = new Message();
+        org.springframework.test.util.ReflectionTestUtils.setField(msg, "id", 42L);
+        Conversation conv = new Conversation();
+        org.springframework.test.util.ReflectionTestUtils.setField(conv, "id", 99L);
+        conv.setStudent(reporter);
+        User coachUser = new User();
+        org.springframework.test.util.ReflectionTestUtils.setField(coachUser, "id", 2L);
+        com.ykskocluk.demo.entity.CoachProfile coach = new com.ykskocluk.demo.entity.CoachProfile();
+        coach.setUser(coachUser);
+        conv.setCoachProfile(coach);
+        msg.setConversation(conv);
+
+        when(messageRepository.findById(42L)).thenReturn(Optional.of(msg));
 
         ReportCreateRequest request = new ReportCreateRequest(ReportTargetType.MESSAGE, 42L, "Harassment", "Details here");
 
@@ -114,5 +137,68 @@ class ReportServiceTest {
         assertThat(response).isNotNull();
         verify(reportRepository).findAll(pageable);
         verify(reportRepository, never()).findByStatus(any(), any());
+    }
+
+    @Test
+    void createReport_selfReport_throwsBadRequest() {
+        User reporter = new User();
+        org.springframework.test.util.ReflectionTestUtils.setField(reporter, "id", 1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(reporter));
+
+        ReportCreateRequest request = new ReportCreateRequest(ReportTargetType.USER, 1L, "Self-report", null);
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> reportService.createReport(1L, request));
+
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(ex.getErrorCode()).isEqualTo("CANNOT_REPORT_SELF");
+    }
+
+    @Test
+    void createReport_userTargetNotFound_throwsNotFound() {
+        User reporter = new User();
+        org.springframework.test.util.ReflectionTestUtils.setField(reporter, "id", 1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(reporter));
+        when(userRepository.existsById(2L)).thenReturn(false);
+
+        ReportCreateRequest request = new ReportCreateRequest(ReportTargetType.USER, 2L, "Inappropriate", null);
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> reportService.createReport(1L, request));
+
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(ex.getErrorCode()).isEqualTo("USER_NOT_FOUND");
+    }
+
+    @Test
+    void createReport_conversationNonParticipant_throwsForbidden() {
+        User reporter = new User();
+        org.springframework.test.util.ReflectionTestUtils.setField(reporter, "id", 1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(reporter));
+
+        Conversation conv = new Conversation();
+        org.springframework.test.util.ReflectionTestUtils.setField(conv, "id", 99L);
+        User studentUser = new User();
+        org.springframework.test.util.ReflectionTestUtils.setField(studentUser, "id", 2L);
+        conv.setStudent(studentUser);
+
+        User coachUser = new User();
+        org.springframework.test.util.ReflectionTestUtils.setField(coachUser, "id", 3L);
+        com.ykskocluk.demo.entity.CoachProfile coach = new com.ykskocluk.demo.entity.CoachProfile();
+        coach.setUser(coachUser);
+        conv.setCoachProfile(coach);
+
+        when(conversationRepository.findById(99L)).thenReturn(Optional.of(conv));
+
+        ReportCreateRequest request = new ReportCreateRequest(ReportTargetType.CONVERSATION, 99L, "Spam", null);
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> reportService.createReport(1L, request));
+
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(ex.getErrorCode()).isEqualTo("NOT_CONVERSATION_PARTICIPANT");
     }
 }

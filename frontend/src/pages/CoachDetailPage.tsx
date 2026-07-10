@@ -10,6 +10,7 @@ import { CheckoutSection } from "../subscriptionCheckout/CheckoutSection";
 import { BookingSection } from "../booking/BookingSection";
 import { canMessageWithSubscription } from "../access/subscriptionAccess";
 import { messagingApi } from "../messaging/messagingApi";
+import { ReportModal } from "../safety/ReportModal";
 
 export const CoachDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +28,7 @@ export const CoachDetailPage: React.FC = () => {
 
   const navigate = useNavigate();
   const [msgLoading, setMsgLoading] = useState<boolean>(false);
+  const [showReportModal, setShowReportModal] = useState<boolean>(false);
 
   const handleOpenConversation = async () => {
     if (msgLoading) return;
@@ -125,18 +127,36 @@ export const CoachDetailPage: React.FC = () => {
               {coach.headline || "YKS Koçu"}
             </p>
           </div>
-          <span
-            style={{
-              padding: "0.35rem 0.75rem",
-              borderRadius: "4px",
-              fontSize: "0.85rem",
-              fontWeight: "bold",
-              backgroundColor: coach.acceptingNewStudents ? "#d4edda" : "#f8d7da",
-              color: coach.acceptingNewStudents ? "#155724" : "#721c24",
-            }}
-          >
-            {coach.acceptingNewStudents ? "Aktif" : "Kontenjan Dolu"}
-          </span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.5rem" }}>
+            <span
+              style={{
+                padding: "0.35rem 0.75rem",
+                borderRadius: "4px",
+                fontSize: "0.85rem",
+                fontWeight: "bold",
+                backgroundColor: coach.acceptingNewStudents ? "#d4edda" : "#f8d7da",
+                color: coach.acceptingNewStudents ? "#155724" : "#721c24",
+              }}
+            >
+              {coach.acceptingNewStudents ? "Aktif" : "Kontenjan Dolu"}
+            </span>
+            {user && user.id !== coach.userId && (
+              <button
+                onClick={() => setShowReportModal(true)}
+                style={{
+                  padding: "0.25rem 0.5rem",
+                  fontSize: "0.8rem",
+                  backgroundColor: "transparent",
+                  color: "#d9534f",
+                  border: "1px solid #d9534f",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                ⚠️ Koçu Bildir
+              </button>
+            )}
+          </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem", fontSize: "0.95rem" }}>
@@ -271,6 +291,14 @@ export const CoachDetailPage: React.FC = () => {
         <BookingSection
           coachId={coach.id}
           dashboardData={dashboardData}
+        />
+      )}
+
+      {showReportModal && (
+        <ReportModal
+          targetType="USER"
+          targetId={coach.userId}
+          onClose={() => setShowReportModal(false)}
         />
       )}
     </div>

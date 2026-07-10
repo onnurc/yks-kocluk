@@ -5,7 +5,10 @@ import com.ykskocluk.demo.dto.ReportCreateRequest;
 import com.ykskocluk.demo.dto.ReportResponse;
 import com.ykskocluk.demo.entity.Report;
 import com.ykskocluk.demo.entity.User;
+import com.ykskocluk.demo.entity.Conversation;
+import com.ykskocluk.demo.entity.Message;
 import com.ykskocluk.demo.enums.ReportStatus;
+import com.ykskocluk.demo.enums.ReportTargetType;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.ReportRepository;
 import com.ykskocluk.demo.repository.UserRepository;
@@ -23,16 +26,52 @@ public class ReportService {
 
     private final ReportRepository reportRepository;
     private final UserRepository userRepository;
+    private final com.ykskocluk.demo.repository.ConversationRepository conversationRepository;
+    private final com.ykskocluk.demo.repository.MessageRepository messageRepository;
 
-    public ReportService(ReportRepository reportRepository, UserRepository userRepository) {
+    public ReportService(ReportRepository reportRepository,
+                         UserRepository userRepository,
+                         com.ykskocluk.demo.repository.ConversationRepository conversationRepository,
+                         com.ykskocluk.demo.repository.MessageRepository messageRepository) {
         this.reportRepository = reportRepository;
         this.userRepository = userRepository;
+        this.conversationRepository = conversationRepository;
+        this.messageRepository = messageRepository;
     }
 
     @Transactional
     public ReportResponse createReport(Long reporterUserId, ReportCreateRequest request) {
         User reporter = userRepository.findById(reporterUserId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
+
+        // Validate targets
+        if (request.targetType() == ReportTargetType.USER) {
+            if (reporterUserId.equals(request.targetId())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "CANNOT_REPORT_SELF", "Kendinizi rapor edemezsiniz");
+            }
+            if (!userRepository.existsById(request.targetId())) {
+                throw new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Bildirilen kullanıcı bulunamadı");
+            }
+        } else if (request.targetType() == ReportTargetType.CONVERSATION) {
+            Conversation conversation = conversationRepository.findById(request.targetId())
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "CONVERSATION_NOT_FOUND", "Bildirilen konuşma bulunamadı"));
+
+            boolean isParticipant = conversation.getStudent().getId().equals(reporterUserId) ||
+                                    conversation.getCoachProfile().getUser().getId().equals(reporterUserId);
+            if (!isParticipant) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "NOT_CONVERSATION_PARTICIPANT", "Bu konuşmanın katılımcısı değilsiniz");
+            }
+        } else if (request.targetType() == ReportTargetType.MESSAGE) {
+            Message message = messageRepository.findById(request.targetId())
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "MESSAGE_NOT_FOUND", "Bildirilen mesaj bulunamadı"));
+
+            Conversation conversation = message.getConversation();
+            boolean isParticipant = conversation.getStudent().getId().equals(reporterUserId) ||
+                                    conversation.getCoachProfile().getUser().getId().equals(reporterUserId);
+            if (!isParticipant) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "NOT_CONVERSATION_PARTICIPANT", "Bu mesajın konuşmasının katılımcısı değilsiniz");
+            }
+        }
 
         Report report = new Report();
         report.setReporter(reporter);

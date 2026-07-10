@@ -1,9 +1,10 @@
 import React from "react";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
+import { KvkkConsentModal } from "../safety/KvkkConsentModal";
 
 export const AppLayout: React.FC = () => {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, hasConsented } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -49,7 +50,7 @@ export const AppLayout: React.FC = () => {
       </header>
 
       <main style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
-        <Outlet />
+        {!hasConsented && isAuthenticated ? <KvkkConsentModal /> : <Outlet />}
       </main>
 
       <footer style={{ textAlign: "center", padding: "1rem", backgroundColor: "#e9ecef", borderTop: "1px solid #dee2e6" }}>

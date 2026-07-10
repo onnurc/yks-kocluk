@@ -58,7 +58,7 @@ class CoachSearchServiceTest {
                 .thenReturn(Optional.of(profile));
         when(coachSubjectRepository.findByCoachProfileIdIn(List.of(1L))).thenReturn(List.of());
         when(sessionRepository.countByCoachAndStatus(any(), any())).thenReturn(List.of());
-        CoachDetailResponse expected = new CoachDetailResponse(1L, "n", "h", "b", "u", "d", 2020,
+        CoachDetailResponse expected = new CoachDetailResponse(1L, 2L, "n", "h", "b", "u", "d", 2020,
                 Set.of(Track.NUMERICAL), null, 0, true);
         // Placeholder seam: rating=null, totalSessions=0
         when(coachSearchMapper.toDetail(any(), any(), any(), anyInt())).thenReturn(expected);

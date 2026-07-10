@@ -28,6 +28,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -40,6 +41,7 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -136,7 +138,10 @@ class AdminConversationIntegrationTest {
     void messages_nonExistentConversation_404ProblemDetail() throws Exception {
         User admin = persistUser(Role.ADMIN, UserStatus.ACTIVE);
 
-        mockMvc.perform(get("/api/v1/admin/conversations/999999/messages").header("Authorization", token(admin)))
+        mockMvc.perform(post("/api/v1/admin/conversations/999999/messages")
+                        .header("Authorization", token(admin))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Auditing\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("CONVERSATION_NOT_FOUND"));
     }
@@ -153,8 +158,10 @@ class AdminConversationIntegrationTest {
         persistMessage(conv, coach.getUser(), "merhaba öğrenci");
 
         // admin is neither the student nor the coach of this conversation
-        mockMvc.perform(get("/api/v1/admin/conversations/" + conv.getId() + "/messages")
-                        .header("Authorization", token(admin)))
+        mockMvc.perform(post("/api/v1/admin/conversations/" + conv.getId() + "/messages")
+                        .header("Authorization", token(admin))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Auditing\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(2));
     }
@@ -163,6 +170,7 @@ class AdminConversationIntegrationTest {
 
     @Test
     void adminRead_doesNotMutate_readAt_or_lastMessageAt() {
+        User admin = persistUser(Role.ADMIN, UserStatus.ACTIVE);
         User student = persistUser(Role.STUDENT, UserStatus.ACTIVE);
         CoachProfile coach = persistCoach();
         Instant originalLastMessageAt = Instant.now().minus(Duration.ofHours(3));
@@ -183,7 +191,7 @@ class AdminConversationIntegrationTest {
 
         // admin performs both reads
         adminConversationService.listConversations(PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "lastMessageAt")));
-        adminConversationService.getMessages(conv.getId(), PageRequest.of(0, 20));
+        adminConversationService.getMessages(admin.getId(), conv.getId(), "Auditing", PageRequest.of(0, 20));
 
         // re-fetch from the DB and assert nothing changed
         assertThat(messageRepository.findById(m1.getId()).orElseThrow().getReadAt()).isEqualTo(m1ReadBefore);

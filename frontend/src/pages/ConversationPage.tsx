@@ -7,6 +7,7 @@ import { studentDashboardApi } from "../studentDashboard/studentDashboardApi";
 import type { StudentDashboardResponse } from "../studentDashboard/studentDashboardTypes";
 import { canMessageWithSubscription } from "../access/subscriptionAccess";
 import { FormError } from "../components/FormError";
+import { ReportModal } from "../safety/ReportModal";
 
 export const ConversationPage: React.FC = () => {
   const { conversationId } = useParams<{ conversationId: string }>();
@@ -19,6 +20,7 @@ export const ConversationPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [sendLoading, setSendLoading] = useState<boolean>(false);
   const [error, setError] = useState<any | null>(null);
+  const [reportTarget, setReportTarget] = useState<{ type: "CONVERSATION" | "MESSAGE"; id: number } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -101,6 +103,20 @@ export const ConversationPage: React.FC = () => {
           &larr; Mesajlarıma Geri Dön
         </Link>
         <span style={{ fontWeight: "bold", fontSize: "1.1rem", color: "#333" }}>{coachName} ile Görüşme</span>
+        <button
+          onClick={() => setReportTarget({ type: "CONVERSATION", id })}
+          style={{
+            padding: "0.25rem 0.5rem",
+            fontSize: "0.8rem",
+            backgroundColor: "transparent",
+            color: "#d9534f",
+            border: "1px solid #d9534f",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+        >
+          ⚠️ Görüşmeyi Bildir
+        </button>
       </div>
 
       <FormError error={error} />
@@ -158,6 +174,23 @@ export const ConversationPage: React.FC = () => {
                     <span style={{ display: "block", wordBreak: "break-word" }}>{msg.content}</span>
                     <span style={{ fontSize: "0.7rem", color: "#6c757d", float: "right", marginTop: "0.25rem" }}>
                       {formatTime(msg.createdAt)}
+                      {!isMe && (
+                        <button
+                          type="button"
+                          onClick={() => setReportTarget({ type: "MESSAGE", id: msg.id })}
+                          style={{
+                            marginLeft: "0.5rem",
+                            border: "none",
+                            background: "none",
+                            color: "#d9534f",
+                            cursor: "pointer",
+                            fontSize: "0.7rem",
+                            padding: 0,
+                          }}
+                        >
+                          Bildir
+                        </button>
+                      )}
                     </span>
                   </div>
                 </div>
@@ -200,6 +233,14 @@ export const ConversationPage: React.FC = () => {
           {sendLoading ? "Gönderiliyor..." : "Gönder"}
         </button>
       </form>
+
+      {reportTarget && (
+        <ReportModal
+          targetType={reportTarget.type}
+          targetId={reportTarget.id}
+          onClose={() => setReportTarget(null)}
+        />
+      )}
     </div>
   );
 };

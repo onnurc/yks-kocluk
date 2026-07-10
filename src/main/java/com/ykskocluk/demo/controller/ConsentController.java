@@ -2,7 +2,11 @@ package com.ykskocluk.demo.controller;
 
 import com.ykskocluk.demo.dto.ConsentCreateRequest;
 import com.ykskocluk.demo.dto.ConsentResponse;
+import com.ykskocluk.demo.dto.ConsentStatusResponse;
 import com.ykskocluk.demo.service.ConsentService;
+import com.ykskocluk.demo.enums.ConsentType;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -24,6 +28,13 @@ public class ConsentController {
 
     public ConsentController(ConsentService consentService) {
         this.consentService = consentService;
+    }
+
+    @GetMapping("/status")
+    public ConsentStatusResponse checkConsentStatus(
+            @AuthenticationPrincipal Long userId,
+            @RequestParam ConsentType consentType) {
+        return consentService.getConsentStatus(userId, consentType);
     }
 
     @PostMapping

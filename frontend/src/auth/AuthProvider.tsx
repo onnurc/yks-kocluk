@@ -4,6 +4,7 @@ import type { CurrentUser } from "./authTypes";
 import { authApi } from "./authApi";
 import { getAccessToken, setAccessToken, setRefreshToken, clearAllTokens } from "./tokenStorage";
 import { ApiError } from "../api/ApiError";
+import { safetyApi } from "../safety/safetyApi";
 
 interface AuthContextType {
   user: CurrentUser | null;
@@ -11,10 +12,13 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isSuspended: boolean;
+  hasConsented: boolean;
+  consentVersion: string;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, fullName: string, role: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshCurrentUser: () => Promise<void>;
+  setHasConsented: (val: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,6 +28,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [accessToken, setAccessTokenState] = useState<string | null>(getAccessToken());
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSuspended, setIsSuspended] = useState<boolean>(false);
+  const [hasConsented, setHasConsented] = useState<boolean>(true);
+  const [consentVersion, setConsentVersion] = useState<string>("v1.0");
 
   const handleSuspendedUser = () => {
     setIsSuspended(true);
@@ -41,6 +47,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       setUser(currentUser);
       setIsSuspended(false);
+
+      if (currentUser.role !== "ADMIN") {
+        try {
+          const status = await safetyApi.checkConsentStatus("KVKK");
+          setHasConsented(status.hasConsented);
+          setConsentVersion(status.currentVersion);
+        } catch {
+          setHasConsented(false);
+        }
+      } else {
+        setHasConsented(true);
+      }
     } catch (error) {
       if (error instanceof ApiError && (error.code === "USER_SUSPENDED" || error.status === 403)) {
         handleSuspendedUser();
@@ -120,10 +138,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isAuthenticated: !!user,
         isLoading,
         isSuspended,
+        hasConsented,
+        consentVersion,
         login,
         register,
         logout,
         refreshCurrentUser,
+        setHasConsented,
       }}
     >
       {children}

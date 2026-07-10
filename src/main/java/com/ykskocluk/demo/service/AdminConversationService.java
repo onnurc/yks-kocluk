@@ -44,13 +44,16 @@ public class AdminConversationService {
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
     private final MessageMapper messageMapper;
+    private final AdminConversationAccessAuditService adminConversationAccessAuditService;
 
     public AdminConversationService(ConversationRepository conversationRepository,
                                     MessageRepository messageRepository,
-                                    MessageMapper messageMapper) {
+                                    MessageMapper messageMapper,
+                                    AdminConversationAccessAuditService adminConversationAccessAuditService) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.messageMapper = messageMapper;
+        this.adminConversationAccessAuditService = adminConversationAccessAuditService;
     }
 
     /**
@@ -79,13 +82,20 @@ public class AdminConversationService {
      * a not-found shape with no participant leakage. Ordering = the caller's whitelisted Pageable
      * (defaulted {@code createdAt} DESC, matching the participant history view).
      */
-    @Transactional(readOnly = true)
-    public PageResponse<MessageResponse> getMessages(Long conversationId, Pageable pageable) {
+    @Transactional
+    public PageResponse<MessageResponse> getMessages(Long adminUserId, Long conversationId, String reason, Pageable pageable) {
         validateSort(pageable, MESSAGE_SORT_FIELDS);
+
+        if (reason == null || reason.trim().isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "ACCESS_REASON_REQUIRED", "Erişim gerekçesi boş olamaz");
+        }
 
         if (!conversationRepository.existsById(conversationId)) {
             throw new ApiException(HttpStatus.NOT_FOUND, "CONVERSATION_NOT_FOUND", "Konuşma bulunamadı");
         }
+
+        // Verify/persist audit log first before exposing messages
+        adminConversationAccessAuditService.logAccess(adminUserId, conversationId, reason);
 
         return PageResponse.from(
                 messageRepository.findByConversationId(conversationId, pageable)

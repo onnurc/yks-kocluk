@@ -10,6 +10,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { SuspendedPage } from "./pages/SuspendedPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
+import { AdminSafetyPage } from "./pages/admin/AdminSafetyPage";
 import { CoachListPage } from "./pages/CoachListPage";
 import { CoachDetailPage } from "./pages/CoachDetailPage";
 import { BookingsPage } from "./pages/BookingsPage";
@@ -44,6 +45,7 @@ const App: React.FC = () => {
               {/* Admin-only Routes */}
               <Route element={<RoleRoute allowedRoles={["ADMIN"]} />}>
                 <Route path="/admin" element={<AdminDashboardPage />} />
+                <Route path="/admin/safety" element={<AdminSafetyPage />} />
               </Route>
             </Route>
           </Route>

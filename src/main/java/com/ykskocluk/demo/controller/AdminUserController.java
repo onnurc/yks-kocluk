@@ -3,6 +3,7 @@ package com.ykskocluk.demo.controller;
 import com.ykskocluk.demo.dto.SuspendRequest;
 import com.ykskocluk.demo.dto.SuspendResponse;
 import com.ykskocluk.demo.service.UserService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,9 +27,10 @@ public class AdminUserController {
 
     @PostMapping("/{id}/suspend")
     public SuspendResponse suspendUser(
+            @AuthenticationPrincipal Long adminUserId,
             @PathVariable Long id,
             @RequestBody(required = false) SuspendRequest request) {
         String reason = (request != null) ? request.reason() : null;
-        return userService.suspendUser(id, reason);
+        return userService.suspendUser(adminUserId, id, reason);
     }
 }

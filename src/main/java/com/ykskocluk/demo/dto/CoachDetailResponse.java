@@ -10,6 +10,7 @@ import java.util.Set;
  */
 public record CoachDetailResponse(
         Long id,
+        Long userId,
         String fullName,
         String headline,
         String bio,

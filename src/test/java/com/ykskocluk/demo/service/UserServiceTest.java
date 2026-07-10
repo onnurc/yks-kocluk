@@ -35,10 +35,11 @@ class UserServiceTest {
     void suspendUser_success_updatesStatusAndReason() {
         User user = new User();
         user.setStatus(UserStatus.ACTIVE);
+        user.setRole(com.ykskocluk.demo.enums.Role.STUDENT);
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
 
-        SuspendResponse response = userService.suspendUser(1L, "Suspicious activity");
+        SuspendResponse response = userService.suspendUser(1L, 2L, "Suspicious activity");
 
         assertThat(response).isNotNull();
         assertThat(response.status()).isEqualTo("SUSPENDED");
@@ -52,14 +53,43 @@ class UserServiceTest {
 
     @Test
     void suspendUser_notFound_throwsNotFound() {
-        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+        when(userRepository.findById(2L)).thenReturn(Optional.empty());
 
         ApiException ex = catchThrowableOfType(ApiException.class,
-                () -> userService.suspendUser(1L, "Suspicious activity"));
+                () -> userService.suspendUser(1L, 2L, "Suspicious activity"));
 
         assertThat(ex).isNotNull();
         assertThat(ex.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(ex.getErrorCode()).isEqualTo("USER_NOT_FOUND");
+
+        verify(userRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void suspendUser_selfSuspend_throwsBadRequest() {
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> userService.suspendUser(1L, 1L, "Self suspend"));
+
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(ex.getErrorCode()).isEqualTo("CANNOT_SUSPEND_SELF");
+
+        verify(userRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void suspendUser_suspendAdmin_throwsBadRequest() {
+        User user = new User();
+        user.setRole(com.ykskocluk.demo.enums.Role.ADMIN);
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> userService.suspendUser(1L, 2L, "Suspend admin"));
+
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(ex.getErrorCode()).isEqualTo("CANNOT_SUSPEND_ADMIN");
 
         verify(userRepository, never()).saveAndFlush(any());
     }

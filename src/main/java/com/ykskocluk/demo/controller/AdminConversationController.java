@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * Admin oversight of messaging (Phase 5c). ADMIN-only — same P2 pattern as
@@ -49,12 +50,14 @@ public class AdminConversationController {
         return adminConversationService.listConversations(pageable);
     }
 
-    @GetMapping("/{id}/messages")
+    @PostMapping("/{id}/messages")
     public PageResponse<MessageResponse> messages(
+            @AuthenticationPrincipal Long adminUserId,
             @PathVariable Long id,
+            @Valid @RequestBody AdminConversationAccessRequest request,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
-        return adminConversationService.getMessages(id, pageable);
+        return adminConversationService.getMessages(adminUserId, id, request.reason(), pageable);
     }
 
     @PostMapping("/{conversationId}/access-log")
