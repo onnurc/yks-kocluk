@@ -10,6 +10,8 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { SuspendedPage } from "./pages/SuspendedPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
+import { CoachListPage } from "./pages/CoachListPage";
+import { CoachDetailPage } from "./pages/CoachDetailPage";
 import "./App.css";
 
 const App: React.FC = () => {
@@ -27,6 +29,12 @@ const App: React.FC = () => {
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               
+              {/* Student-only Routes */}
+              <Route element={<RoleRoute allowedRoles={["STUDENT"]} />}>
+                <Route path="/coaches" element={<CoachListPage />} />
+                <Route path="/coaches/:id" element={<CoachDetailPage />} />
+              </Route>
+
               {/* Admin-only Routes */}
               <Route element={<RoleRoute allowedRoles={["ADMIN"]} />}>
                 <Route path="/admin" element={<AdminDashboardPage />} />

@@ -1,4 +1,4 @@
-import React from "react";
+import { Link } from "react-router-dom";
 
 export const NoSubscriptionCard: React.FC = () => {
   return (
@@ -8,9 +8,21 @@ export const NoSubscriptionCard: React.FC = () => {
         Sınav hazırlık sürecinizde profesyonel destek alarak hedefinize daha emin adımlarla yürüyebilirsiniz.
         Size en uygun koçu bulup hemen başlayın!
       </p>
-      <button style={{ padding: "0.75rem 1.5rem", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: "4px", fontWeight: "bold", cursor: "not-allowed" }} disabled>
-        Koç Keşfet (Phase 3)
-      </button>
+      <Link
+        to="/coaches"
+        style={{
+          display: "inline-block",
+          padding: "0.75rem 1.5rem",
+          backgroundColor: "#007bff",
+          color: "white",
+          textDecoration: "none",
+          borderRadius: "4px",
+          fontWeight: "bold",
+          cursor: "pointer",
+        }}
+      >
+        Koç Keşfet
+      </Link>
     </div>
   );
 };
