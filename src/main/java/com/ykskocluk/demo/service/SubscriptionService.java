@@ -10,11 +10,16 @@ import com.ykskocluk.demo.dto.IyzicoWebhookRequest;
 import com.ykskocluk.demo.dto.IyzicoWebhookResponse;
 import com.ykskocluk.demo.dto.RefundResponse;
 import com.ykskocluk.demo.dto.AdminSubscriptionTerminateResponse;
+import com.ykskocluk.demo.dto.AdminPaymentResponse;
+import com.ykskocluk.demo.dto.AdminSubscriptionResponse;
+import com.ykskocluk.demo.dto.PageResponse;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Package;
 import com.ykskocluk.demo.entity.Payment;
 import com.ykskocluk.demo.entity.Subscription;
 import com.ykskocluk.demo.entity.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.PaymentStatus;
 import com.ykskocluk.demo.enums.PaymentType;
@@ -252,7 +257,7 @@ public class SubscriptionService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_REFUND_AMOUNT", "İade tutarı sıfırdan büyük olmalıdır");
         }
 
-        Payment originalPayment = paymentRepository.findById(paymentId)
+        Payment originalPayment = paymentRepository.findByIdForUpdate(paymentId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Ödeme bulunamadı"));
 
         if (originalPayment.getType() != PaymentType.CHARGE || originalPayment.getStatus() != PaymentStatus.SUCCESS) {
@@ -365,5 +370,57 @@ public class SubscriptionService {
                 subscription.getCancelledAt(),
                 "Abonelik başarıyla sonlandırıldı"
         );
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<AdminPaymentResponse> listPayments(Pageable pageable) {
+        Page<Payment> page = paymentRepository.findAll(pageable);
+        Page<AdminPaymentResponse> mapped = page.map(payment -> {
+            BigDecimal totalRefunded = BigDecimal.ZERO;
+            if (payment.getType() == PaymentType.CHARGE) {
+                List<Payment> existingRefunds = paymentRepository.findBySourcePaymentIdAndStatus(payment.getId(), PaymentStatus.SUCCESS);
+                totalRefunded = existingRefunds.stream()
+                        .map(Payment::getAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+            }
+            BigDecimal remainingRefundable = payment.getAmount().subtract(totalRefunded);
+
+            return new AdminPaymentResponse(
+                    payment.getId(),
+                    payment.getSubscription().getId(),
+                    payment.getSubscription().getStudent().getEmail(),
+                    payment.getSubscription().getStudent().getFullName(),
+                    payment.getSubscription().getCoachProfile().getUser().getFullName(),
+                    payment.getSubscription().getPkg().getName(),
+                    payment.getType().name(),
+                    payment.getAmount(),
+                    payment.getStatus().name(),
+                    payment.getProviderReference(),
+                    payment.getCreatedAt(),
+                    totalRefunded,
+                    remainingRefundable
+            );
+        });
+        return PageResponse.from(mapped);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<AdminSubscriptionResponse> listSubscriptions(Pageable pageable) {
+        Page<Subscription> page = subscriptionRepository.findAll(pageable);
+        Page<AdminSubscriptionResponse> mapped = page.map(sub -> new AdminSubscriptionResponse(
+                sub.getId(),
+                sub.getStudent().getEmail(),
+                sub.getStudent().getFullName(),
+                sub.getCoachProfile().getUser().getFullName(),
+                sub.getPkg().getName(),
+                sub.getStatus().name(),
+                sub.getStartAt(),
+                sub.getEndAt(),
+                sub.isAutoRenew(),
+                sub.getCancelledAt(),
+                sub.getTerminationReason(),
+                sub.getCreatedAt()
+        ));
+        return PageResponse.from(mapped);
     }
 }

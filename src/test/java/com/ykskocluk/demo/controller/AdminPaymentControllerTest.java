@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -96,6 +97,35 @@ class AdminPaymentControllerTest {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void admin_canListPayments() throws Exception {
+        com.ykskocluk.demo.dto.PageResponse<com.ykskocluk.demo.dto.AdminPaymentResponse> response =
+                new com.ykskocluk.demo.dto.PageResponse<>(java.util.List.of(), 0, 20, 0L, 0, true);
+
+        when(subscriptionService.listPayments(any())).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/admin/payments")
+                        .with(csrf()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "STUDENT")
+    void student_cannotListPayments_returnsForbidden() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/payments")
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "COACH")
+    void coach_cannotListPayments_returnsForbidden() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/payments")
+                        .with(csrf()))
                 .andExpect(status().isForbidden());
     }
 }

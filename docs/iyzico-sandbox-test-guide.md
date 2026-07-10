@@ -187,3 +187,45 @@ Verify database tables state during execution:
 *   **Never commit sandbox or production credentials** to the codebase.
 *   **Never input a real, active credit card** in the sandbox page.
 *   **Ensure `PAYMENTS_IYZICO_ENABLED` is set to `false` in default config profiles** to prevent unit tests or staging builds from attempting cloud client connections.
+
+---
+
+## 14. E2E QA Checklist
+
+For thorough manual verification, run through the following items. Refer to the canonical documentation for other MVP testing protocols:
+*   [manual-test-plan.md](file:///c:/Users/MSI/Desktop/is/bismillah/KOCLUK/yks-kocluk/docs/manual-test-plan.md)
+*   [frontend-integration-checklist.md](file:///c:/Users/MSI/Desktop/is/bismillah/KOCLUK/yks-kocluk/docs/frontend-integration-checklist.md)
+*   [project-document-v4.md](file:///c:/Users/MSI/Desktop/is/bismillah/KOCLUK/yks-kocluk/docs/project-document-v4.md)
+
+### Environment
+- [ ] PostgreSQL is running and migrations are up to date.
+- [ ] `PAYMENTS_IYZICO_ENABLED` is configured as `true` (sandbox testing) or `false` (local stub testing).
+- [ ] Sandbox keys (`IYZICO_API_KEY`, `IYZICO_SECRET_KEY`) are set via environment variables.
+- [ ] `IYZICO_CALLBACK_URL` is set to the ngrok public HTTPS URL for webhook reception.
+
+### Checkout & Payments
+- [ ] Package selection generates a pending subscription.
+- [ ] `checkoutUrl` is created and validated againstallowed hosts.
+- [ ] Redirection opens strictly in a new tab with `target="_blank"` and `rel="noopener noreferrer"`.
+- [ ] Sandbox credit cards are accepted by the official Iyzico form.
+- [ ] SUCCESS state is reached after success callback / webhook.
+- [ ] FAILURE state is handled gracefully on payment failure.
+- [ ] Duplicate checkout clicks are blocked in the UI.
+
+### Database State
+- [ ] Exactly one subscription record is created per purchase.
+- [ ] The `Payment` record transitions to `SUCCESS` with correct provider references.
+- [ ] Commision rate, amount, and coach payout details are computed.
+- [ ] Auto-renew state is correctly initialized to `true`.
+
+### Interventions & Access
+- [ ] Student booking and messaging remain blocked when subscription is inactive or pending.
+- [ ] Access is unlocked immediately upon subscription transition to `ACTIVE`.
+- [ ] Admin panel (accessible at `/admin/finance`) displays subscriptions and payments list.
+- [ ] Refund modal prompts for amount and reason, with clear warning text.
+- [ ] Refunding does not exceed the remaining refundable amount.
+- [ ] Termination modal prompts for reason, showing immediate access revocation warnings.
+- [ ] Subscription termination sets the status to `TERMINATED` and autoRenew to `false`.
+- [ ] Termination immediately denies booking and messaging rights.
+- [ ] Coach active student count is decremented exactly once, and never drops below zero.
+- [ ] Existing student cancel-renewal (preserving access until `endAt`) remains unaffected.

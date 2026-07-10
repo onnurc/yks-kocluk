@@ -32,6 +32,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -476,7 +479,7 @@ class SubscriptionServiceTest {
         original.setCommissionRate(new BigDecimal("0.2000"));
         original.setProviderReference("prov-ref-123");
 
-        when(paymentRepository.findById(100L)).thenReturn(Optional.of(original));
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(original));
         when(paymentRepository.findBySourcePaymentIdAndStatus(100L, PaymentStatus.SUCCESS))
                 .thenReturn(List.of());
         when(iyzicoClient.refund(eq("prov-ref-123"), eq(new BigDecimal("150.00")), any()))
@@ -518,7 +521,7 @@ class SubscriptionServiceTest {
         prevRefund.setAmount(new BigDecimal("50.00"));
         prevRefund.setStatus(PaymentStatus.SUCCESS);
 
-        when(paymentRepository.findById(100L)).thenReturn(Optional.of(original));
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(original));
         when(paymentRepository.findBySourcePaymentIdAndStatus(100L, PaymentStatus.SUCCESS))
                 .thenReturn(List.of(prevRefund));
         // New refund request of 50.00 (remaining is 150.00 - 50.00 = 100.00)
@@ -546,7 +549,7 @@ class SubscriptionServiceTest {
         prevRefund.setAmount(new BigDecimal("120.00"));
         prevRefund.setStatus(PaymentStatus.SUCCESS);
 
-        when(paymentRepository.findById(100L)).thenReturn(Optional.of(original));
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(original));
         when(paymentRepository.findBySourcePaymentIdAndStatus(100L, PaymentStatus.SUCCESS))
                 .thenReturn(List.of(prevRefund));
 
@@ -567,7 +570,7 @@ class SubscriptionServiceTest {
 
     @Test
     void refund_originalPaymentNotFound_throwsNotFound() {
-        when(paymentRepository.findById(100L)).thenReturn(Optional.empty());
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.empty());
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.refund(100L, new BigDecimal("10.00"), "Missing"));
         assertThat(ex.getErrorCode()).isEqualTo("PAYMENT_NOT_FOUND");
@@ -581,7 +584,7 @@ class SubscriptionServiceTest {
         original.setType(PaymentType.CHARGE);
         original.setStatus(PaymentStatus.FAILED); // not successful
 
-        when(paymentRepository.findById(100L)).thenReturn(Optional.of(original));
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(original));
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.refund(100L, new BigDecimal("10.00"), "Failed payment"));
         assertThat(ex.getErrorCode()).isEqualTo("INVALID_PAYMENT_STATUS");
@@ -600,7 +603,7 @@ class SubscriptionServiceTest {
         original.setCommissionRate(new BigDecimal("0.2000"));
         original.setProviderReference("prov-ref-123");
 
-        when(paymentRepository.findById(100L)).thenReturn(Optional.of(original));
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(original));
         when(paymentRepository.findBySourcePaymentIdAndStatus(100L, PaymentStatus.SUCCESS))
                 .thenReturn(List.of());
         when(iyzicoClient.refund(eq("prov-ref-123"), eq(new BigDecimal("50.00")), any()))
@@ -700,5 +703,79 @@ class SubscriptionServiceTest {
 
         verify(coachProfileRepository, never()).decrementActiveStudentCount(any(Long.class));
         verify(subscriptionRepository).saveAndFlush(sub);
+    }
+
+    @Test
+    void listPayments_success() {
+        Pageable pageable = PageRequest.of(0, 20);
+        User student = new User();
+        ReflectionTestUtils.setField(student, "email", "student@example.com");
+        ReflectionTestUtils.setField(student, "fullName", "Student Name");
+
+        User coachUser = new User();
+        ReflectionTestUtils.setField(coachUser, "fullName", "Coach Name");
+        CoachProfile coach = new CoachProfile();
+        coach.setUser(coachUser);
+
+        Package pkg = new Package();
+        pkg.setName("Package Title");
+
+        Subscription sub = new Subscription();
+        ReflectionTestUtils.setField(sub, "id", 10L);
+        sub.setStudent(student);
+        sub.setCoachProfile(coach);
+        sub.setPkg(pkg);
+
+        Payment payment = new Payment();
+        ReflectionTestUtils.setField(payment, "id", 100L);
+        payment.setSubscription(sub);
+        payment.setType(PaymentType.CHARGE);
+        payment.setAmount(new BigDecimal("150.00"));
+        payment.setStatus(PaymentStatus.SUCCESS);
+        payment.setProviderReference("prov-ref");
+        payment.setCommissionRate(new BigDecimal("0.2000"));
+        payment.setCommissionAmount(new BigDecimal("30.00"));
+        payment.setCoachPayoutAmount(new BigDecimal("120.00"));
+
+        when(paymentRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(payment)));
+        when(paymentRepository.findBySourcePaymentIdAndStatus(100L, PaymentStatus.SUCCESS)).thenReturn(List.of());
+
+        var res = service.listPayments(pageable);
+        assertThat(res).isNotNull();
+        assertThat(res.content()).hasSize(1);
+        assertThat(res.content().get(0).studentEmail()).isEqualTo("student@example.com");
+        assertThat(res.content().get(0).remainingRefundableAmount()).isEqualTo(new BigDecimal("150.00"));
+    }
+
+    @Test
+    void listSubscriptions_success() {
+        Pageable pageable = PageRequest.of(0, 20);
+        User student = new User();
+        ReflectionTestUtils.setField(student, "email", "student@example.com");
+        ReflectionTestUtils.setField(student, "fullName", "Student Name");
+
+        User coachUser = new User();
+        ReflectionTestUtils.setField(coachUser, "fullName", "Coach Name");
+        CoachProfile coach = new CoachProfile();
+        coach.setUser(coachUser);
+
+        Package pkg = new Package();
+        pkg.setName("Package Title");
+
+        Subscription sub = new Subscription();
+        ReflectionTestUtils.setField(sub, "id", 10L);
+        sub.setStudent(student);
+        sub.setCoachProfile(coach);
+        sub.setPkg(pkg);
+        sub.setStatus(SubscriptionStatus.ACTIVE);
+        sub.setStartAt(Instant.now());
+        sub.setEndAt(Instant.now());
+
+        when(subscriptionRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(sub)));
+
+        var res = service.listSubscriptions(pageable);
+        assertThat(res).isNotNull();
+        assertThat(res.content()).hasSize(1);
+        assertThat(res.content().get(0).studentEmail()).isEqualTo("student@example.com");
     }
 }

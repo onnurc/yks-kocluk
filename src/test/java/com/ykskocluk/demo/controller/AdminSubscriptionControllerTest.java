@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -93,6 +94,35 @@ class AdminSubscriptionControllerTest {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void admin_canListSubscriptions() throws Exception {
+        com.ykskocluk.demo.dto.PageResponse<com.ykskocluk.demo.dto.AdminSubscriptionResponse> response =
+                new com.ykskocluk.demo.dto.PageResponse<>(java.util.List.of(), 0, 20, 0L, 0, true);
+
+        when(subscriptionService.listSubscriptions(any())).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/admin/subscriptions")
+                        .with(csrf()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "STUDENT")
+    void student_cannotListSubscriptions_forbidden() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/subscriptions")
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "COACH")
+    void coach_cannotListSubscriptions_forbidden() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/subscriptions")
+                        .with(csrf()))
                 .andExpect(status().isForbidden());
     }
 }

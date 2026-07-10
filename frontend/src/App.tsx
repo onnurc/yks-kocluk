@@ -11,6 +11,7 @@ import { SuspendedPage } from "./pages/SuspendedPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminSafetyPage } from "./pages/admin/AdminSafetyPage";
+import { AdminFinancePage } from "./pages/admin/AdminFinancePage";
 import { CoachListPage } from "./pages/CoachListPage";
 import { CoachDetailPage } from "./pages/CoachDetailPage";
 import { BookingsPage } from "./pages/BookingsPage";
@@ -46,6 +47,7 @@ const App: React.FC = () => {
               <Route element={<RoleRoute allowedRoles={["ADMIN"]} />}>
                 <Route path="/admin" element={<AdminDashboardPage />} />
                 <Route path="/admin/safety" element={<AdminSafetyPage />} />
+                <Route path="/admin/finance" element={<AdminFinancePage />} />
               </Route>
             </Route>
           </Route>

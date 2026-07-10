@@ -25,6 +25,7 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
   const { user } = useAuth();
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<any | null>(null);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
 
   const subStatus = dashboardData?.subscription?.status;
   const isPending = subStatus === "PENDING_PAYMENT";
@@ -36,6 +37,7 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
 
     setLoading(true);
     setError(null);
+    setCheckoutUrl(null);
 
     try {
       const response = await subscriptionCheckoutApi.checkout({
@@ -44,17 +46,32 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
       });
 
       if (response && response.checkoutUrl) {
-        // Accept only valid http/https URLs and perform same-tab navigation
-        if (response.checkoutUrl.startsWith("http://") || response.checkoutUrl.startsWith("https://")) {
-          window.location.assign(response.checkoutUrl);
-        } else {
-          throw new Error("Geçersiz ödeme yönlendirme adresi.");
+        try {
+          const parsed = new URL(response.checkoutUrl);
+          const allowedHosts = [
+            "sandbox-api.iyzipay.com",
+            "sandbox-api.iyzico.com",
+            "api.iyzico.com",
+            "api.iyzipay.com",
+            "www.iyzico.com",
+          ];
+          if (import.meta.env.DEV) {
+            allowedHosts.push("checkout.stub.local");
+          }
+          if (parsed.protocol === "https:" && allowedHosts.includes(parsed.hostname)) {
+            setCheckoutUrl(response.checkoutUrl);
+          } else {
+            throw new Error("Güvenli olmayan veya izin verilmeyen ödeme yönlendirme adresi.");
+          }
+        } catch (e: any) {
+          throw new Error(e.message || "Geçersiz ödeme yönlendirme adresi.");
         }
       } else {
         throw new Error("Ödeme oturumu adresi alınamadı.");
       }
     } catch (err: any) {
       setError(err);
+    } finally {
       setLoading(false);
     }
   };
@@ -130,6 +147,30 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
       {!isPending && !isActive && !error && (
         <div style={{ padding: "0.75rem", border: "1px solid #ced4da", borderRadius: "4px", backgroundColor: "#f8f9fa", color: "#495057", marginBottom: "1rem", fontSize: "0.9rem" }}>
           ℹ️ "Ödemeye Geç" butonuna tıkladığınızda ödeme sayfasına yönlendirileceksiniz.
+        </div>
+      )}
+
+      {checkoutUrl && (
+        <div style={{ marginTop: "1rem", marginBottom: "1rem" }}>
+          <a
+            href={checkoutUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "block",
+              textAlign: "center",
+              padding: "0.75rem",
+              backgroundColor: "#0284c7",
+              color: "white",
+              textDecoration: "none",
+              borderRadius: "4px",
+              fontWeight: "bold",
+              fontSize: "1rem",
+              transition: "background-color 0.2s",
+            }}
+          >
+            İyzico Ödeme Sayfasını Aç (Yeni Sekmede)
+          </a>
         </div>
       )}
 
