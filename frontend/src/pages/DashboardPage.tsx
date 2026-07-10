@@ -114,12 +114,13 @@ export const DashboardPage: React.FC = () => {
             </div>
           )}
 
-          {data.subscription && data.subscription.status === "ACTIVE" && (
-            <ActiveSubscriptionCard subscription={data.subscription} payment={data.payment} />
+          {data.subscription && (data.subscription.status === "ACTIVE" || data.subscription.status === "PAST_DUE") && (
+            <ActiveSubscriptionCard subscription={data.subscription} payment={data.payment} onRefresh={fetchDashboard} />
           )}
 
           {data.subscription &&
            data.subscription.status !== "ACTIVE" &&
+           data.subscription.status !== "PAST_DUE" &&
            data.subscription.status !== "PENDING_PAYMENT" && (
             <div style={{ padding: "1.5rem", border: "1px solid #dee2e6", borderRadius: "8px", backgroundColor: "#fff" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
