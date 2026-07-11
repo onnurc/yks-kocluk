@@ -15,7 +15,9 @@
       "Bash(curl -s -o /dev/null -w \"[HTTP %{http_code}]\\\\n\" -L http://localhost:8080/swagger-ui.html)",
       "Bash(curl -s -o /dev/null -w \"[HTTP %{http_code}]\\\\n\" http://localhost:8080/v3/api-docs)",
       "Bash(curl -s -o /dev/null -w \"[HTTP %{http_code}]\\\\n\" http://localhost:8080/actuator/health)",
-      "Bash(rm -f /tmp/neon_p2.log)"
+      "Bash(rm -f /tmp/neon_p2.log)",
+      "Bash(git fetch *)",
+      "Bash(xargs -n1 basename)"
     ]
   }
 }
