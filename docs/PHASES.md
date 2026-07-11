@@ -29,7 +29,7 @@
 - **Single vertical slice:** a simple endpoint (health or minimal read) running controller → service → repository → DB — prove the wiring.
 - One `@WebMvcTest` + one Testcontainers repository test — prove the test infrastructure.
 
-**Done when:** App starts, connects to Neon, migration applies, Swagger opens, one endpoint works end-to-end, tests pass, `./mvnw verify` is green.
+**Done when:** App starts, connects to Neon, migration applies, Swagger opens, one endpoint works end-to-end, tests pass, backend verify is green.
 
 **Emphasize in prompt:** *"We use SB 4.0.6 / Java 21 — do not suggest SB3 configs. Pin dependency versions SB4-compatible. Fix until build is green. Add `@AutoConfigureTestDatabase(replace = Replace.NONE)` on all `@DataJpaTest` tests."*
 

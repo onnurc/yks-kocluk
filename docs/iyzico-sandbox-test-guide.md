@@ -47,10 +47,11 @@ $env:PAYMENTS_IYZICO_ENABLED = "true"
 
 ## 4. Starting the Backend
 
-Start the Spring Boot application from the root directory of the workspace where the environment variables were set:
+Start the Spring Boot application from the backend directory:
 
 ```powershell
-./mvnw.cmd spring-boot:run
+cd backend
+.\mvnw.cmd spring-boot:run
 ```
 
 **Expected Successful Startup Output:**
@@ -154,7 +155,7 @@ To test the complete end-to-end webhook integration locally:
     ```powershell
     $env:IYZICO_CALLBACK_URL = "https://your-public-tunnel.ngrok-free.app/api/v1/payments/iyzico/webhook"
     ```
-4.  Restart the backend server (`./mvnw.cmd spring-boot:run`).
+4.  Restart the backend server (`cd backend` and `.\mvnw.cmd spring-boot:run`).
 5.  Perform the checkout and payment steps. Upon success, Iyzico will reach the tunnel domain, forwarding the webhook request directly to your local instance.
 
 ---
