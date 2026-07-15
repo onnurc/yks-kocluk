@@ -31,12 +31,14 @@ all entities extend `BaseEntity` (id, created_at, updated_at, version) with JPA 
 
 ```bash
 # Tests (Colima/Docker MUST be running — Testcontainers spins real Postgres 18; no H2).
-# The Ryuk socket override is already set in pom.xml surefire config, so a plain build works:
-./mvnw verify
-./mvnw test -Dtest=SomeTest        # run a single test class
+# Run from the backend directory:
+cd backend
+.\mvnw.cmd verify                  # on Windows
+./mvnw verify                      # on macOS/Linux
+.\mvnw.cmd test -Dtest=SomeTest    # run a single test class
 
 # Run against Neon locally (needs the gitignored application-local.yml — see below):
-./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+.\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=local
 # App on http://localhost:8080 ; Swagger at /swagger-ui.html
 ```
 
