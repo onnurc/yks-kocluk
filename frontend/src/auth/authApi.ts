@@ -7,12 +7,13 @@ export const authApi = {
     return httpClient.post<AuthResponse>("/api/v1/auth/login", { email, password });
   },
 
-  register: async (email: string, password: string, fullName: string, role: string): Promise<AuthResponse> => {
+  register: async (email: string, password: string, fullName: string, role: string, dateOfBirth?: string): Promise<AuthResponse> => {
     return httpClient.post<AuthResponse>("/api/v1/auth/register", {
       email,
       password,
       fullName,
       role,
+      dateOfBirth,
     });
   },
 

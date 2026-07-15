@@ -10,11 +10,13 @@ import com.ykskocluk.demo.repository.ConsentRecordRepository;
 import com.ykskocluk.demo.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import com.ykskocluk.demo.enums.ConsentType;
+import com.ykskocluk.demo.enums.ConsentStatus;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 
 /**
  * Service handling legal document consent recordings.
@@ -36,13 +38,28 @@ public class ConsentService {
 
     @Transactional(readOnly = true)
     public boolean hasConsented(Long userId, ConsentType consentType, String documentVersion) {
-        return consentRecordRepository.existsByUserIdAndConsentTypeAndDocumentVersion(userId, consentType, documentVersion);
+        return consentRecordRepository.existsByUserIdAndConsentTypeAndDocumentVersionAndStatus(
+                userId, consentType, documentVersion, ConsentStatus.ACCEPTED);
     }
 
     @Transactional(readOnly = true)
     public ConsentStatusResponse getConsentStatus(Long userId, ConsentType consentType) {
-        boolean consented = consentRecordRepository.existsByUserIdAndConsentTypeAndDocumentVersion(userId, consentType, CURRENT_KVKK_VERSION);
-        return new ConsentStatusResponse(CURRENT_KVKK_VERSION, consented);
+        Optional<ConsentRecord> latest = consentRecordRepository.findFirstByUserIdAndConsentTypeOrderByAcceptedAtDesc(userId, consentType);
+
+        if (latest.isPresent()) {
+            ConsentRecord record = latest.get();
+            boolean isCurrentVersion = CURRENT_KVKK_VERSION.equals(record.getDocumentVersion());
+            boolean isAccepted = record.getStatus() == ConsentStatus.ACCEPTED;
+
+            boolean hasConsented = isCurrentVersion && isAccepted;
+            String statusStr = record.getStatus().name();
+            if (!isCurrentVersion && isAccepted) {
+                statusStr = ConsentStatus.PENDING.name();
+            }
+            return new ConsentStatusResponse(CURRENT_KVKK_VERSION, hasConsented, statusStr);
+        } else {
+            return new ConsentStatusResponse(CURRENT_KVKK_VERSION, false, ConsentStatus.PENDING.name());
+        }
     }
 
     @Transactional
@@ -62,6 +79,7 @@ public class ConsentService {
         record.setConsentType(request.consentType());
         record.setDocumentVersion(request.documentVersion());
         record.setAcceptedAt(Instant.now());
+        record.setStatus(ConsentStatus.ACCEPTED);
 
         if (httpRequest != null) {
             record.setIpAddress(httpRequest.getRemoteAddr());
@@ -76,5 +94,49 @@ public class ConsentService {
                 record.getDocumentVersion(),
                 record.getAcceptedAt()
         );
+    }
+
+    @Transactional
+    public ConsentResponse revokeConsent(Long userId, ConsentType consentType) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
+
+        ConsentRecord record = new ConsentRecord();
+        record.setUser(user);
+        record.setConsentType(consentType);
+        record.setDocumentVersion(CURRENT_KVKK_VERSION);
+        record.setAcceptedAt(Instant.now());
+        record.setStatus(ConsentStatus.REVOKED);
+
+        consentRecordRepository.saveAndFlush(record);
+
+        return new ConsentResponse(
+                record.getId(),
+                record.getConsentType(),
+                record.getDocumentVersion(),
+                record.getAcceptedAt()
+        );
+    }
+
+    public void checkConsentRequiredForAction(User user) {
+        if (user == null || user.getRole() != com.ykskocluk.demo.enums.Role.STUDENT) {
+            return;
+        }
+        if (isMinor(user.getDateOfBirth())) {
+            boolean consented = hasConsented(user.getId(), ConsentType.KVKK, CURRENT_KVKK_VERSION);
+            if (!consented) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "MINOR_CONSENT_REQUIRED",
+                        "18 yaş altı öğrenciler için veli onayı gereklidir");
+            }
+        }
+    }
+
+    public boolean isMinor(java.time.LocalDate dateOfBirth) {
+        if (dateOfBirth == null) {
+            return false;
+        }
+        java.time.LocalDate now = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Istanbul"));
+        int age = java.time.Period.between(dateOfBirth, now).getYears();
+        return age < 18;
     }
 }

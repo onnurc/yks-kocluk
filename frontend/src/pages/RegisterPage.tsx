@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { FormError } from "../components/FormError";
+import { ApiError } from "../api/ApiError";
 
 export const RegisterPage: React.FC = () => {
   const { register, isAuthenticated, user, isSuspended } = useAuth();
@@ -12,7 +13,8 @@ export const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"STUDENT" | "COACH">("STUDENT");
-  const [error, setError] = useState<any | null>(null);
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [error, setError] = useState<ApiError | Error | string | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Redirect users who are already logged in
@@ -44,14 +46,26 @@ export const RegisterPage: React.FC = () => {
       setError("Şifre en az 8 karakter olmalıdır.");
       return;
     }
+    if (role === "STUDENT") {
+      if (!dateOfBirth) {
+        setError("Öğrenci kaydı için doğum tarihi zorunludur.");
+        return;
+      }
+      const birthDate = new Date(dateOfBirth);
+      const today = new Date();
+      if (birthDate > today) {
+        setError("Doğum tarihi gelecekte olamaz.");
+        return;
+      }
+    }
 
     setLoading(true);
     try {
       const fullName = `${firstName.trim()} ${lastName.trim()}`;
-      await register(email, password, fullName, role);
+      await register(email, password, fullName, role, role === "STUDENT" ? dateOfBirth : undefined);
       // Success auto-login redirects via useEffect
-    } catch (err: any) {
-      setError(err);
+    } catch (err) {
+      setError(err as ApiError | Error);
     } finally {
       setLoading(false);
     }
@@ -110,6 +124,36 @@ export const RegisterPage: React.FC = () => {
             style={{ width: "100%", padding: "0.5rem", boxSizing: "border-box", borderRadius: "4px", border: "1px solid #ccc" }}
           />
         </div>
+        {role === "STUDENT" && (
+          <div style={{ marginBottom: "1rem" }}>
+            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>Doğum Tarihi:</label>
+            <input
+              type="date"
+              value={dateOfBirth}
+              onChange={(e) => setDateOfBirth(e.target.value)}
+              required
+              disabled={loading}
+              style={{ width: "100%", padding: "0.5rem", boxSizing: "border-box", borderRadius: "4px", border: "1px solid #ccc" }}
+            />
+            {dateOfBirth && (() => {
+              const birth = new Date(dateOfBirth);
+              const today = new Date();
+              let age = today.getFullYear() - birth.getFullYear();
+              const m = today.getMonth() - birth.getMonth();
+              if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+                age--;
+              }
+              if (age < 18 && age >= 0) {
+                return (
+                  <small style={{ color: "#d9534f", display: "block", marginTop: "0.25rem" }}>
+                    18 yaş altı kullanıcılar için veli onayı gerekmektedir.
+                  </small>
+                );
+              }
+              return null;
+            })()}
+          </div>
+        )}
         <div style={{ marginBottom: "1.5rem" }}>
           <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>Rol Seçimi:</label>
           <select

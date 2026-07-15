@@ -1,27 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import type { CurrentUser } from "./authTypes";
 import { authApi } from "./authApi";
 import { getAccessToken, setAccessToken, setRefreshToken, clearAllTokens } from "./tokenStorage";
 import { ApiError } from "../api/ApiError";
 import { safetyApi } from "../safety/safetyApi";
-
-interface AuthContextType {
-  user: CurrentUser | null;
-  accessToken: string | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  isSuspended: boolean;
-  hasConsented: boolean;
-  consentVersion: string;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, fullName: string, role: string) => Promise<void>;
-  logout: () => Promise<void>;
-  refreshCurrentUser: () => Promise<void>;
-  setHasConsented: (val: boolean) => void;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { AuthContext } from "./AuthContext";
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<CurrentUser | null>(null);
@@ -30,15 +14,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isSuspended, setIsSuspended] = useState<boolean>(false);
   const [hasConsented, setHasConsented] = useState<boolean>(true);
   const [consentVersion, setConsentVersion] = useState<string>("v1.0");
+  const [consentStatus, setConsentStatus] = useState<string>("PENDING");
 
-  const handleSuspendedUser = () => {
+  const handleSuspendedUser = useCallback(() => {
     setIsSuspended(true);
     setUser(null);
     clearAllTokens();
     setAccessTokenState(null);
-  };
+  }, []);
 
-  const refreshCurrentUser = async () => {
+  const refreshCurrentUser = useCallback(async () => {
     try {
       const currentUser = await authApi.getCurrentUser();
       if (currentUser.status === "SUSPENDED") {
@@ -48,16 +33,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(currentUser);
       setIsSuspended(false);
 
-      if (currentUser.role !== "ADMIN") {
+      const isMinor = (dateOfBirth?: string) => {
+        if (!dateOfBirth) return false;
+        const birthDate = new Date(dateOfBirth);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+        return age < 18;
+      };
+
+      if (currentUser.role === "STUDENT" && isMinor(currentUser.dateOfBirth)) {
         try {
           const status = await safetyApi.checkConsentStatus("KVKK");
           setHasConsented(status.hasConsented);
           setConsentVersion(status.currentVersion);
+          setConsentStatus(status.status);
         } catch {
           setHasConsented(false);
+          setConsentStatus("PENDING");
         }
       } else {
         setHasConsented(true);
+        setConsentStatus("ACCEPTED");
       }
     } catch (error) {
       if (error instanceof ApiError && (error.code === "USER_SUSPENDED" || error.status === 403)) {
@@ -68,7 +68,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setAccessTokenState(null);
       }
     }
-  };
+  }, [handleSuspendedUser]);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
@@ -88,10 +88,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const register = async (email: string, password: string, fullName: string, role: string) => {
+  const register = async (email: string, password: string, fullName: string, role: string, dateOfBirth?: string) => {
     setIsLoading(true);
     try {
-      const response = await authApi.register(email, password, fullName, role);
+      const response = await authApi.register(email, password, fullName, role, dateOfBirth);
       setAccessToken(response.accessToken);
       setRefreshToken(response.refreshToken);
       setAccessTokenState(response.accessToken);
@@ -128,7 +128,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsLoading(false);
     };
     initializeAuth();
-  }, []);
+  }, [refreshCurrentUser]);
 
   return (
     <AuthContext.Provider
@@ -140,6 +140,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isSuspended,
         hasConsented,
         consentVersion,
+        consentStatus,
         login,
         register,
         logout,
@@ -150,12 +151,4 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
 };

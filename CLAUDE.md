@@ -18,7 +18,7 @@ Backend for a web platform that connects YKS exam students with university-stude
 
 - Solo developer, ~22 weeks, MVP-focused. **Operational simplicity is critical.**
 - **Avoid over-engineering.** There are deliberate simplifications (see DO-NOTs and REJECTED PROPOSALS below). Do not break them by adding abstractions, patterns, or layers for "cleanliness."
-- Backend is a **frontend-agnostic REST API**. Frontend (Next.js) is separate and comes later.
+- This repository is a **monorepo**: the backend is in `/backend` (Java 21, Spring Boot 4) and the frontend is in `/frontend` (React + Vite + TypeScript).
 
 ---
 
@@ -65,7 +65,7 @@ Backend for a web platform that connects YKS exam students with university-stude
 ## Rejected Proposals (do not suggest — these are decisions)
 
 - **Coach-level pricing** — no; pricing is uniform and set by the owner. `CoachProfile` has no price field.
-- **Fund-distribution model** — **UNDER REVIEW** (pending the user's accountant); NOT settled. Two candidates: (A) iyzico Marketplace / sub-merchant — iyzico auto-splits funds to coach + platform; (B) single platform merchant — all funds to the platform, which tracks each coach's earnings and pays out manually/batch. **Build the subscription / renewal / cancellation logic now; keep fund distribution / payout as an isolated SEAM — do not hardcode either model into the core flow.**
+- **Fund-distribution model** — **UNDER REVIEW** (pending the user's accountant); NOT settled. No database schema is implemented, no IBANs are collected, and no active bank transfers are wired. Architectural recommendations are documented in `docs/adr_coach_payout_architecture.md`.
 - **Lesson-level expertise** (`Lesson` / `CoachLesson`) — no; matching is track-level (`CoachSubject`). Coaching = mentorship, not subject tutoring.
 
 ---
@@ -159,27 +159,15 @@ Response: wrap `Page<T>` in a `PageResponse<T>` DTO:
 | **Payment idempotency** | `idempotency_key` UNIQUE. Status updated via webhook. Refund = new Payment row (`type=REFUND`, `source_payment_id` links to original). Do not mutate the existing row. Snapshot commission at transaction time (`commission_rate`, `commission_amount`, `coach_payout_amount`). |
 | **Refund ↔ payout order** | Do not release payout before the refund window closes. |
 | **Child-safety message gate** | A student may only message a coach they have an active or past Subscription with — enforced **server-side**, never trust the client. Chat attachments are closed/restricted in beta; all attachments are admin-visible. |
-| **KVKK** | `ConsentRecord` required for students under 18 (recorded even if collected offline). Reported user can be suspended via `User.status=SUSPENDED`. |
+| **KVKK & Minor Consent** | `ConsentRecord` required for students under 18 (recorded online/offline). If consent is not accepted or is revoked (`REVOKED`), they are blocked from checkout, booking, starting conversations, and sending messages. |
 
 ---
 
 ## Development Order (Phases) — Details in PHASES.md
 
-| # | Phase |
-| --- | --- |
-| 0 | Setup (SB4) |
-| 0.5 | Risk PoC (iyzico + Meet — throwaway) |
-| 1 | Auth |
-| 2 | Coach |
-| 3 | Search |
-| 4 | Availability & Booking |
-| 5 | Messaging |
-| 6 | Session (Meet) |
-| 7 | Notifications |
-| 8 | Payment (iyzico) |
-| 9 | KVKK / Hardening |
-
-**Stub-first:** external services start as stubs; real implementations are built in their own phase.
+- **Phases 0-6:** Completed (Core features, Subscription management).
+- **Phases 7-8:** Completed (KVKK Consent, Safety Reports, Admin Panel, Minors & Consent validation).
+- **Phases 9-10:** Completed (Admin Finance, Webhook Signature, Minor Consent UX). Payout altyapısı yapılmamıştır, sadece ADR/karar hazırlığı tamamlanmıştır.
 
 ---
 

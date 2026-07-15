@@ -50,4 +50,7 @@ public class User extends BaseEntity {
 
     @Column(name = "suspension_reason", length = 2000)
     private String suspensionReason;
+
+    @Column(name = "date_of_birth")
+    private java.time.LocalDate dateOfBirth;
 }

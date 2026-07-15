@@ -44,6 +44,7 @@ public class MessageService {
     private final UserRepository userRepository;
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
+    private final ConsentService consentService;
 
     public MessageService(ConversationRepository conversationRepository,
                           MessageRepository messageRepository,
@@ -51,7 +52,8 @@ public class MessageService {
                           CoachProfileRepository coachProfileRepository,
                           UserRepository userRepository,
                           ConversationMapper conversationMapper,
-                          MessageMapper messageMapper) {
+                          MessageMapper messageMapper,
+                          ConsentService consentService) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.subscriptionRepository = subscriptionRepository;
@@ -59,6 +61,7 @@ public class MessageService {
         this.userRepository = userRepository;
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
+        this.consentService = consentService;
     }
 
     /** Student opens (or re-fetches) the conversation with a coach. Gate enforced here. */
@@ -66,6 +69,10 @@ public class MessageService {
     public ConversationResponse openConversation(Long studentUserId, Long coachProfileId) {
         CoachProfile coach = coachProfileRepository.findById(coachProfileId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "COACH_NOT_FOUND", "Koç bulunamadı"));
+
+        User student = userRepository.findById(studentUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
+        consentService.checkConsentRequiredForAction(student);
 
         // The gate: must have a live subscription with this coach.
         if (!subscriptionRepository.existsLiveSubscription(studentUserId, coachProfileId)) {
@@ -76,9 +83,6 @@ public class MessageService {
         Conversation conversation = conversationRepository
                 .findByStudentIdAndCoachProfileId(studentUserId, coachProfileId)
                 .orElseGet(() -> {
-                    User student = userRepository.findById(studentUserId)
-                            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND",
-                                    "Kullanıcı bulunamadı"));
                     Conversation c = new Conversation();
                     c.setStudent(student);
                     c.setCoachProfile(coach);
@@ -103,6 +107,8 @@ public class MessageService {
 
         User sender = userRepository.findById(senderUserId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
+
+        consentService.checkConsentRequiredForAction(sender);
 
         Message message = new Message();
         message.setConversation(conversation);

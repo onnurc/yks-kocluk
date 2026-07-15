@@ -21,6 +21,11 @@ public record RegisterRequest(
         String fullName,
 
         @NotNull(message = "Rol seçilmeli")
-        Role role
+        Role role,
+
+        java.time.LocalDate dateOfBirth
 ) {
+    public RegisterRequest(String email, String password, String fullName, Role role) {
+        this(email, password, fullName, role, null);
+    }
 }

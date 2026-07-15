@@ -8,6 +8,7 @@ export interface ConsentResponse {
 export interface ConsentStatusResponse {
   currentVersion: string;
   hasConsented: boolean;
+  status: string;
 }
 
 export type ReportTargetType = "USER" | "CONVERSATION" | "MESSAGE";

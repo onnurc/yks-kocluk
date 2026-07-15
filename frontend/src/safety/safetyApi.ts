@@ -22,6 +22,12 @@ export const safetyApi = {
     });
   },
 
+  revokeConsent: (consentType: string): Promise<ConsentResponse> => {
+    return httpClient.post<ConsentResponse>(
+      `/api/v1/consents/revoke?consentType=${consentType}`
+    );
+  },
+
   createReport: (
     targetType: string,
     targetId: number,

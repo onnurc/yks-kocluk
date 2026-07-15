@@ -205,6 +205,20 @@
 
 ---
 
+## Phase 10 — Frontend Integration, Monorepo, & QA
+
+**Goal:** Unify frontend and backend in a monorepo, implement end-to-end flows, and complete KVKK/consent validation.
+
+**Scope:**
+- **Monorepo Restructuring:** Separated project into `/backend` (Java 21, Spring Boot 4) and `/frontend` (React + Vite + TypeScript).
+- **Date of Birth & Consent Validation:** Added `dateOfBirth` input to student registration. Gated minors (<18) by checking consent status (`PENDING`, `ACCEPTED`, `REVOKED`) via `GET /api/v1/consents/status`.
+- **Enforcement Gates:** Implemented backend gates blocking minors without accepted consent from: checkout, bookings, starting conversations, and sending messages.
+- **Admin Finance & Payout Seam:** Added refund/termination modals, webhook verification, and payout logging/ledger.
+
+**Done when:** Both frontend and backend compile and build, and all integration tests compile and run.
+
+---
+
 ## Reminder
 
-**Backend done ≠ product done.** Frontend (Next.js) is entirely separate work outside this estimate. Realistic backend estimate: **~9–12 weeks full-time**; leave buffer for iyzico and Meet.
+**Monorepo layout:** `/backend` houses the Maven API, and `/frontend` houses the React + Vite + TypeScript client. Both must build cleanly for a feature to be considered complete.

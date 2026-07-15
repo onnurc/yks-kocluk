@@ -8,6 +8,7 @@ export interface CurrentUser {
   fullName: string;
   role: UserRole;
   status: UserStatus;
+  dateOfBirth?: string;
 }
 
 export interface AuthResponse {

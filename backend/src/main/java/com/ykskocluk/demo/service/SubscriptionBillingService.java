@@ -10,7 +10,6 @@ import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.mapper.SubscriptionMapper;
 import com.ykskocluk.demo.integration.ChargeResult;
 import com.ykskocluk.demo.integration.IyzicoClient;
-import com.ykskocluk.demo.mapper.SubscriptionMapper;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PaymentRepository;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
