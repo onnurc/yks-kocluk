@@ -49,6 +49,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         throw ex;
     }
 
+    @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
+    public ProblemDetail handleOptimisticLocking(org.springframework.dao.OptimisticLockingFailureException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, "İşlem çakışması tespit edildi. Lütfen tekrar deneyin.");
+        pd.setProperty("errorCode", "CONCURRENT_UPDATE");
+        pd.setProperty("timestamp", Instant.now());
+        return pd;
+    }
+
     /** Catch-all so unexpected exceptions still return our standard format, not a stack trace. */
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleUnexpected(Exception ex) {

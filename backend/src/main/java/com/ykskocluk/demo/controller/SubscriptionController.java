@@ -54,9 +54,9 @@ public class SubscriptionController {
     }
 
     @PostMapping("/checkout")
-    public SubscriptionCheckoutResponse checkout(@AuthenticationPrincipal Long studentUserId,
-                                                 @Valid @RequestBody SubscriptionCreateRequest request) {
-        return subscriptionService.checkout(studentUserId, request);
+    public ResponseEntity<SubscriptionCheckoutResponse> checkout(@AuthenticationPrincipal Long studentUserId,
+                                                                 @Valid @RequestBody SubscriptionCreateRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(subscriptionService.checkout(studentUserId, request));
     }
 
     /**
