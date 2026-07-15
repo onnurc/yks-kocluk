@@ -45,4 +45,11 @@ public class ConsentController {
             HttpServletRequest httpRequest) {
         return consentService.recordConsent(userId, request, httpRequest);
     }
+
+    @PostMapping("/revoke")
+    public ConsentResponse revokeConsent(
+            @AuthenticationPrincipal Long userId,
+            @RequestParam ConsentType consentType) {
+        return consentService.revokeConsent(userId, consentType);
+    }
 }

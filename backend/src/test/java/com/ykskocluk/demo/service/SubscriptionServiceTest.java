@@ -65,6 +65,7 @@ class SubscriptionServiceTest {
     @Mock IyzicoClient iyzicoClient;
     @Mock SubscriptionMapper subscriptionMapper;
     @Mock EntityManager entityManager;
+    @Mock com.ykskocluk.demo.service.ConsentService consentService;
 
     PaymentProperties paymentProperties;
     SubscriptionService service;
@@ -79,7 +80,8 @@ class SubscriptionServiceTest {
         service = new SubscriptionService(subscriptionRepository, packageRepository,
             coachProfileRepository, userRepository, paymentRepository, paymentProperties,
             iyzicoClient, subscriptionMapper, entityManager,
-            new com.ykskocluk.demo.config.IyzicoProperties(false, "sandbox", "dummy", "dummy", "dummy", "dummy"));
+            new com.ykskocluk.demo.config.IyzicoProperties(false, "sandbox", "dummy", "dummy", "dummy", "dummy"),
+            consentService);
 
         Package pkg = new Package();
         ReflectionTestUtils.setField(pkg, "id", PKG_ID);

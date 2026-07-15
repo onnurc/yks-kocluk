@@ -44,6 +44,7 @@ class MessageServiceTest {
     @Mock UserRepository userRepository;
     @Mock ConversationMapper conversationMapper;
     @Mock MessageMapper messageMapper;
+    @Mock com.ykskocluk.demo.service.ConsentService consentService;
 
     MessageService service;
 
@@ -59,7 +60,7 @@ class MessageServiceTest {
     @BeforeEach
     void setUp() {
         service = new MessageService(conversationRepository, messageRepository, subscriptionRepository,
-                coachProfileRepository, userRepository, conversationMapper, messageMapper);
+                coachProfileRepository, userRepository, conversationMapper, messageMapper, consentService);
 
         User coachUser = new User();
         ReflectionTestUtils.setField(coachUser, "id", COACH_USER_ID);
@@ -69,6 +70,8 @@ class MessageServiceTest {
 
         User studentUser = new User();
         ReflectionTestUtils.setField(studentUser, "id", STUDENT_ID);
+        lenient().when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(studentUser));
+
         conversation = new Conversation();
         ReflectionTestUtils.setField(conversation, "id", CONVERSATION_ID);
         conversation.setStudent(studentUser);

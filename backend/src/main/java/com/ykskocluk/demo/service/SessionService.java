@@ -60,6 +60,7 @@ public class SessionService {
     private final CoachProfileRepository coachProfileRepository;
     private final SessionMapper sessionMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final ConsentService consentService;
 
     public SessionService(SessionRepository sessionRepository,
                           SubscriptionRepository subscriptionRepository,
@@ -67,7 +68,8 @@ public class SessionService {
                           UserRepository userRepository,
                           CoachProfileRepository coachProfileRepository,
                           SessionMapper sessionMapper,
-                          ApplicationEventPublisher eventPublisher) {
+                          ApplicationEventPublisher eventPublisher,
+                          ConsentService consentService) {
         this.sessionRepository = sessionRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.availabilityRepository = availabilityRepository;
@@ -75,6 +77,7 @@ public class SessionService {
         this.coachProfileRepository = coachProfileRepository;
         this.sessionMapper = sessionMapper;
         this.eventPublisher = eventPublisher;
+        this.consentService = consentService;
     }
 
     @Transactional
@@ -101,6 +104,8 @@ public class SessionService {
 
         User student = userRepository.findById(studentUserId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
+
+        consentService.checkConsentRequiredForAction(student);
 
         Session session = new Session();
         session.setStudent(student);

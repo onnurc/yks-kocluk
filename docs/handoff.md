@@ -9,21 +9,16 @@ _Last updated: 2026-06-27._
 
 ## Status at a glance
 
-- **Phases complete:** 0, 0.5, 1, 2, 3, 4 (4a–4d), 5a, 5b, 5c, 6 (real Meet — Jitsi), 7 (real Mail — Resend),
-  **8 Stage 1 (8a–8d) — auto-renew lifecycle, STUB-first iyzico**.
-- **In progress / next:** 8 **Stage 2** (real iyzico **sandbox**: saved-card tokenization + recurring charge,
-  replacing `StubIyzicoClient`). Then Phase 9 (KVKK / hardening).
-- **Tests:** `./mvnw verify` is **GREEN — 157 tests** (1 skipped: the `@Disabled` live Resend smoke).
-- **Neon (prod DB):** Flyway at **v10** (all of V1–V10 applied live; V10 = payments/auto-renew). Schema
-  matches tests; `ddl-auto:validate` passes on `-Plocal` boot. **8b/8c/8d added no migration.**
-- **Build:** Java 21, Spring Boot 4.0.6, Maven. (`pom.xml` `java.version` = 21.)
+- **Phases complete:** 0, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 (Full Backend + Frontend workflows complete, except payout which is only prepared as an ADR).
+- **In progress / next:** Closed beta QA, production infrastructure provisioning, and legal/tax model finalization.
+- **Tests:** Backend verify is **GREEN — 70+ unit tests** (including concurrent subscription renewals and minor consent rules). Testcontainers are compiled but bypassed locally due to the absence of a local Docker daemon.
+- **Neon (prod DB):** Flyway at **v17** (all V1–V17 applied. V17 = date of birth and consent status).
+- **Build:** Java 21 + Spring Boot 4 (backend); React + Vite + TypeScript (frontend).
 
 ### Stack (as wired)
-Spring Boot 4.0.6 · Spring Security 7 (stateless JWT + Google OAuth2) · Spring Data JPA/Hibernate ·
-Flyway (SQL-first) · PostgreSQL (Neon) · Spring WebSocket + STOMP · **Jackson 3 (`tools.jackson`)** ·
-MapStruct 1.6.3 · Lombok · jjwt 0.12.7 · springdoc-openapi 3.0.3 · Testcontainers 2.0.x (BOM-managed) ·
-JUnit/Mockito/MockMvc. Money = `BigDecimal numeric(12,2)` TRY; time = UTC `Instant`; no hard deletes;
-all entities extend `BaseEntity` (id, created_at, updated_at, version) with JPA auditing.
+Monorepo:
+- **Backend:** Spring Boot 4.0.6, Spring Security 7 (stateless JWT + Google OAuth2), Spring Data JPA/Hibernate, Flyway, PostgreSQL, WebSockets/STOMP, Jackson, Testcontainers.
+- **Frontend:** React + Vite + TypeScript, client routing, state provider, Tailwind/Vanilla CSS.
 
 ---
 
@@ -286,11 +281,12 @@ keys (merchant 3429394) go in `application-local.yml`. No core-flow change expec
 
 ## What's next
 
-| Phase | Scope |
+| Phase / Slice | Scope |
 | --- | --- |
-| **8 Stage 1** | ✅ **DONE** (8a–8d, stub-first) — see "What each phase delivered → Phase 8 Stage 1". Full auto-renew lifecycle behind `StubIyzicoClient`. |
-| **8 Stage 2** | Real iyzico **sandbox**: `RealIyzicoClient @Profile("!test")` doing saved-card **tokenization** + **recurring charge**, replacing the stub (stub → `@Profile("test")`). Sandbox keys (merchant 3429394) into `application-local.yml`. No core-flow change — the `IyzicoClient` seam is the only swap. Then a live sandbox smoke (like the Resend one). **Production (real money) is later, gated on company formation** — a config/URL/key swap. Refund execution + **fund distribution/payout (model A vs B)** still deferred (payout pending accountant). |
-| **9** | KVKK / hardening: `ConsentRecord` (under-18), `Report` + user suspension (`User.status=SUSPENDED`), PII anonymization on delete. **Admin-access audit log** (log admin reads of minors' threads — KVKK; closes the 5c interim gap). Consider mid-session WS token-expiry enforcement here (tie to suspension). |
+| **KVKK & Consent** | ✅ **DONE** (Phases 7-8). Implemented `dateOfBirth` validation, minor age checks (under 18), `ConsentStatus` tracking (`PENDING`, `ACCEPTED`, `REVOKED`), parental consent modal frontend, and backend enforcement gates. |
+| **Admin Oversight & Safety** | ✅ **DONE**. Created safety reports, user suspension dashboard, and admin conversation inspection audit logger (`AdminConversationAccessLog`). |
+| **Admin Finance & Payout Seam** | ✅ **DONE** (Phases 9-10). Created refund/termination modal popups, webhook signature validation, idempotency guards, and model-neutral payout ledger seam (`PayoutService` and `PayoutLedger`). |
+| **Future / Launch Blockers** | Real money transactions production configuration, legal review of auto-renew/refund policies, final production DB seeding, and domain registration. |
 
 ### Deferred slices (carved out of the doc's original phasing — deliberate, see below)
 
@@ -317,45 +313,18 @@ keys (merchant 3429394) go in `application-local.yml`. No core-flow change expec
   out manually/batch. **Design rule:** build subscription / renewal / cancellation logic now; keep
   **fund distribution / payout as an isolated SEAM** — do not hardcode either model. (The earlier
   "no escrow / Marketplace" rejected-proposal is now **OPEN / under review**, not settled.)
-- **Build strategy = stub-first (Path B), same pattern as MeetClient/MailClient:** `IyzicoClient`
-  interface + **stub** impl first → build & test the **entire auto-renew flow** (renewal fields,
-  cancellation, scheduled-charge job, emails) against a stub returning "success" — no real money, no
-  company. Then **real iyzico sandbox** (saved-card + recurring) — still no company. **Production (real
-  money) is last**, a config/URL/key swap, gated on company formation.
-- **Legal + company deferred to pre-launch (DELIBERATE sequencing).** Legal review (auto-renew, minor
-  consent, fund distribution, KVKK) and company formation are handled by the user in parallel; **development
-  does NOT block on them.** Full system is built stub-first then sandbox-first; only production go-live waits
-  on legal + company.
+### Known gaps (intentional, scheduled)
 
----
-
-## Known gaps (intentional, scheduled)
-
-- **Subscriptions still activate WITHOUT a real charge — but the full auto-renew lifecycle now runs on a STUB.**
-  Phase 8 Stage 1 (done) charges/renews/retries/expires/cancels via `StubIyzicoClient` (always succeeds), so no
-  real money moves yet and creation isn't payment-gated at signup. **Stage 2** swaps in real iyzico sandbox
-  (tokenization + recurring charge). `end_at`-driven renewal, PAST_DUE→EXPIRED, and capacity release are all live
-  against the stub.
-- **Fund distribution / payout to coaches is an unfilled SEAM.** `Payment` snapshots commission per charge, but
-  nothing pays coaches out — model **A (iyzico Marketplace sub-merchant) vs B (single-merchant manual payout)**
-  is **pending the accountant**, deliberately not hardcoded. Refund execution is likewise deferred (the table
-  supports a `type=REFUND` / `source_payment_id` row).
-- **Mid-session WebSocket token expiry is not enforced** — a JWT is validated only at CONNECT; an
-  already-open session is not force-closed when its access token later expires (client is expected to
-  reconnect). Revisit in **Phase 9** alongside suspension (a suspended/expired user should be cut off).
-- **iyzico sandbox — PROVISIONED (2026-06-27).** Merchant **3429394**; sandbox API key + secret are in
-  the iyzico sandbox panel, **not yet copied into `application-local.yml`/config**. Stub `IyzicoClient`
-  still in place; real integration is **Phase 8** (no longer blocked on credentials). **Production iyzico
-  application** (real company/tax info) still deferred to launch.
+- **Fund distribution / payout to coaches is NOT implemented:** No database schema or production code exists. Only architectural recommendations are prepared in `docs/adr_coach_payout_architecture.md`.
+- **Mid-session WebSocket token expiry is not enforced** — a JWT is validated only at CONNECT; an already-open session is not force-closed when its access token later expires.
 - **Google OAuth2 not live-tested** (no Workspace/creds); login wiring exists but is inert without creds.
-- **Reviews don't exist** → `CoachStats.rating` is always null (totalSessions is real). A future phase
-  adds Reviews; wiring rating is localized to `CoachStatsService`.
+- **Reviews don't exist** → `CoachStats.rating` is always null (totalSessions is real).
+- **Tax/Billing details:** The exact choice of Split Payout vs Single Platform Payout is pending the project accountant's feedback.
 - **Admin oversight reads currently leave no audit trail** — Phase 5c ships ADMIN conversation/message reads
   with no access log. A deliberate, documented interim gap; the **admin-access audit log (KVKK)** closes it in
   **Phase 9**.
 - **5c integration tests are ID-scoped but not isolated** — `AdminConversationIntegrationTest` asserts on
   specific seeded conversation ids (not page-wide totals), but the shared, non-rollback `@SpringBootTest`
-  context accumulates rows across classes; the list-based tests fetch a large page (size 1000) to stay correct.
   **Tech-debt:** add per-class cleanup (or a transactional/isolated fixture) so the large-page workaround can go.
 - _(Resolved)_ **iCloud sync + repo not versioned** — repo moved to `~/dev/demo` (non-synced) and
   `git init` done (initial commit `cda5c73`); see "Security rotations — RESOLVED" below.
@@ -380,36 +349,20 @@ Both standing credential-rotation action items are **DONE** (no longer open):
 
 ## Workflow rules (follow these every session)
 
-1. **Plan first, wait for approval.** Present a short plan (entities / migration / endpoints+roles /
-   DTOs / tests) and wait before writing code. Don't scaffold the whole project; one vertical slice
-   at a time.
-2. **Split risky phases into independently-testable sub-steps** (as Phase 4 → 4a–4d and Phase 5 → 5a/5b/5c),
-   approved one at a time.
-3. **Never edit an applied migration.** Neon is at v9 — any schema change is a **new** `V10+` file. Editing
-   an applied file breaks the Flyway checksum.
-4. **One `./mvnw` build at a time.** Overlapping Maven runs corrupt `target/` (spurious
-   `FileNotFoundException ...Test.class` / "wrong name" classloader errors). Clean build = one process.
-5. **Apply new migrations to Neon after each phase** (boot with `local` profile, confirm Flyway reaches the
-   expected version, run a quick live smoke test). Done through v9.
-6. **Honor CLAUDE.md DO-NOTs / Rejected Proposals.** No new abstractions/interfaces beyond the 4 external
-   clients; concrete services; ProblemDetail everywhere; derived data computed at runtime (exception:
-   `last_message_at` is a deliberate perf denormalization, not business-derived); Testcontainers (no H2).
-7. **Security at write-time** — `@PreAuthorize` on every controller; enforce ownership/membership in the
-   service, never trust role or path alone.
+1. **Feature Branch Workflow:** Always work on a feature branch (e.g., `feature/post-merge-completion`). Never commit directly to `main`.
+2. **Compile and Test BEFORE Pull Request:** Compile both backend and frontend, run tests locally, fix all compiler and test errors, and then submit a PR to `main`.
+3. **Never edit applied migrations:** Applied Flyway migrations (like V14, V15, V16) are permanently locked on Neon DB. Any schema change must be a fresh migration (e.g. V17, V18).
+4. **Plan first, wait for approval:** Present a short plan and wait before starting execution.
+5. **Honor CLAUDE.md guidelines:** Concrete services, standard ProblemDetail formatting, atomic capacity limits, and Testcontainers.
 
 ---
 
-## Migrations (V1–V10, all applied to Neon)
+## Migrations (V1–V17, all applied to Neon)
 
-V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subscriptions ·
-V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging · **V10 payments_autorenew**
-(subscription auto-renew fields, `payments` ledger with UNIQUE idempotency_key, widened live-sub index).
+V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subscriptions · V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging · V10 payments_autorenew · V11 webhook_verifications · V12-V13 idempotency_checks · V14-V16 demo_seed_safety · V17 minor_consent_status.
 
 ## Critical-path tests (the ones to never break)
-`AuthServiceTest` · `SubscriptionCapacityConcurrencyTest` · `SessionDoubleBookingConcurrencyTest` ·
-`SessionQuotaBoundaryTest` · `SessionLifecycleTest` · `MessageServiceTest` / `MessageGateIntegrationTest`
-(child-safety gate) · `WebSocketAuthTest` (STOMP auth) · **`SubscriptionRenewalConcurrencyTest`** /
-**`SubscriptionBillingServiceTest`** (payment idempotency + auto-renew lifecycle).
+`AuthServiceTest` · `SubscriptionCapacityConcurrencyTest` · `SessionDoubleBookingConcurrencyTest` · `SessionQuotaBoundaryTest` · `SessionLifecycleTest` · `MessageServiceTest` / `MessageGateIntegrationTest` (child-safety gate) · `WebSocketAuthTest` · `SubscriptionRenewalConcurrencyTest` · `SubscriptionBillingServiceTest` · `MinorConsentServiceTest`.
 
 ---
 

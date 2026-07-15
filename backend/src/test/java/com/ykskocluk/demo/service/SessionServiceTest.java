@@ -51,6 +51,7 @@ class SessionServiceTest {
     @Mock CoachProfileRepository coachProfileRepository;
     @Mock SessionMapper sessionMapper;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock com.ykskocluk.demo.service.ConsentService consentService;
 
     SessionService service;
 
@@ -64,7 +65,7 @@ class SessionServiceTest {
     @BeforeEach
     void setUp() {
         service = new SessionService(sessionRepository, subscriptionRepository, availabilityRepository,
-                userRepository, coachProfileRepository, sessionMapper, eventPublisher);
+                userRepository, coachProfileRepository, sessionMapper, eventPublisher, consentService);
 
         CoachProfile coach = new CoachProfile();
         ReflectionTestUtils.setField(coach, "id", COACH_ID);

@@ -5,6 +5,7 @@ package com.ykskocluk.demo.dto;
  */
 public record ConsentStatusResponse(
         String currentVersion,
-        boolean hasConsented
+        boolean hasConsented,
+        String status
 ) {
 }

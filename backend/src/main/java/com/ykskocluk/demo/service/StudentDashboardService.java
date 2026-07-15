@@ -42,7 +42,8 @@ public class StudentDashboardService {
                 user.getEmail(),
                 user.getFullName(),
                 user.getRole(),
-                user.getStatus()
+                user.getStatus(),
+                user.getDateOfBirth()
         );
 
         List<Subscription> subscriptions = subscriptionRepository.findByStudentIdOrderByCreatedAtDesc(studentUserId);

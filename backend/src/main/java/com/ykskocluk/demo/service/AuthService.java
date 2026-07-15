@@ -62,6 +62,17 @@ public class AuthService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "ROLE_NOT_ALLOWED",
                     "Bu rol ile kayıt olunamaz");
         }
+        if (request.role() == Role.STUDENT && request.dateOfBirth() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "DATE_OF_BIRTH_REQUIRED",
+                    "Öğrenci kaydı için doğum tarihi zorunludur");
+        }
+        if (request.dateOfBirth() != null) {
+            java.time.LocalDate now = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Istanbul"));
+            if (request.dateOfBirth().isAfter(now)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_OF_BIRTH",
+                        "Doğum tarihi gelecekte olamaz");
+            }
+        }
         if (userRepository.existsByEmail(request.email())) {
             throw new ApiException(HttpStatus.CONFLICT, "EMAIL_ALREADY_EXISTS",
                     "Bu e-posta zaten kayıtlı");
@@ -73,6 +84,9 @@ public class AuthService {
         user.setRole(request.role());
         user.setStatus(UserStatus.ACTIVE);
         user.setEmailVerified(false);
+        if (request.role() == Role.STUDENT) {
+            user.setDateOfBirth(request.dateOfBirth());
+        }
         userRepository.save(user);
         return issueTokens(user);
     }

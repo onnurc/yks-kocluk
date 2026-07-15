@@ -8,6 +8,10 @@ public record UserResponse(
         String email,
         String fullName,
         Role role,
-        UserStatus status
+        UserStatus status,
+        java.time.LocalDate dateOfBirth
 ) {
+    public UserResponse(Long id, String email, String fullName, Role role, UserStatus status) {
+        this(id, email, fullName, role, status, null);
+    }
 }

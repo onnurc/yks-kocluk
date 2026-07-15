@@ -33,6 +33,10 @@ public class ConsentRecord extends BaseEntity {
     @Column(name = "consent_type", nullable = false, length = 50)
     private ConsentType consentType;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private com.ykskocluk.demo.enums.ConsentStatus status;
+
     @Column(name = "document_version", nullable = false, length = 50)
     private String documentVersion;
 

@@ -4,7 +4,7 @@ import { safetyApi } from "./safetyApi";
 import { ApiError } from "../api/ApiError";
 
 export const KvkkConsentModal: React.FC = () => {
-  const { logout, setHasConsented, consentVersion } = useAuth();
+  const { logout, setHasConsented, consentVersion, consentStatus } = useAuth();
   const [checked, setChecked] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -30,7 +30,7 @@ export const KvkkConsentModal: React.FC = () => {
   const handleLogout = async () => {
     try {
       await logout();
-    } catch (err) {
+    } catch {
       setErrorMsg("Çıkış yapılırken bir hata oluştu.");
     }
   };
@@ -76,6 +76,16 @@ export const KvkkConsentModal: React.FC = () => {
         <div style={{ fontSize: "0.85rem", color: "#94a3b8", marginBottom: "1rem" }}>
           Versiyon: <strong>{consentVersion}</strong>
         </div>
+
+        {consentStatus === "REVOKED" ? (
+          <div style={{ backgroundColor: "#7f1d1d", color: "#fca5a5", padding: "0.75rem 1rem", borderRadius: "8px", marginBottom: "1rem", fontSize: "0.9rem", border: "1px solid #ef4444" }}>
+            <strong>Dikkat:</strong> Veli onayınız geri çekilmiştir/iptal edilmiştir. Platformu kullanmaya devam edebilmek için velinizin yeniden onay vermesi gerekmektedir.
+          </div>
+        ) : (
+          <div style={{ backgroundColor: "#1e293b", color: "#94a3b8", padding: "0.75rem 1rem", borderRadius: "8px", marginBottom: "1rem", fontSize: "0.9rem", border: "1px solid #334155" }}>
+            <strong>Bilgi:</strong> 18 yaş altı kullanıcılarımızın platformu kullanabilmesi için veli onayı gerekmektedir. Lütfen aşağıdaki aydınlatma metnini velinizle birlikte inceleyip onaylayınız.
+          </div>
+        )}
 
         {errorMsg && (
           <div

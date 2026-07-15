@@ -100,8 +100,12 @@ class ConsentServiceTest {
 
     @Test
     void getConsentStatus_success() {
-        when(consentRecordRepository.existsByUserIdAndConsentTypeAndDocumentVersion(1L, ConsentType.KVKK, "v1.0"))
-                .thenReturn(true);
+        ConsentRecord record = new ConsentRecord();
+        record.setDocumentVersion("v1.0");
+        record.setStatus(com.ykskocluk.demo.enums.ConsentStatus.ACCEPTED);
+
+        when(consentRecordRepository.findFirstByUserIdAndConsentTypeOrderByAcceptedAtDesc(1L, ConsentType.KVKK))
+                .thenReturn(Optional.of(record));
 
         var status = consentService.getConsentStatus(1L, ConsentType.KVKK);
 
