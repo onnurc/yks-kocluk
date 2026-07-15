@@ -78,7 +78,8 @@ class SubscriptionServiceTest {
         paymentProperties = new PaymentProperties(new BigDecimal("0.2000"), 3);
         service = new SubscriptionService(subscriptionRepository, packageRepository,
             coachProfileRepository, userRepository, paymentRepository, paymentProperties,
-            iyzicoClient, subscriptionMapper, entityManager);
+            iyzicoClient, subscriptionMapper, entityManager,
+            new com.ykskocluk.demo.config.IyzicoProperties(false, "sandbox", "dummy", "dummy", "dummy", "dummy"));
 
         Package pkg = new Package();
         ReflectionTestUtils.setField(pkg, "id", PKG_ID);

@@ -7,5 +7,11 @@ public record IyzicoWebhookRequest(
         Long paymentId,
         @NotNull(message = "status cannot be null")
         String status,
-        String providerReference
-) {}
+        String providerReference,
+        String iyziEventType,
+        String paymentConversationId
+) {
+    public IyzicoWebhookRequest(Long paymentId, String status, String providerReference) {
+        this(paymentId, status, providerReference, null, null);
+    }
+}

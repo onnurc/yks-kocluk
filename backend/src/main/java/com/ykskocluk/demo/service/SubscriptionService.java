@@ -58,6 +58,7 @@ public class SubscriptionService {
     private final IyzicoClient iyzicoClient;
     private final SubscriptionMapper subscriptionMapper;
     private final EntityManager entityManager;
+    private final com.ykskocluk.demo.config.IyzicoProperties iyzicoProperties;
 
     public SubscriptionService(SubscriptionRepository subscriptionRepository,
                                PackageRepository packageRepository,
@@ -67,7 +68,8 @@ public class SubscriptionService {
                                PaymentProperties paymentProperties,
                                IyzicoClient iyzicoClient,
                                SubscriptionMapper subscriptionMapper,
-                               EntityManager entityManager) {
+                               EntityManager entityManager,
+                               com.ykskocluk.demo.config.IyzicoProperties iyzicoProperties) {
         this.subscriptionRepository = subscriptionRepository;
         this.packageRepository = packageRepository;
         this.coachProfileRepository = coachProfileRepository;
@@ -77,6 +79,7 @@ public class SubscriptionService {
         this.iyzicoClient = iyzicoClient;
         this.subscriptionMapper = subscriptionMapper;
         this.entityManager = entityManager;
+        this.iyzicoProperties = iyzicoProperties;
     }
 
     @Transactional
@@ -212,7 +215,33 @@ public class SubscriptionService {
 
     @Transactional
     public IyzicoWebhookResponse processWebhook(IyzicoWebhookRequest request) {
-        // TODO: Real signature verification belongs to later real iyzico integration
+        return processWebhook(request, null);
+    }
+
+    @Transactional
+    public IyzicoWebhookResponse processWebhook(IyzicoWebhookRequest request, String signatureV3) {
+        if (iyzicoProperties != null && iyzicoProperties.enabled()) {
+            String secretKey = iyzicoProperties.secretKey();
+            if (secretKey == null || secretKey.isBlank()) {
+                secretKey = "";
+            }
+
+            if (signatureV3 == null || signatureV3.isBlank()) {
+                throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_WEBHOOK_SIGNATURE", "İmza başlığı eksik");
+            }
+
+            String iyziEventType = request.iyziEventType() != null ? request.iyziEventType() : "";
+            String paymentIdStr = request.paymentId() != null ? request.paymentId().toString() : "";
+            String paymentConversationId = request.paymentConversationId() != null ? request.paymentConversationId() : "";
+            String statusStr = request.status() != null ? request.status() : "";
+
+            String data = secretKey + iyziEventType + paymentIdStr + paymentConversationId + statusStr;
+            String computedSignature = calculateHmacSha256(data, secretKey);
+
+            if (!computedSignature.equalsIgnoreCase(signatureV3)) {
+                throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_WEBHOOK_SIGNATURE", "İmza doğrulanamadı");
+            }
+        }
 
         Payment payment = paymentRepository.findById(request.paymentId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Ödeme bulunamadı"));
@@ -422,5 +451,27 @@ public class SubscriptionService {
                 sub.getCreatedAt()
         ));
         return PageResponse.from(mapped);
+    }
+
+    private String calculateHmacSha256(String data, String key) {
+        try {
+            javax.crypto.Mac sha256HMAC = javax.crypto.Mac.getInstance("HmacSHA256");
+            javax.crypto.spec.SecretKeySpec secretKeySpec = new javax.crypto.spec.SecretKeySpec(
+                    key.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256");
+            sha256HMAC.init(secretKeySpec);
+            byte[] hashBytes = sha256HMAC.doFinal(data.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hashBytes) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to calculate HMAC-SHA256", e);
+        }
     }
 }

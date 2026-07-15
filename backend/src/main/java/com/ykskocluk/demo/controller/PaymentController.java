@@ -18,9 +18,10 @@ public class PaymentController {
     public PaymentController(SubscriptionService subscriptionService) {
         this.subscriptionService = subscriptionService;
     }
-
     @PostMapping("/iyzico/webhook")
-    public IyzicoWebhookResponse processWebhook(@Valid @RequestBody IyzicoWebhookRequest request) {
-        return subscriptionService.processWebhook(request);
+    public IyzicoWebhookResponse processWebhook(
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-IYZ-SIGNATURE-V3", required = false) String signatureV3,
+            @Valid @RequestBody IyzicoWebhookRequest request) {
+        return subscriptionService.processWebhook(request, signatureV3);
     }
 }

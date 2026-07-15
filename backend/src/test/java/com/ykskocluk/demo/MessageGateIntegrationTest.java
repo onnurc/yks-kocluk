@@ -106,11 +106,10 @@ class MessageGateIntegrationTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("MESSAGING_NOT_ALLOWED"));
     }
-
-    // --- Checkpoint 2: past-only (CANCELLED) subscription still allows messaging ---
+    // --- Checkpoint 2: past-only (CANCELLED) subscription forbids messaging ---
 
     @Test
-    void open_pastOnlySubscription_allowed() throws Exception {
+    void open_pastOnlySubscription_forbidden() throws Exception {
         User student = persistUser(Role.STUDENT);
         CoachProfile coach = persistCoach();
         subscribe(student, coach, SubscriptionStatus.CANCELLED); // past only, no active
@@ -118,10 +117,9 @@ class MessageGateIntegrationTest {
         mockMvc.perform(post("/api/v1/conversations").header("Authorization", token(student))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"coachId\":%d}".formatted(coach.getId())))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.coachProfileId").value(coach.getId().intValue()));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("MESSAGING_NOT_ALLOWED"));
     }
-
         @Test
         void open_pendingPaymentSubscription_forbidden() throws Exception {
                 User student = persistUser(Role.STUDENT);
