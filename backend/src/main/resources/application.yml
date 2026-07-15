@@ -66,6 +66,7 @@ management:
         include: health,info
 
 app:
+  demo-seed-enabled: ${DEMO_SEED_ENABLED:false}
   jwt:
     # HS256 signing key (>= 32 bytes). Supplied via JWT_SECRET (application-local.yml / env).
     secret: ${JWT_SECRET}
