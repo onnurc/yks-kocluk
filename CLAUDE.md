@@ -29,6 +29,7 @@ Backend for a web platform that connects YKS exam students with university-stude
 | Language / Framework | Java 21, Spring Boot 4.0.6, Maven — **we use SB4; do not suggest SB3 configs or properties** |
 | Database | PostgreSQL (Neon) + Spring Data JPA / Hibernate; Flyway (SQL-first migrations) |
 | Security | Spring Security 7 + stateless JWT (access + rotating refresh, hashed) + OAuth2 (Google) |
+| Rate Limiting | In-Memory JVM (InMemoryRateLimitStore), Redis-compatible key/TTL design |
 | Real-time | Spring WebSocket + STOMP (chat) |
 | External services | iyzico (payment) · Google Calendar/Meet (video) · Resend (email) · Cloudflare R2 (files) |
 | API docs | springdoc-openapi-starter-webmvc-ui 3.0.x |
@@ -44,6 +45,7 @@ Backend for a web platform that connects YKS exam students with university-stude
 - **Single monolith.** No microservices.
 - **Layer-based packages:** `controller / service / repository / entity / dto / enums / exception / mapper / security / config / integration`
 - **Identity lives in this application** (no Supabase, no NextAuth). Persistent container (Fly.io / Railway); **no serverless**.
+- **Transient State (Rate Limiting):** rate limiting state is kept behind `RateLimitStore` interface to keep controllers/services decoupled. IP addresses, emails, and refresh tokens are normalized and hashed (SHA-256) inside env-prefixed keys to make future Redis migration drop-in.
 - **Audit:** all entities extend a shared `BaseEntity` → `created_at` (`@CreatedDate`), `updated_at` (`@LastModifiedDate`), `version` (`@Version`). `@EnableJpaAuditing` is enabled.
 - **Deletion:** no hard-deletes. "Delete" = `User.status=DELETED` + PII anonymization if required. Messages and Reports are retained. **Do not use cascade delete.**
 - **Money:** `numeric(12,2)` / `BigDecimal`, never `float`; currency TRY.

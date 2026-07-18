@@ -7,6 +7,8 @@ import com.ykskocluk.demo.dto.RefreshRequest;
 import com.ykskocluk.demo.dto.RegisterRequest;
 import com.ykskocluk.demo.dto.UserResponse;
 import com.ykskocluk.demo.service.AuthService;
+import com.ykskocluk.demo.security.ratelimit.AuthRateLimitService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,23 +26,32 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthRateLimitService rateLimitService;
+    private final HttpServletRequest httpServletRequest;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService,
+                          AuthRateLimitService rateLimitService,
+                          HttpServletRequest httpServletRequest) {
         this.authService = authService;
+        this.rateLimitService = rateLimitService;
+        this.httpServletRequest = httpServletRequest;
     }
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
+        rateLimitService.checkRegister(httpServletRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
     }
 
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
+        rateLimitService.checkLogin(request.email(), httpServletRequest);
         return authService.login(request);
     }
 
     @PostMapping("/refresh")
     public AuthResponse refresh(@Valid @RequestBody RefreshRequest request) {
+        rateLimitService.checkRefresh(request.refreshToken(), httpServletRequest);
         return authService.refresh(request);
     }
 

@@ -30,6 +30,18 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
+    @ExceptionHandler(com.ykskocluk.demo.security.ratelimit.RateLimitExceededException.class)
+    public ResponseEntity<ProblemDetail> handleRateLimitExceededException(com.ykskocluk.demo.security.ratelimit.RateLimitExceededException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
+        pd.setProperty("errorCode", ex.getErrorCode());
+        pd.setProperty("timestamp", Instant.now());
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("Retry-After", String.valueOf(ex.getRetryAfterSeconds()));
+
+        return new ResponseEntity<>(pd, headers, ex.getStatus());
+    }
+
     /** Our own thrown exceptions. */
     @ExceptionHandler(ApiException.class)
     public ProblemDetail handleApiException(ApiException ex) {

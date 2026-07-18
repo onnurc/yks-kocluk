@@ -30,7 +30,7 @@ class AuthIntegrationTest {
 
     private String registerBody(String email) {
         return """
-                {"email":"%s","password":"password123","fullName":"Test User","role":"STUDENT"}
+                {"email":"%s","password":"password123","fullName":"Test User","role":"STUDENT","dateOfBirth":"2005-01-01"}
                 """.formatted(email);
     }
 
@@ -114,7 +114,7 @@ class AuthIntegrationTest {
     void register_invalidPayload_returns400ValidationProblem() throws Exception {
         mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"not-an-email\",\"password\":\"short\",\"fullName\":\"\",\"role\":\"STUDENT\"}"))
+                        .content("{\"email\":\"not-an-email\",\"password\":\"short\",\"fullName\":\"\",\"role\":\"STUDENT\",\"dateOfBirth\":\"2005-01-01\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.errors").isArray());

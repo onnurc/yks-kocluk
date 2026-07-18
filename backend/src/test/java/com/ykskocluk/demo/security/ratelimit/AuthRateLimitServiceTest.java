@@ -1,0 +1,166 @@
+package com.ykskocluk.demo.security.ratelimit;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+class AuthRateLimitServiceTest {
+
+    private MutableClock clock;
+    private InMemoryRateLimitStore store;
+    private RateLimitProperties properties;
+    private ClientIpResolver ipResolver;
+    private AuthRateLimitService rateLimitService;
+
+    private static class MutableClock extends Clock {
+        private Instant instant;
+        private final ZoneId zone;
+
+        MutableClock(Instant instant, ZoneId zone) {
+            this.instant = instant;
+            this.zone = zone;
+        }
+
+        void advanceBySeconds(long seconds) {
+            this.instant = this.instant.plusSeconds(seconds);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return zone;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return new MutableClock(instant, zone);
+        }
+
+        @Override
+        public Instant instant() {
+            return instant;
+        }
+    }
+
+    @BeforeEach
+    void setUp() {
+        clock = new MutableClock(Instant.parse("2026-07-18T12:00:00Z"), ZoneId.of("UTC"));
+        store = new InMemoryRateLimitStore(clock);
+        properties = new RateLimitProperties();
+        properties.setEnabled(true);
+        properties.setEnvironment("local");
+
+        // Defaults to test specific rate limiter configurations:
+        properties.getLogin().setIpLimit(2);
+        properties.getLogin().setIdentifierLimit(1);
+        properties.getLogin().setWindowSeconds(60);
+
+        properties.getRegister().setIpLimit(1);
+        properties.getRegister().setWindowSeconds(60);
+
+        properties.getRefresh().setIpLimit(2);
+        properties.getRefresh().setTokenLimit(1);
+        properties.getRefresh().setWindowSeconds(60);
+
+        ipResolver = new ClientIpResolver(properties);
+        rateLimitService = new AuthRateLimitService(store, properties, ipResolver);
+    }
+
+    @Test
+    void checkLogin_ipLimitExceeded_throwsRateLimitExceeded() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("192.168.1.1");
+
+        // Success 1 and 2
+        rateLimitService.checkLogin("user1@example.com", request);
+        rateLimitService.checkLogin("user2@example.com", request);
+
+        // Third hit triggers IP block (limit is 2)
+        assertThatThrownBy(() -> rateLimitService.checkLogin("user3@example.com", request))
+                .isInstanceOf(RateLimitExceededException.class)
+                .hasMessageContaining("Too many requests. Please try again later.")
+                .satisfies(ex -> {
+                    RateLimitExceededException rle = (RateLimitExceededException) ex;
+                    assertThat(rle.getRetryAfterSeconds()).isEqualTo(60L);
+                });
+    }
+
+    @Test
+    void checkLogin_identifierLimitExceeded_throwsRateLimitExceeded() {
+        MockHttpServletRequest request1 = new MockHttpServletRequest();
+        request1.setRemoteAddr("192.168.1.1");
+
+        MockHttpServletRequest request2 = new MockHttpServletRequest();
+        request2.setRemoteAddr("192.168.1.2");
+
+        // Limit for identifier is 1
+        rateLimitService.checkLogin("USER@example.com ", request1); // Normalizes to user@example.com
+
+        // Second hit for the same normalized email from another IP triggers identifier limit
+        assertThatThrownBy(() -> rateLimitService.checkLogin(" user@example.com", request2))
+                .isInstanceOf(RateLimitExceededException.class)
+                .satisfies(ex -> {
+                    RateLimitExceededException rle = (RateLimitExceededException) ex;
+                    assertThat(rle.getRetryAfterSeconds()).isEqualTo(60L);
+                });
+    }
+
+    @Test
+    void checkRegister_ipLimitExceeded_throwsRateLimitExceeded() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("192.168.1.1");
+
+        // First allowed (limit is 1)
+        rateLimitService.checkRegister(request);
+
+        // Second blocked
+        assertThatThrownBy(() -> rateLimitService.checkRegister(request))
+                .isInstanceOf(RateLimitExceededException.class);
+    }
+
+    @Test
+    void checkRefresh_ipLimitExceeded_throwsRateLimitExceeded() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("192.168.1.1");
+
+        // Limit is 2
+        rateLimitService.checkRefresh("token1", request);
+        rateLimitService.checkRefresh("token2", request);
+
+        assertThatThrownBy(() -> rateLimitService.checkRefresh("token3", request))
+                .isInstanceOf(RateLimitExceededException.class);
+    }
+
+    @Test
+    void checkRefresh_tokenLimitExceeded_throwsRateLimitExceeded() {
+        MockHttpServletRequest request1 = new MockHttpServletRequest();
+        request1.setRemoteAddr("192.168.1.1");
+
+        MockHttpServletRequest request2 = new MockHttpServletRequest();
+        request2.setRemoteAddr("192.168.1.2");
+
+        // Limit is 1
+        rateLimitService.checkRefresh("token-abc", request1);
+
+        assertThatThrownBy(() -> rateLimitService.checkRefresh("token-abc", request2))
+                .isInstanceOf(RateLimitExceededException.class);
+    }
+
+    @Test
+    void check_whenDisabled_bypassesCheck() {
+        properties.setEnabled(false);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("192.168.1.1");
+
+        // All allowed even though limit is 1
+        rateLimitService.checkRegister(request);
+        rateLimitService.checkRegister(request);
+        rateLimitService.checkRegister(request);
+    }
+}
