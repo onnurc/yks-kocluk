@@ -2,6 +2,7 @@ package com.ykskocluk.demo.controller;
 
 import com.ykskocluk.demo.dto.IyzicoWebhookRequest;
 import com.ykskocluk.demo.dto.IyzicoWebhookResponse;
+import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.security.JwtService;
 import com.ykskocluk.demo.service.SubscriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,6 +40,10 @@ class StubPaymentDisabledTest {
 
     @MockitoBean
     JwtService jwtService;
+
+    // JwtAuthenticationFilter (pulled into the web slice) depends on this at construction time.
+    @MockitoBean
+    UserRepository userRepository;
 
     @Test
     @WithMockUser(roles = "STUDENT")

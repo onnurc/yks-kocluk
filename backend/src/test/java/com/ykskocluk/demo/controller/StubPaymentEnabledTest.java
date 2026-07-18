@@ -2,6 +2,7 @@ package com.ykskocluk.demo.controller;
 
 import com.ykskocluk.demo.dto.SubscriptionResponse;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
+import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.security.JwtService;
 import com.ykskocluk.demo.service.SubscriptionService;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,10 @@ class StubPaymentEnabledTest {
 
     @MockitoBean
     JwtService jwtService;
+
+    // JwtAuthenticationFilter (pulled into the web slice) depends on this at construction time.
+    @MockitoBean
+    UserRepository userRepository;
 
     @Test
     @WithMockUser(roles = "STUDENT")

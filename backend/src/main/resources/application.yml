@@ -26,7 +26,10 @@ spring:
 
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    # db/demo-seed holds demo/manual-testing-only data (V14, V15 — see their own headers).
+    # Excluded from the test profile (application-test.yml) so Testcontainers-backed
+    # repository tests never see this data; kept here for local/dev/demo use.
+    locations: classpath:db/migration,classpath:db/demo-seed
     placeholders:
       # Dev-only default = BCrypt of "admin1234". Override in prod via ADMIN_PASSWORD_HASH
       # (a pre-computed BCrypt hash, not plaintext). Used by V3__seed_admin.sql.

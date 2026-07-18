@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.controller;
 
 import com.ykskocluk.demo.dto.HealthResponse;
+import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.security.JwtService;
 import com.ykskocluk.demo.service.HealthService;
 import org.junit.jupiter.api.Test;
@@ -31,9 +32,13 @@ class HealthControllerTest {
     HealthService healthService;
 
     // The JwtAuthenticationFilter (a @Component Filter) is pulled into the web slice;
-    // mock its JwtService dependency so the context loads (filters are disabled here).
+    // mock its JwtService/UserRepository dependencies so the context loads (filters
+    // are disabled here, so these are never actually invoked).
     @MockitoBean
     JwtService jwtService;
+
+    @MockitoBean
+    UserRepository userRepository;
 
     @Test
     void returnsHealthStatus() throws Exception {
