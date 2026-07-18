@@ -24,11 +24,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         this.authChannelInterceptor = authChannelInterceptor;
     }
 
+    // Same allowlist as SecurityConfig's REST CORS — keep the two in sync.
+    private static final String ALLOWED_ORIGIN = "http://localhost:5173";
+
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws").setAllowedOriginPatterns("*");
+        registry.addEndpoint("/ws").setAllowedOriginPatterns(ALLOWED_ORIGIN);
         // SockJS fallback for browsers that can't open a raw WebSocket.
-        registry.addEndpoint("/ws").setAllowedOriginPatterns("*").withSockJS();
+        registry.addEndpoint("/ws").setAllowedOriginPatterns(ALLOWED_ORIGIN).withSockJS();
     }
 
     @Override

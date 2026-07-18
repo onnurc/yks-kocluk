@@ -45,6 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
         "payments.iyzico.enabled=true",
+        "payments.iyzico.api-key=test-api-key",
         "payments.iyzico.secret-key=test-secret-key"
 })
 @AutoConfigureMockMvc
@@ -53,7 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class IyzicoWebhookSignatureTest {
 
     @Autowired private MockMvc mockMvc;
-    @Autowired private ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     @Autowired private UserRepository userRepository;
     @Autowired private UniversityRepository universityRepository;
     @Autowired private CoachProfileRepository coachProfileRepository;

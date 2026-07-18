@@ -48,6 +48,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import com.ykskocluk.demo.dto.RefundResponse;
@@ -66,6 +67,7 @@ class SubscriptionServiceTest {
     @Mock SubscriptionMapper subscriptionMapper;
     @Mock EntityManager entityManager;
     @Mock com.ykskocluk.demo.service.ConsentService consentService;
+    @Mock org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     PaymentProperties paymentProperties;
     SubscriptionService service;
@@ -81,7 +83,7 @@ class SubscriptionServiceTest {
             coachProfileRepository, userRepository, paymentRepository, paymentProperties,
             iyzicoClient, subscriptionMapper, entityManager,
             new com.ykskocluk.demo.config.IyzicoProperties(false, "sandbox", "dummy", "dummy", "dummy", "dummy"),
-            consentService);
+            consentService, transactionManager);
 
         Package pkg = new Package();
         ReflectionTestUtils.setField(pkg, "id", PKG_ID);
@@ -496,10 +498,11 @@ class SubscriptionServiceTest {
         assertThat(response.amount()).isEqualByComparingTo("150.00");
         assertThat(response.remainingRefundableAmount()).isEqualByComparingTo("0.00");
 
-        verify(paymentRepository).saveAndFlush(argThat(p -> 
+        // Reserved once (PENDING, before the external call) and finalized once (SUCCESS, after) —
+        // two writes to the same row, matching the tx1/external-call/tx2 boundary in CLAUDE.md.
+        verify(paymentRepository, times(2)).saveAndFlush(argThat(p ->
                 p.getType() == PaymentType.REFUND &&
                 p.getAmount().compareTo(new BigDecimal("150.00")) == 0 &&
-                p.getStatus() == PaymentStatus.SUCCESS &&
                 p.getCommissionAmount().compareTo(new BigDecimal("30.00")) == 0 && // 150 * 0.20
                 p.getCoachPayoutAmount().compareTo(new BigDecimal("120.00")) == 0 &&
                 p.getSourcePayment() == original
@@ -595,7 +598,7 @@ class SubscriptionServiceTest {
     }
 
     @Test
-    void refund_providerCallFails_throwsBadRequest_andDoesNotSaveRefundRow() {
+    void refund_providerCallFails_throwsBadRequest_andRecordsFailedRefundRow() {
         Subscription sub = new Subscription();
         Payment original = new Payment();
         ReflectionTestUtils.setField(original, "id", 100L);
@@ -616,7 +619,9 @@ class SubscriptionServiceTest {
         assertThat(ex.getErrorCode()).isEqualTo("PROVIDER_REFUND_FAILED");
         assertThat(ex.getStatus()).isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST);
 
-        verify(paymentRepository, never()).saveAndFlush(argThat(p -> p.getType() == PaymentType.REFUND));
+        // The reservation (PENDING) is still recorded, then finalized to FAILED — an audit trail
+        // of the attempt, and it frees the reserved amount back up for a future refund attempt.
+        verify(paymentRepository, times(2)).saveAndFlush(argThat(p -> p.getType() == PaymentType.REFUND));
     }
 
     // --- admin subscription termination tests ---
@@ -741,7 +746,7 @@ class SubscriptionServiceTest {
         payment.setCoachPayoutAmount(new BigDecimal("120.00"));
 
         when(paymentRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(payment)));
-        when(paymentRepository.findBySourcePaymentIdAndStatus(100L, PaymentStatus.SUCCESS)).thenReturn(List.of());
+        when(paymentRepository.findBySourcePaymentIdInAndStatus(List.of(100L), PaymentStatus.SUCCESS)).thenReturn(List.of());
 
         var res = service.listPayments(pageable);
         assertThat(res).isNotNull();

@@ -35,19 +35,31 @@ import com.ykskocluk.demo.repository.PaymentRepository;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
 import com.ykskocluk.demo.repository.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class SubscriptionService {
+
+    private static final Set<String> PAYMENT_SORTABLE_FIELDS = Set.of("createdAt", "id");
+    private static final Set<String> SUBSCRIPTION_SORTABLE_FIELDS = Set.of("createdAt", "id");
 
     private final SubscriptionRepository subscriptionRepository;
     private final PackageRepository packageRepository;
@@ -60,6 +72,7 @@ public class SubscriptionService {
     private final EntityManager entityManager;
     private final com.ykskocluk.demo.config.IyzicoProperties iyzicoProperties;
     private final ConsentService consentService;
+    private final TransactionTemplate tx;
 
     public SubscriptionService(SubscriptionRepository subscriptionRepository,
                                PackageRepository packageRepository,
@@ -71,7 +84,8 @@ public class SubscriptionService {
                                SubscriptionMapper subscriptionMapper,
                                EntityManager entityManager,
                                com.ykskocluk.demo.config.IyzicoProperties iyzicoProperties,
-                               ConsentService consentService) {
+                               ConsentService consentService,
+                               PlatformTransactionManager transactionManager) {
         this.subscriptionRepository = subscriptionRepository;
         this.packageRepository = packageRepository;
         this.coachProfileRepository = coachProfileRepository;
@@ -83,6 +97,7 @@ public class SubscriptionService {
         this.entityManager = entityManager;
         this.iyzicoProperties = iyzicoProperties;
         this.consentService = consentService;
+        this.tx = new TransactionTemplate(transactionManager);
     }
 
     @Transactional
@@ -91,17 +106,23 @@ public class SubscriptionService {
         return subscriptionMapper.toResponse(subscription);
         }
 
-        @Transactional
+        /**
+         * Reserves the PENDING subscription+payment in one committed transaction, then calls
+         * iyzico with no transaction open (CLAUDE.md: no external calls inside a DB transaction).
+         */
         public SubscriptionCheckoutResponse checkout(Long studentUserId, SubscriptionCreateRequest request) {
-        Subscription subscription = createPendingSubscription(studentUserId, request);
-        Payment payment = createPendingPayment(subscription);
+        Payment payment = tx.execute(status -> {
+            Subscription subscription = createPendingSubscription(studentUserId, request);
+            return createPendingPayment(subscription);
+        });
+
         CheckoutResult checkoutResult = iyzicoClient.initializeCheckout(
-            subscription.getId(), payment.getId(), payment.getAmount(), payment.getIdempotencyKey());
+            payment.getSubscription().getId(), payment.getId(), payment.getAmount(), payment.getIdempotencyKey());
 
         return new SubscriptionCheckoutResponse(
-            subscription.getId(),
+            payment.getSubscription().getId(),
             payment.getId(),
-            subscription.getStatus(),
+            payment.getSubscription().getStatus(),
             payment.getStatus(),
             payment.getAmount(),
             checkoutResult.checkoutToken(),
@@ -218,36 +239,58 @@ public class SubscriptionService {
         subscriptionRepository.saveAndFlush(subscription);
     }
 
+    /**
+     * Business-logic entry point that bypasses signature verification — for internal/test
+     * callers that already trust the caller (e.g. unit tests exercising the state machine).
+     * Never wire this overload to an HTTP-reachable path; the webhook controller must always
+     * go through {@link #processWebhook(IyzicoWebhookRequest, String)}.
+     */
     @Transactional
     public IyzicoWebhookResponse processWebhook(IyzicoWebhookRequest request) {
-        return processWebhook(request, null);
+        return applyWebhookOutcome(request);
     }
 
     @Transactional
     public IyzicoWebhookResponse processWebhook(IyzicoWebhookRequest request, String signatureV3) {
-        if (iyzicoProperties != null && iyzicoProperties.enabled()) {
-            String secretKey = iyzicoProperties.secretKey();
-            if (secretKey == null || secretKey.isBlank()) {
-                secretKey = "";
-            }
+        verifyWebhookSignature(request, signatureV3);
+        return applyWebhookOutcome(request);
+    }
 
-            if (signatureV3 == null || signatureV3.isBlank()) {
-                throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_WEBHOOK_SIGNATURE", "İmza başlığı eksik");
-            }
-
-            String iyziEventType = request.iyziEventType() != null ? request.iyziEventType() : "";
-            String paymentIdStr = request.paymentId() != null ? request.paymentId().toString() : "";
-            String paymentConversationId = request.paymentConversationId() != null ? request.paymentConversationId() : "";
-            String statusStr = request.status() != null ? request.status() : "";
-
-            String data = secretKey + iyziEventType + paymentIdStr + paymentConversationId + statusStr;
-            String computedSignature = calculateHmacSha256(data, secretKey);
-
-            if (!computedSignature.equalsIgnoreCase(signatureV3)) {
-                throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_WEBHOOK_SIGNATURE", "İmza doğrulanamadı");
-            }
+    /**
+     * Fails closed: with no real iyzico integration configured there is no legitimate webhook
+     * caller, so an unsigned/unverifiable request must be rejected rather than trusted.
+     */
+    private void verifyWebhookSignature(IyzicoWebhookRequest request, String signatureV3) {
+        if (iyzicoProperties == null || !iyzicoProperties.enabled()) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "WEBHOOK_DISABLED", "Iyzico entegrasyonu etkin değil");
         }
 
+        if (signatureV3 == null || signatureV3.isBlank()) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_WEBHOOK_SIGNATURE", "İmza başlığı eksik");
+        }
+
+        String secretKey = iyzicoProperties.secretKey();
+        if (secretKey == null || secretKey.isBlank()) {
+            secretKey = "";
+        }
+
+        String iyziEventType = request.iyziEventType() != null ? request.iyziEventType() : "";
+        String paymentIdStr = request.paymentId() != null ? request.paymentId().toString() : "";
+        String paymentConversationId = request.paymentConversationId() != null ? request.paymentConversationId() : "";
+        String statusStr = request.status() != null ? request.status() : "";
+
+        String data = secretKey + iyziEventType + paymentIdStr + paymentConversationId + statusStr;
+        String computedSignature = calculateHmacSha256(data, secretKey);
+
+        boolean matches = MessageDigest.isEqual(
+                computedSignature.toLowerCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8),
+                signatureV3.toLowerCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8));
+        if (!matches) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_WEBHOOK_SIGNATURE", "İmza doğrulanamadı");
+        }
+    }
+
+    private IyzicoWebhookResponse applyWebhookOutcome(IyzicoWebhookRequest request) {
         Payment payment = paymentRepository.findById(request.paymentId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Ödeme bulunamadı"));
 
@@ -285,12 +328,43 @@ public class SubscriptionService {
         }
     }
 
-    @Transactional
+    /** Carries the reserve decision out of tx1 into the external call and tx2. */
+    private record RefundReserve(Long originalPaymentId, Payment refundPayment, String providerReference,
+                                 String idempotencyKey, BigDecimal remainingAfter) {
+    }
+
+    /** Result of tx2 — success carries the response; failure carries the provider error message. */
+    private record RefundOutcome(boolean success, RefundResponse response, String providerErrorMessage) {
+    }
+
+    /**
+     * Refund. The external iyzico call sits strictly between two committed transactions (CLAUDE.md:
+     * no external calls inside a DB transaction): tx1 locks the original payment, validates, and
+     * reserves a PENDING refund row (so a concurrent refund attempt sees it as already-reserved);
+     * the external call happens with no transaction open; tx2 finalizes the reserved row to
+     * SUCCESS or FAILED. A provider failure still commits the FAILED row (audit trail) before the
+     * caller is told the refund failed.
+     */
     public RefundResponse refund(Long paymentId, BigDecimal refundAmount, String reason) {
         if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_REFUND_AMOUNT", "İade tutarı sıfırdan büyük olmalıdır");
         }
 
+        RefundReserve reserve = tx.execute(status -> reserveRefund(paymentId, refundAmount));
+
+        RefundResult refundResult = iyzicoClient.refund(reserve.providerReference(), refundAmount, reserve.idempotencyKey());
+
+        RefundOutcome outcome = tx.execute(status -> finalizeRefund(reserve, refundResult));
+        if (!outcome.success()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PROVIDER_REFUND_FAILED",
+                    "Iyzico iade işlemi başarısız oldu: " + outcome.providerErrorMessage());
+        }
+        return outcome.response();
+    }
+
+    // --- tx1: lock + validate + reserve ---
+
+    private RefundReserve reserveRefund(Long paymentId, BigDecimal refundAmount) {
         Payment originalPayment = paymentRepository.findByIdForUpdate(paymentId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Ödeme bulunamadı"));
 
@@ -315,22 +389,14 @@ public class SubscriptionService {
         int refundIndex = existingRefunds.size() + 1;
         String refundKey = "refund:" + paymentId + ":" + refundIndex;
 
-        // Call Iyzico refund
-        RefundResult refundResult = iyzicoClient.refund(originalPayment.getProviderReference(), refundAmount, refundKey);
-
-        if (!refundResult.success()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "PROVIDER_REFUND_FAILED",
-                    "Iyzico iade işlemi başarısız oldu: " + refundResult.errorMessage());
-        }
-
-        // Create REFUND payment row
+        // Reserve a PENDING refund row now, while still holding the row lock, so a concurrent
+        // refund attempt on this payment sees this amount as already spoken for.
         Payment refundPayment = new Payment();
         refundPayment.setSubscription(originalPayment.getSubscription());
         refundPayment.setType(PaymentType.REFUND);
         refundPayment.setAmount(refundAmount);
-        refundPayment.setStatus(PaymentStatus.SUCCESS);
+        refundPayment.setStatus(PaymentStatus.PENDING);
         refundPayment.setIdempotencyKey(refundKey);
-        refundPayment.setProviderReference(refundResult.providerReference());
 
         // Snapshot commission details (pro-rata based on original rate)
         BigDecimal rate = originalPayment.getCommissionRate();
@@ -345,16 +411,34 @@ public class SubscriptionService {
         // Force version increment on original payment to lock against concurrent modifications
         entityManager.lock(originalPayment, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
 
-        BigDecimal newRemaining = remainingRefundable.subtract(refundAmount);
+        return new RefundReserve(paymentId, refundPayment, originalPayment.getProviderReference(),
+                refundKey, remainingRefundable.subtract(refundAmount));
+    }
 
-        return new RefundResponse(
-                paymentId,
+    // --- tx2: finalize ---
+
+    private RefundOutcome finalizeRefund(RefundReserve reserve, RefundResult refundResult) {
+        Payment refundPayment = reserve.refundPayment();
+
+        if (!refundResult.success()) {
+            refundPayment.setStatus(PaymentStatus.FAILED);
+            paymentRepository.saveAndFlush(refundPayment);
+            return new RefundOutcome(false, null, refundResult.errorMessage());
+        }
+
+        refundPayment.setStatus(PaymentStatus.SUCCESS);
+        refundPayment.setProviderReference(refundResult.providerReference());
+        paymentRepository.saveAndFlush(refundPayment);
+
+        RefundResponse response = new RefundResponse(
+                reserve.originalPaymentId(),
                 refundPayment.getId(),
                 refundPayment.getStatus().name(),
-                refundAmount,
-                newRemaining,
+                refundPayment.getAmount(),
+                reserve.remainingAfter(),
                 "İade işlemi başarıyla gerçekleştirildi"
         );
+        return new RefundOutcome(true, response, null);
     }
 
     @Transactional
@@ -408,15 +492,25 @@ public class SubscriptionService {
 
     @Transactional(readOnly = true)
     public PageResponse<AdminPaymentResponse> listPayments(Pageable pageable) {
+        validateSort(pageable, PAYMENT_SORTABLE_FIELDS);
         Page<Payment> page = paymentRepository.findAll(pageable);
+
+        // Batch-load refunds for every CHARGE row on this page in one query (avoids N+1).
+        List<Long> chargeIds = page.getContent().stream()
+                .filter(p -> p.getType() == PaymentType.CHARGE)
+                .map(Payment::getId)
+                .toList();
+        Map<Long, BigDecimal> refundedByChargeId = chargeIds.isEmpty()
+                ? Map.of()
+                : paymentRepository.findBySourcePaymentIdInAndStatus(chargeIds, PaymentStatus.SUCCESS).stream()
+                        .collect(Collectors.groupingBy(
+                                p -> p.getSourcePayment().getId(),
+                                Collectors.reducing(BigDecimal.ZERO, Payment::getAmount, BigDecimal::add)));
+
         Page<AdminPaymentResponse> mapped = page.map(payment -> {
-            BigDecimal totalRefunded = BigDecimal.ZERO;
-            if (payment.getType() == PaymentType.CHARGE) {
-                List<Payment> existingRefunds = paymentRepository.findBySourcePaymentIdAndStatus(payment.getId(), PaymentStatus.SUCCESS);
-                totalRefunded = existingRefunds.stream()
-                        .map(Payment::getAmount)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
-            }
+            BigDecimal totalRefunded = payment.getType() == PaymentType.CHARGE
+                    ? refundedByChargeId.getOrDefault(payment.getId(), BigDecimal.ZERO)
+                    : BigDecimal.ZERO;
             BigDecimal remainingRefundable = payment.getAmount().subtract(totalRefunded);
 
             return new AdminPaymentResponse(
@@ -440,6 +534,7 @@ public class SubscriptionService {
 
     @Transactional(readOnly = true)
     public PageResponse<AdminSubscriptionResponse> listSubscriptions(Pageable pageable) {
+        validateSort(pageable, SUBSCRIPTION_SORTABLE_FIELDS);
         Page<Subscription> page = subscriptionRepository.findAll(pageable);
         Page<AdminSubscriptionResponse> mapped = page.map(sub -> new AdminSubscriptionResponse(
                 sub.getId(),
@@ -456,6 +551,15 @@ public class SubscriptionService {
                 sub.getCreatedAt()
         ));
         return PageResponse.from(mapped);
+    }
+
+    private void validateSort(Pageable pageable, Set<String> allowed) {
+        for (Sort.Order order : pageable.getSort()) {
+            if (!allowed.contains(order.getProperty())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SORT_FIELD",
+                        "Bu alana göre sıralama yapılamaz: " + order.getProperty());
+            }
+        }
     }
 
     private String calculateHmacSha256(String data, String key) {

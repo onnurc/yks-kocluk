@@ -14,15 +14,20 @@ import com.ykskocluk.demo.repository.ReportRepository;
 import com.ykskocluk.demo.repository.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Set;
 
 /**
  * Service for submitting safety reports and retrieving reports (admin).
  */
 @Service
 public class ReportService {
+
+    private static final Set<String> SORTABLE_FIELDS = Set.of("createdAt", "id");
 
     private final ReportRepository reportRepository;
     private final UserRepository userRepository;
@@ -88,6 +93,7 @@ public class ReportService {
 
     @Transactional(readOnly = true)
     public PageResponse<ReportResponse> listReports(ReportStatus status, Pageable pageable) {
+        validateSort(pageable);
         Page<Report> page;
         if (status != null) {
             page = reportRepository.findByStatus(status, pageable);
@@ -95,6 +101,15 @@ public class ReportService {
             page = reportRepository.findAll(pageable);
         }
         return PageResponse.from(page.map(this::toResponse));
+    }
+
+    private void validateSort(Pageable pageable) {
+        for (Sort.Order order : pageable.getSort()) {
+            if (!SORTABLE_FIELDS.contains(order.getProperty())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SORT_FIELD",
+                        "Bu alana göre sıralama yapılamaz: " + order.getProperty());
+            }
+        }
     }
 
     private ReportResponse toResponse(Report r) {

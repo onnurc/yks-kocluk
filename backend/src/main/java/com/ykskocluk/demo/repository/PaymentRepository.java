@@ -22,6 +22,9 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     List<Payment> findBySourcePaymentIdAndStatus(Long sourcePaymentId, PaymentStatus status);
 
+    /** Batch variant of {@link #findBySourcePaymentIdAndStatus} — avoids N+1 in admin listings. */
+    List<Payment> findBySourcePaymentIdInAndStatus(List<Long> sourcePaymentIds, PaymentStatus status);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Payment p where p.id = :id")
     Optional<Payment> findByIdForUpdate(@Param("id") Long id);

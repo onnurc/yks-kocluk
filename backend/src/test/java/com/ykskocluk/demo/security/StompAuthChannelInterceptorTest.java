@@ -24,7 +24,6 @@ import org.springframework.security.core.Authentication;
 import java.util.Map;
 import java.util.Optional;
 
-import org.springframework.context.ApplicationContext;
 import org.junit.jupiter.api.BeforeEach;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,15 +45,11 @@ class StompAuthChannelInterceptorTest {
     @Mock
     UserRepository userRepository;
 
-    @Mock
-    ApplicationContext applicationContext;
-
     StompAuthChannelInterceptor interceptor;
 
     @BeforeEach
     void setUp() {
-        lenient().when(applicationContext.getBean(UserRepository.class)).thenReturn(userRepository);
-        interceptor = new StompAuthChannelInterceptor(jwtService, messageService, applicationContext);
+        interceptor = new StompAuthChannelInterceptor(jwtService, messageService, userRepository);
     }
 
     @Test
