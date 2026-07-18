@@ -134,8 +134,17 @@ class WebSocketAuthTest {
         StompSession session = connect(jwtService.generateAccessToken(student), new StompSessionHandlerAdapter() {
         });
         BlockingQueue<String> received = new LinkedBlockingQueue<>();
-        session.subscribe("/topic/conversations/" + conversationId, frameHandler(received));
-        Thread.sleep(300); // let the SUBSCRIBE register before sending
+
+        StompHeaders subscribeHeaders = new StompHeaders();
+        subscribeHeaders.setDestination("/topic/conversations/" + conversationId);
+        subscribeHeaders.setReceipt("sub-receipt-1");
+
+        CountDownLatch receiptLatch = new CountDownLatch(1);
+        StompSession.Subscription sub = session.subscribe(subscribeHeaders, frameHandler(received));
+        sub.addReceiptTask(receiptLatch::countDown);
+
+        boolean subscribed = receiptLatch.await(5, TimeUnit.SECONDS);
+        assertThat(subscribed).isTrue();
 
         session.send("/app/conversations/" + conversationId + "/send", "merhaba ws");
 
