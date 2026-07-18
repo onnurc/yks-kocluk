@@ -66,6 +66,21 @@ management:
         include: health,info
 
 app:
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    environment: ${APP_ENV:local}
+    trust-proxy-headers: ${RATE_LIMIT_TRUST_PROXY_HEADERS:false}
+    login:
+      ip-limit: ${RATE_LIMIT_LOGIN_IP_LIMIT:20}
+      identifier-limit: ${RATE_LIMIT_LOGIN_IDENTIFIER_LIMIT:5}
+      window-seconds: ${RATE_LIMIT_LOGIN_WINDOW_SECONDS:60}
+    register:
+      ip-limit: ${RATE_LIMIT_REGISTER_IP_LIMIT:5}
+      window-seconds: ${RATE_LIMIT_REGISTER_WINDOW_SECONDS:60}
+    refresh:
+      ip-limit: ${RATE_LIMIT_REFRESH_IP_LIMIT:30}
+      token-limit: ${RATE_LIMIT_REFRESH_TOKEN_LIMIT:30}
+      window-seconds: ${RATE_LIMIT_REFRESH_WINDOW_SECONDS:60}
   demo-seed-enabled: ${DEMO_SEED_ENABLED:false}
   jwt:
     # HS256 signing key (>= 32 bytes). Supplied via JWT_SECRET (application-local.yml / env).

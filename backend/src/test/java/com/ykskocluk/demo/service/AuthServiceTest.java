@@ -79,7 +79,7 @@ class AuthServiceTest {
         when(passwordEncoder.encode("password123")).thenReturn("hashed-pw");
 
         AuthResponse res = authService.register(
-                new RegisterRequest("user@example.com", "password123", "Test User", Role.STUDENT));
+                new RegisterRequest("user@example.com", "password123", "Test User", Role.STUDENT, java.time.LocalDate.of(2005, 1, 1)));
 
         assertThat(res.accessToken()).isEqualTo("access-token");
         assertThat(res.refreshToken()).isNotBlank();
@@ -98,7 +98,7 @@ class AuthServiceTest {
         when(userRepository.existsByEmail("user@example.com")).thenReturn(true);
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> authService.register(
-                new RegisterRequest("user@example.com", "password123", "Test User", Role.STUDENT)));
+                new RegisterRequest("user@example.com", "password123", "Test User", Role.STUDENT, java.time.LocalDate.of(2005, 1, 1))));
         assertThat(ex.getErrorCode()).isEqualTo("EMAIL_ALREADY_EXISTS");
         verify(userRepository, never()).save(any());
     }

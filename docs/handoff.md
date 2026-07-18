@@ -9,9 +9,9 @@ _Last updated: 2026-06-27._
 
 ## Status at a glance
 
-- **Phases complete:** 0, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 (Full Backend + Frontend workflows complete, except payout which is only prepared as an ADR).
+- **Phases complete:** 0, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (Full Backend + Frontend workflows complete, rate limiting security layer integrated, except payout which is only prepared as an ADR).
 - **In progress / next:** Closed beta QA, production infrastructure provisioning, and legal/tax model finalization.
-- **Tests:** Backend verify is **GREEN — 70+ unit tests** (including concurrent subscription renewals and minor consent rules). Testcontainers are compiled but bypassed locally due to the absence of a local Docker daemon.
+- **Tests:** Backend verify is **GREEN — 85+ unit tests** (including rate limit bounds, concurrent subscription renewals and minor consent rules). Testcontainers are compiled but bypassed locally due to the absence of a local Docker daemon.
 - **Neon (prod DB):** Flyway at **v17** (all V1–V17 applied. V17 = date of birth and consent status).
 - **Build:** Java 21 + Spring Boot 4 (backend); React + Vite + TypeScript (frontend).
 
@@ -286,6 +286,7 @@ keys (merchant 3429394) go in `application-local.yml`. No core-flow change expec
 | **KVKK & Consent** | ✅ **DONE** (Phases 7-8). Implemented `dateOfBirth` validation, minor age checks (under 18), `ConsentStatus` tracking (`PENDING`, `ACCEPTED`, `REVOKED`), parental consent modal frontend, and backend enforcement gates. |
 | **Admin Oversight & Safety** | ✅ **DONE**. Created safety reports, user suspension dashboard, and admin conversation inspection audit logger (`AdminConversationAccessLog`). |
 | **Admin Finance & Payout Seam** | ✅ **DONE** (Phases 9-10). Created refund/termination modal popups, webhook signature validation, idempotency guards, and model-neutral payout ledger seam (`PayoutService` and `PayoutLedger`). |
+| **Auth Rate Limiting** | ✅ **DONE** (Stabilization). Implemented Redis-compatible transient state rate limiting behind `RateLimitStore` with clean in-memory fallback. Protects `/auth/login`, `/auth/register`, and `/auth/refresh` against brute-force/abuse. |
 | **Future / Launch Blockers** | Real money transactions production configuration, legal review of auto-renew/refund policies, final production DB seeding, and domain registration. |
 
 ### Deferred slices (carved out of the doc's original phasing — deliberate, see below)
@@ -362,7 +363,7 @@ Both standing credential-rotation action items are **DONE** (no longer open):
 V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subscriptions · V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging · V10 payments_autorenew · V11 webhook_verifications · V12-V13 idempotency_checks · V14-V16 demo_seed_safety · V17 minor_consent_status.
 
 ## Critical-path tests (the ones to never break)
-`AuthServiceTest` · `SubscriptionCapacityConcurrencyTest` · `SessionDoubleBookingConcurrencyTest` · `SessionQuotaBoundaryTest` · `SessionLifecycleTest` · `MessageServiceTest` / `MessageGateIntegrationTest` (child-safety gate) · `WebSocketAuthTest` · `SubscriptionRenewalConcurrencyTest` · `SubscriptionBillingServiceTest` · `MinorConsentServiceTest`.
+`AuthServiceTest` · `SubscriptionCapacityConcurrencyTest` · `SessionDoubleBookingConcurrencyTest` · `SessionQuotaBoundaryTest` · `SessionLifecycleTest` · `MessageServiceTest` / `MessageGateIntegrationTest` (child-safety gate) · `WebSocketAuthTest` · `SubscriptionRenewalConcurrencyTest` · `SubscriptionBillingServiceTest` · `MinorConsentServiceTest` · `InMemoryRateLimitStoreTest` · `AuthRateLimitServiceTest` · `AuthControllerRateLimitTest`.
 
 ---
 
@@ -389,3 +390,23 @@ decisions below were all honored; kept here as the rationale record.
     don't loop per-conversation.
 - **Deferred:** admin-access **audit log** is **Phase 9** (KVKK-relevant). Phase 5c ships without it — a
   deliberate, documented interim gap (admins can read threads with no access trail until Phase 9).
+
+---
+
+## Rate Limiting & Transient State
+
+- **Endpoints protected:**
+  - `POST /api/v1/auth/login` (IP limit: 20/min, Email limit: 5/min)
+  - `POST /api/v1/auth/register` (IP limit: 5/min)
+  - `POST /api/v1/auth/refresh` (IP limit: 30/min, Token fingerprint limit: 30/min)
+- **Response behavior:** Breaches yield `HTTP 429 Too Many Requests` with a ProblemDetail JSON carrying `errorCode: RATE_LIMIT_EXCEEDED` and a standard `Retry-After: <seconds>` header.
+- **Client IP Resolution:** Defaulting to `request.getRemoteAddr()`. Supports reverse proxies (e.g. Railway) via `app.rate-limit.trust-proxy-headers=true`, parsing the first IP of `X-Forwarded-For`.
+- **Sensitive data privacy:** Key identifiers are formatted to prevent sensitive data leaks. IP addresses are hashed using SHA-256; login emails are normalized (trim, lowercase) and hashed; refresh tokens are hashed to create unique fingerprints.
+- **Transient state architecture:**
+  - Transient state (such as rate limits) is decoupled behind the `RateLimitStore` interface.
+  - The current production-ready MVP uses `InMemoryRateLimitStore` (ConcurrentHashMap in JVM memory), which automatically runs background cleanups on expired buckets.
+  - **In-memory/per-instance constraint:** Since the state is in JVM memory, it is scoped per application instance. If the backend scales to 2+ instances, key counters won't be shared across nodes unless a shared store is introduced.
+- **Redis Migration Path:**
+  - Future Redis migration requires zero code changes to controllers or business services.
+  - A developer simply needs to add the Spring Data Redis dependency, define `RedisRateLimitStore implements RateLimitStore`, and declare it as a `@Bean` to override the memory implementation.
+  - Hashing rules, env-prefixes (`yks:{env}:rate-limit:...`), and window algorithms are already fully Redis-compatible (mapped directly to `INCR` + `EXPIRE` commands or custom Lua scripts).

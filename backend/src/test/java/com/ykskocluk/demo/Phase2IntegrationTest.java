@@ -32,7 +32,7 @@ class Phase2IntegrationTest {
         String json = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"password123","fullName":"Test User","role":"%s"}
+                                {"email":"%s","password":"password123","fullName":"Test User","role":"%s","dateOfBirth":"2005-01-01"}
                                 """.formatted(email, role)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
