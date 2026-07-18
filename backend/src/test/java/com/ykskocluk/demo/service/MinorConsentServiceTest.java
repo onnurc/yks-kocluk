@@ -42,13 +42,14 @@ class MinorConsentServiceTest {
     @Mock private com.ykskocluk.demo.security.JwtService jwtService;
     @Mock private com.ykskocluk.demo.mapper.UserMapper userMapper;
     @Mock private com.ykskocluk.demo.config.JwtProperties jwtProperties;
+    @Mock private OAuth2LoginCodeService oauth2LoginCodeService;
 
     @InjectMocks private ConsentService consentService;
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(userRepository, refreshTokenRepository, passwordEncoder, jwtService, userMapper, jwtProperties);
+        authService = new AuthService(userRepository, refreshTokenRepository, passwordEncoder, jwtService, userMapper, jwtProperties, oauth2LoginCodeService);
         lenient().when(jwtService.generateAccessToken(any())).thenReturn("dummy-access");
         lenient().when(jwtProperties.refreshTtl()).thenReturn(java.time.Duration.ofDays(30));
         lenient().when(refreshTokenRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));

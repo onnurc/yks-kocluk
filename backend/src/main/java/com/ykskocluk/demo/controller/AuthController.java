@@ -3,6 +3,7 @@ package com.ykskocluk.demo.controller;
 import com.ykskocluk.demo.dto.AuthResponse;
 import com.ykskocluk.demo.dto.LoginRequest;
 import com.ykskocluk.demo.dto.LogoutRequest;
+import com.ykskocluk.demo.dto.OAuth2ExchangeRequest;
 import com.ykskocluk.demo.dto.RefreshRequest;
 import com.ykskocluk.demo.dto.RegisterRequest;
 import com.ykskocluk.demo.dto.UserResponse;
@@ -53,6 +54,12 @@ public class AuthController {
     public AuthResponse refresh(@Valid @RequestBody RefreshRequest request) {
         rateLimitService.checkRefresh(request.refreshToken(), httpServletRequest);
         return authService.refresh(request);
+    }
+
+    @PostMapping("/oauth2/exchange")
+    public AuthResponse exchangeOAuth2Code(@Valid @RequestBody OAuth2ExchangeRequest request) {
+        rateLimitService.checkOAuth2Exchange(httpServletRequest);
+        return authService.exchangeOAuth2Code(request.code());
     }
 
     @PostMapping("/logout")
