@@ -3,6 +3,7 @@ package com.ykskocluk.demo.controller;
 import com.ykskocluk.demo.dto.SubscriptionResponse;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.integration.MailClient;
+import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.security.JwtService;
 import com.ykskocluk.demo.service.CancelResult;
 import com.ykskocluk.demo.service.SubscriptionBillingService;
@@ -20,7 +21,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.Instant;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -56,6 +56,7 @@ class SubscriptionCancelControllerTest {
     @MockitoBean SubscriptionBillingService billingService;
     @MockitoBean MailClient mailClient;
     @MockitoBean JwtService jwtService; // JwtAuthenticationFilter dep; auth comes from @WithMockUser
+    @MockitoBean UserRepository userRepository; // JwtAuthenticationFilter dep (construction-time)
 
     private SubscriptionResponse cancelledResponse() {
         return new SubscriptionResponse(SUB_ID, 1L, "Coach Name", 2L, "Aylık 1x", 1,

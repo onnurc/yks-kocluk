@@ -11,6 +11,10 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+    # Demo/manual-testing seed data (db/demo-seed — see application.yml) is deliberately
+    # excluded here: it polluted @DataJpaTest slice assertions that expect a clean table
+    # (DemoSeedCleanupComponent can't clean it up in a slice context — it never loads).
+    locations: classpath:db/migration
 
 app:
   jwt:
