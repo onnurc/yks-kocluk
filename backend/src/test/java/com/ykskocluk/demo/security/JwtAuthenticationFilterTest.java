@@ -24,8 +24,6 @@ import java.io.StringWriter;
 import java.util.Map;
 import java.util.Optional;
 
-import org.springframework.context.ApplicationContext;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
@@ -41,16 +39,12 @@ class JwtAuthenticationFilterTest {
     @Mock
     UserRepository userRepository;
 
-    @Mock
-    ApplicationContext applicationContext;
-
     JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @BeforeEach
     void setUp() {
         SecurityContextHolder.clearContext();
-        lenient().when(applicationContext.getBean(UserRepository.class)).thenReturn(userRepository);
-        jwtAuthenticationFilter = new JwtAuthenticationFilter(jwtService, applicationContext);
+        jwtAuthenticationFilter = new JwtAuthenticationFilter(jwtService, userRepository);
     }
 
     @Test

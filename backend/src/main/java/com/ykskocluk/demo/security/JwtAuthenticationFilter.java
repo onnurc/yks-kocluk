@@ -13,7 +13,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.context.ApplicationContext;
 import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.entity.User;
@@ -37,11 +36,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtService jwtService;
-    private final ApplicationContext applicationContext;
+    private final UserRepository userRepository;
 
-    public JwtAuthenticationFilter(JwtService jwtService, ApplicationContext applicationContext) {
+    public JwtAuthenticationFilter(JwtService jwtService, UserRepository userRepository) {
         this.jwtService = jwtService;
-        this.applicationContext = applicationContext;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -58,7 +57,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Claims claims = jwtService.parse(token).getPayload();
                 Long userId = Long.valueOf(claims.getSubject());
 
-                UserRepository userRepository = applicationContext.getBean(UserRepository.class);
                 Optional<User> userOpt = userRepository.findById(userId);
                 if (userOpt.isPresent() && userOpt.get().getStatus() == UserStatus.SUSPENDED) {
                     response.setStatus(HttpStatus.FORBIDDEN.value());

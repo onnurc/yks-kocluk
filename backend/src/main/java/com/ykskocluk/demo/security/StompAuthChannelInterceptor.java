@@ -12,7 +12,6 @@ import org.springframework.messaging.MessagingException;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
-import org.springframework.context.ApplicationContext;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -43,12 +42,12 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private final JwtService jwtService;
     private final MessageService messageService;
-    private final ApplicationContext applicationContext;
+    private final UserRepository userRepository;
 
-    public StompAuthChannelInterceptor(JwtService jwtService, MessageService messageService, ApplicationContext applicationContext) {
+    public StompAuthChannelInterceptor(JwtService jwtService, MessageService messageService, UserRepository userRepository) {
         this.jwtService = jwtService;
         this.messageService = messageService;
-        this.applicationContext = applicationContext;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -76,7 +75,6 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             Claims claims = jws.getPayload();
             Long userId = Long.valueOf(claims.getSubject());
 
-            UserRepository userRepository = applicationContext.getBean(UserRepository.class);
             User user = userRepository.findById(userId).orElse(null);
             if (user != null && user.getStatus() == UserStatus.SUSPENDED) {
                 throw new MessagingException("Hesabınız askıya alınmıştır");

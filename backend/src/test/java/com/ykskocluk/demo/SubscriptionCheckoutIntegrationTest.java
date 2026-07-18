@@ -317,20 +317,9 @@ class SubscriptionCheckoutIntegrationTest {
                 .andExpect(jsonPath("$.status").value("IDEMPOTENT"));
     }
 
-    @Test
-    void webhook_invalidStatus_returnsBadRequest() throws Exception {
-        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"paymentId\":1,\"status\":\"INVALID_STATUS\"}"))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void webhook_unknownPaymentId_returnsNotFound() throws Exception {
-        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"paymentId\":999999,\"status\":\"SUCCESS\"}"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.errorCode").value("PAYMENT_NOT_FOUND"));
-    }
+    // webhook_invalidStatus_returnsBadRequest and webhook_unknownPaymentId_returnsNotFound were
+    // removed: they posted to the webhook with no signature, which now correctly gets rejected
+    // with 401 before reaching this validation (see SubscriptionService.verifyWebhookSignature).
+    // Equivalent signed coverage already exists in IyzicoWebhookSignatureTest
+    // (processWebhook_unsupportedStatus_badRequest / processWebhook_wrongPaymentId_notFound).
 }

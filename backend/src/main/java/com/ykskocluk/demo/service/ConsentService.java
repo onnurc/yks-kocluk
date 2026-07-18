@@ -101,10 +101,19 @@ public class ConsentService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
 
+        // Stamp the revocation with whichever version the user's latest record for this
+        // consent type actually carries — not KVKK's version, which only applies to KVKK.
+        // document_version is NOT NULL, so fall back to CURRENT_KVKK_VERSION if there's no
+        // prior record at all (revoking a never-granted consent — an edge case today).
+        String documentVersion = consentRecordRepository
+                .findFirstByUserIdAndConsentTypeOrderByAcceptedAtDesc(userId, consentType)
+                .map(ConsentRecord::getDocumentVersion)
+                .orElse(CURRENT_KVKK_VERSION);
+
         ConsentRecord record = new ConsentRecord();
         record.setUser(user);
         record.setConsentType(consentType);
-        record.setDocumentVersion(CURRENT_KVKK_VERSION);
+        record.setDocumentVersion(documentVersion);
         record.setAcceptedAt(Instant.now());
         record.setStatus(ConsentStatus.REVOKED);
 
