@@ -93,6 +93,23 @@ public class AuthRateLimitService {
         }
     }
 
+    public void checkOAuth2Exchange(HttpServletRequest request) {
+        if (!properties.isEnabled()) {
+            return;
+        }
+
+        String ip = ipResolver.resolveIp(request);
+        String ipHash = sha256(ip);
+        String env = properties.getEnvironment();
+
+        String ipKey = String.format("yks:%s:rate-limit:auth:oauth2-exchange:ip:%s", env, ipHash);
+        RateLimitProperties.LimitRule rule = properties.getOauth2Exchange();
+        RateLimitResult ipResult = rateLimitStore.consume(ipKey, rule.getIpLimit(), Duration.ofSeconds(rule.getWindowSeconds()));
+        if (!ipResult.allowed()) {
+            throw new RateLimitExceededException(ipResult.retryAfterSeconds());
+        }
+    }
+
     @Scheduled(fixedRate = 300000) // Every 5 minutes
     public void cleanExpiredEntries() {
         // Clean entries older than 10 minutes (600 seconds)

@@ -46,13 +46,14 @@ class AuthServiceTest {
     @Mock JwtService jwtService;
     @Mock UserMapper userMapper;
     @Mock JwtProperties jwtProperties;
+    @Mock OAuth2LoginCodeService oauth2LoginCodeService;
 
     AuthService authService;
 
     @BeforeEach
     void setUp() {
         authService = new AuthService(userRepository, refreshTokenRepository,
-                passwordEncoder, jwtService, userMapper, jwtProperties);
+                passwordEncoder, jwtService, userMapper, jwtProperties, oauth2LoginCodeService);
         // Common stubs for the issueTokens() path; lenient so failure tests don't trip strict stubbing.
         lenient().when(jwtService.generateAccessToken(any())).thenReturn("access-token");
         lenient().when(jwtService.getAccessTtlSeconds()).thenReturn(900L);
@@ -228,5 +229,63 @@ class AuthServiceTest {
         assertThat(captor.getValue().getRole()).isEqualTo(Role.STUDENT);
         assertThat(captor.getValue().getGoogleSub()).isEqualTo("sub-999");
         assertThat(captor.getValue().getStatus()).isEqualTo(UserStatus.ACTIVE);
+    }
+
+    @Test
+    void upsertGoogleUser_unverifiedGoogleEmail_throwsUnauthorized() {
+        assertThatThrownBy(() -> authService.upsertGoogleUser("unverified@example.com", "sub-111", "Unverified", false))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("E-posta adresi doğrulanmamış");
+    }
+
+    @Test
+    void upsertGoogleUser_conflictingGoogleSub_throwsUnauthorized() {
+        User existing = activeUser("hashed-pw");
+        existing.setGoogleSub("sub-original");
+        when(userRepository.findByGoogleSub("sub-hacker")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> authService.upsertGoogleUser("user@example.com", "sub-hacker", "Hacker", true))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("E-posta veya şifre hatalı");
+    }
+
+    @Test
+    void upsertGoogleUser_suspendedUser_throwsAccountNotActive() {
+        User existing = activeUser("hashed-pw");
+        existing.setGoogleSub("sub-123");
+        existing.setStatus(UserStatus.SUSPENDED);
+        when(userRepository.findByGoogleSub("sub-123")).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> authService.upsertGoogleUser("user@example.com", "sub-123", "Suspended", true))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("Hesabınız aktif değil");
+    }
+
+    @Test
+    void upsertGoogleUser_existingCoach_preservesRoleAndStatus() {
+        User existing = activeUser("hashed-pw");
+        existing.setRole(Role.COACH);
+        existing.setStatus(UserStatus.ACTIVE);
+        when(userRepository.findByGoogleSub("sub-coach")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("coach@example.com")).thenReturn(Optional.of(existing));
+
+        User linked = authService.upsertGoogleUser("coach@example.com", "sub-coach", "Coach User", true);
+
+        assertThat(linked.getRole()).isEqualTo(Role.COACH);
+        assertThat(linked.getStatus()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(linked.getGoogleSub()).isEqualTo("sub-coach");
+    }
+
+    @Test
+    void exchangeOAuth2Code_validCode_issuesTokens() {
+        User user = activeUser("hashed-pw");
+        when(oauth2LoginCodeService.consumeCode("valid-code")).thenReturn(user);
+
+        AuthResponse response = authService.exchangeOAuth2Code("valid-code");
+
+        assertThat(response.accessToken()).isEqualTo("access-token");
+        assertThat(response.refreshToken()).isNotBlank();
+        verify(oauth2LoginCodeService).consumeCode("valid-code");
     }
 }

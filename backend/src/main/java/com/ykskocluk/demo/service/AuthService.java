@@ -41,19 +41,22 @@ public class AuthService {
     private final JwtService jwtService;
     private final UserMapper userMapper;
     private final JwtProperties jwtProperties;
+    private final OAuth2LoginCodeService oauth2LoginCodeService;
 
     public AuthService(UserRepository userRepository,
                        RefreshTokenRepository refreshTokenRepository,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
                        UserMapper userMapper,
-                       JwtProperties jwtProperties) {
+                       JwtProperties jwtProperties,
+                       OAuth2LoginCodeService oauth2LoginCodeService) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.userMapper = userMapper;
         this.jwtProperties = jwtProperties;
+        this.oauth2LoginCodeService = oauth2LoginCodeService;
     }
 
     @Transactional
@@ -135,11 +138,16 @@ public class AuthService {
 
     /**
      * Google sign-in. Resolution order: by googleSub → by verified email (auto-link the
-     * sub onto the existing account) → create a new STUDENT account. Returns our tokens.
+     * sub onto the existing account) → create a new STUDENT account. Returns the User.
      */
     @Transactional
-    public AuthResponse upsertGoogleUser(String email, String googleSub,
-                                         String fullName, boolean emailVerified) {
+    public User upsertGoogleUser(String email, String googleSub,
+                                 String fullName, boolean emailVerified) {
+        if (!emailVerified) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS",
+                    "E-posta adresi doğrulanmamış");
+        }
+
         Optional<User> bySub = userRepository.findByGoogleSub(googleSub);
         User user;
         if (bySub.isPresent()) {
@@ -148,10 +156,12 @@ public class AuthService {
             Optional<User> byEmail = userRepository.findByEmail(email);
             if (byEmail.isPresent()) {
                 user = byEmail.get();
-                user.setGoogleSub(googleSub);
-                if (emailVerified) {
-                    user.setEmailVerified(true);
+                if (user.getGoogleSub() != null && !user.getGoogleSub().equals(googleSub)) {
+                    throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS",
+                            "E-posta veya şifre hatalı");
                 }
+                user.setGoogleSub(googleSub);
+                user.setEmailVerified(true);
             } else {
                 user = new User();
                 user.setEmail(email);
@@ -159,11 +169,17 @@ public class AuthService {
                 user.setRole(Role.STUDENT); // new Google sign-ups default to STUDENT
                 user.setStatus(UserStatus.ACTIVE);
                 user.setGoogleSub(googleSub);
-                user.setEmailVerified(emailVerified);
+                user.setEmailVerified(true);
                 userRepository.save(user);
             }
         }
         ensureActive(user);
+        return user;
+    }
+
+    @Transactional
+    public AuthResponse exchangeOAuth2Code(String rawCode) {
+        User user = oauth2LoginCodeService.consumeCode(rawCode);
         return issueTokens(user);
     }
 

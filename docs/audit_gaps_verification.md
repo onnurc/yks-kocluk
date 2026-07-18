@@ -19,13 +19,22 @@ Note that:
 
 ## OAuth2 Login Status
 
-- **Backend Configuration & Setup:** Backend OAuth2 flow was statically inspected. `OAuth2LoginSuccessHandler` and `AuthService.upsertGoogleUser` are successfully implemented and configured. 
-- **End-to-End Test Status:** End-to-end browser OAuth2 login was not executed in this audit due to a lack of active Google credentials.
-- **Frontend Integration Status:** The frontend React client does not currently contain a Google login button, an OAuth callback route, or token capture logic. 
-- **Current Assessment:** Google OAuth2 login is incomplete for the current frontend.
-  - If OAuth2 is part of the MVP, a separate frontend integration branch must be created to implement the login button and `/oauth/callback` routing.
-  - If OAuth2 is not part of the MVP, it must remain hidden or disabled in the UI.
-- **Security Recommendation:** The backend currently transports the issued JWT access and refresh tokens through URL query parameters during redirection. This approach requires security review before production deployment, as tokens passed in URLs may leak through browser history, proxy/access logs, or the `Referer` header.
+- **Secure Exchange Flow Implementation:** The backend Google OAuth2 login flow has been upgraded to a secure, single-use code exchange architecture:
+  - Access and refresh tokens are **never** transported via the browser URL redirection query parameters.
+  - Successful Google authentication redirects to the frontend URL carrying only a short-lived random code: `?code=<one-time-code>&provider=google`.
+  - The login code is cryptographically secure, expires in 120 seconds (configurable), is single-use, and is stored in the database only as a SHA-256 fingerprint hash.
+- **Backend Endpoint:** The new public REST endpoint is:
+  - `POST /api/v1/auth/oauth2/exchange`
+  - Body: `{ "code": "..." }`
+  - Returns: `AuthResponse` containing the issued JWT access and refresh tokens, user details, etc., fully aligned with standard credentials login responses.
+- **End-to-End Test Status:** End-to-end browser Google authentication was not executed in this audit due to a lack of active Google client credentials.
+- **Frontend Integration Status:** The frontend React client does not currently contain a Google login button, an OAuth callback route, or token capture logic. This integration remains deferred to a future frontend/QA phase.
+- **Required Env Vars:**
+  - `GOOGLE_CLIENT_ID`
+  - `GOOGLE_CLIENT_SECRET`
+  - `OAUTH2_FRONTEND_REDIRECT_URI`
+  - `OAUTH2_LOGIN_CODE_TTL_SECONDS` (default: 120)
+- **Date of Birth & Onboarding:** Newly provisioned STUDENT users via Google OAuth2 currently default to `dateOfBirth = null` (no fake data is created, and login is not blocked). This is an intentional design decision; the profile completion and onboarding flow is deferred and will be revisited in a future branch.
 
 ---
 
@@ -81,7 +90,7 @@ To align external request payloads with the database/schema constraints, this br
 ## Validation
 
 - **Backend Package:** Clean package compilation completed successfully (`.\mvnw.cmd clean package -DskipTests`).
-- **Backend Tests:** Focused unit and slice tests (`AuthServiceTest`, `InMemoryRateLimitStoreTest`, `ClientIpResolverTest`, `AuthRateLimitServiceTest`, `AuthControllerRateLimitTest`) completed successfully (32/32 passing).
+- **Backend Tests:** Unit and slice tests (`AuthServiceTest`, `InMemoryRateLimitStoreTest`, `ClientIpResolverTest`, `AuthRateLimitServiceTest`, `AuthControllerRateLimitTest`, `OAuth2LoginCodeServiceTest`, `AuthControllerOAuth2ExchangeTest`, `OAuth2LoginSuccessHandlerTest`) completed successfully (41/41 passing).
 - **Frontend Build:** The React production build successfully compiled without errors (`npm run build`).
 - **Frontend Lint:** Pre-existing lint violations are present and were intentionally not fixed on this branch.
 - **Docker Dependency:** The full integration test suite utilizing Testcontainers/PostgreSQL was not run locally due to the absence of a local Docker daemon.

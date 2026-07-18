@@ -1,7 +1,8 @@
 package com.ykskocluk.demo.security;
 
-import com.ykskocluk.demo.dto.AuthResponse;
+import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.service.AuthService;
+import com.ykskocluk.demo.service.OAuth2LoginCodeService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,19 +16,21 @@ import java.io.IOException;
 
 /**
  * Runs after a successful Google OAuth2 login. Resolves/links the user via
- * {@link AuthService#upsertGoogleUser}, issues our own JWT pair, and redirects to the
- * configured frontend URL carrying the tokens. (MVP: tokens in the redirect query;
- * revisit once the Next.js app exists.)
+ * {@link AuthService#upsertGoogleUser}, issues a short-lived random one-time OAuth
+ * login code, and redirects to the configured frontend callback URL carrying the code.
  */
 @Component
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
 
     private final AuthService authService;
+    private final OAuth2LoginCodeService oauth2LoginCodeService;
     private final String frontendRedirectUri;
 
     public OAuth2LoginSuccessHandler(AuthService authService,
+                                     OAuth2LoginCodeService oauth2LoginCodeService,
                                      @Value("${app.oauth2.frontend-redirect-uri}") String frontendRedirectUri) {
         this.authService = authService;
+        this.oauth2LoginCodeService = oauth2LoginCodeService;
         this.frontendRedirectUri = frontendRedirectUri;
     }
 
@@ -40,12 +43,14 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         String fullName = principal.getAttribute("name");
         Boolean emailVerified = principal.getAttribute("email_verified");
 
-        AuthResponse tokens = authService.upsertGoogleUser(
+        User user = authService.upsertGoogleUser(
                 email, googleSub, fullName, Boolean.TRUE.equals(emailVerified));
 
+        String code = oauth2LoginCodeService.generateCodeForUser(user);
+
         String target = UriComponentsBuilder.fromUriString(frontendRedirectUri)
-                .queryParam("accessToken", tokens.accessToken())
-                .queryParam("refreshToken", tokens.refreshToken())
+                .queryParam("code", code)
+                .queryParam("provider", "google")
                 .build().toUriString();
         response.sendRedirect(target);
     }

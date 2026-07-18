@@ -81,6 +81,9 @@ app:
       ip-limit: ${RATE_LIMIT_REFRESH_IP_LIMIT:30}
       token-limit: ${RATE_LIMIT_REFRESH_TOKEN_LIMIT:30}
       window-seconds: ${RATE_LIMIT_REFRESH_WINDOW_SECONDS:60}
+    oauth2-exchange:
+      ip-limit: ${RATE_LIMIT_OAUTH2_EXCHANGE_IP_LIMIT:30}
+      window-seconds: ${RATE_LIMIT_OAUTH2_EXCHANGE_WINDOW_SECONDS:60}
   demo-seed-enabled: ${DEMO_SEED_ENABLED:false}
   jwt:
     # HS256 signing key (>= 32 bytes). Supplied via JWT_SECRET (application-local.yml / env).
@@ -89,6 +92,7 @@ app:
     refresh-ttl: 30d
   oauth2:
     frontend-redirect-uri: ${OAUTH2_FRONTEND_REDIRECT_URI:http://localhost:3000/oauth/callback}
+    login-code-ttl-seconds: ${OAUTH2_LOGIN_CODE_TTL_SECONDS:120}
   resend:
     # Resend API key — secret, env only (RESEND_API_KEY in application-local.yml / env). No default.
     api-key: ${RESEND_API_KEY}
