@@ -58,15 +58,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Long userId = Long.valueOf(claims.getSubject());
 
                 Optional<User> userOpt = userRepository.findById(userId);
-                if (userOpt.isPresent() && userOpt.get().getStatus() == UserStatus.SUSPENDED) {
-                    response.setStatus(HttpStatus.FORBIDDEN.value());
-                    response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-                    response.setCharacterEncoding("UTF-8");
-                    response.getWriter().write("""
-                            {"type":"about:blank","title":"Forbidden","status":403,\
-                            "detail":"Hesabınız askıya alınmıştır","errorCode":"USER_SUSPENDED","timestamp":"%s"}\
-                            """.formatted(Instant.now()));
-                    return;
+                if (userOpt.isPresent()) {
+                    UserStatus status = userOpt.get().getStatus();
+                    if (status == UserStatus.SUSPENDED || status == UserStatus.DELETED) {
+                        response.setStatus(HttpStatus.FORBIDDEN.value());
+                        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+                        response.setCharacterEncoding("UTF-8");
+                        String detail = status == UserStatus.SUSPENDED ? "Hesabınız askıya alınmıştır" : "Hesap artık kullanılamaz";
+                        String errorCode = status == UserStatus.SUSPENDED ? "USER_SUSPENDED" : "USER_DELETED";
+                        response.getWriter().write("""
+                                {"type":"about:blank","title":"Forbidden","status":403,\
+                                "detail":"%s","errorCode":"%s","timestamp":"%s"}\
+                                """.formatted(detail, errorCode, Instant.now()));
+                        return;
+                    }
                 }
 
                 String role = claims.get("role", String.class);

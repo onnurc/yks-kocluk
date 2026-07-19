@@ -76,6 +76,29 @@ class StompAuthChannelInterceptorTest {
     }
 
     @Test
+    void preSend_connectDeletedUser_throwsMessagingException() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.CONNECT);
+        accessor.setLeaveMutable(true);
+        accessor.addNativeHeader("Authorization", "Bearer deleted-token");
+        Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+
+        Claims claims = new DefaultClaims(Map.of("sub", "2", "role", "STUDENT"));
+        Jws jws = mock(Jws.class);
+        when(jws.getPayload()).thenReturn(claims);
+        when(jwtService.parse("deleted-token")).thenReturn(jws);
+
+        User deletedUser = new User();
+        deletedUser.setStatus(UserStatus.DELETED);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(deletedUser));
+
+        MessagingException ex = catchThrowableOfType(MessagingException.class,
+                () -> interceptor.preSend(message, null));
+
+        assertThat(ex).isNotNull();
+        assertThat(ex.getMessage()).contains("Hesap artık kullanılamaz");
+    }
+
+    @Test
     void preSend_connectActiveUser_setsAuthentication() {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.CONNECT);
         accessor.setLeaveMutable(true);

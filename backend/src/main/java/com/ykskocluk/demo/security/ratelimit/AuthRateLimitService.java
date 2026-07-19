@@ -48,7 +48,7 @@ public class AuthRateLimitService {
         }
     }
 
-    public void checkRegister(HttpServletRequest request) {
+    public void checkRegister(String email, HttpServletRequest request) {
         if (!properties.isEnabled()) {
             return;
         }
@@ -57,11 +57,22 @@ public class AuthRateLimitService {
         String ipHash = sha256(ip);
         String env = properties.getEnvironment();
 
+        // 1. IP rate limit check
         String ipKey = String.format("yks:%s:rate-limit:auth:register:ip:%s", env, ipHash);
         RateLimitProperties.LimitRule rule = properties.getRegister();
         RateLimitResult ipResult = rateLimitStore.consume(ipKey, rule.getIpLimit(), Duration.ofSeconds(rule.getWindowSeconds()));
         if (!ipResult.allowed()) {
             throw new RateLimitExceededException(ipResult.retryAfterSeconds());
+        }
+
+        // 2. Email rate limit check
+        if (email != null && !email.isBlank()) {
+            String identifierHash = sha256(email.trim().toLowerCase());
+            String emailKey = String.format("yks:%s:rate-limit:auth:register:identifier:%s", env, identifierHash);
+            RateLimitResult emailResult = rateLimitStore.consume(emailKey, rule.getIdentifierLimit(), Duration.ofSeconds(rule.getWindowSeconds()));
+            if (!emailResult.allowed()) {
+                throw new RateLimitExceededException(emailResult.retryAfterSeconds());
+            }
         }
     }
 

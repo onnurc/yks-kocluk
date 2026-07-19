@@ -78,6 +78,37 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
+    void doFilterInternal_deletedUser_returns403AndShortCircuits() throws Exception {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        FilterChain filterChain = mock(FilterChain.class);
+
+        when(request.getHeader("Authorization")).thenReturn("Bearer valid-token");
+
+        Claims claims = new DefaultClaims(Map.of("sub", "1", "role", "STUDENT"));
+        Jws jws = mock(Jws.class);
+        when(jws.getPayload()).thenReturn(claims);
+        when(jwtService.parse("valid-token")).thenReturn(jws);
+
+        User deletedUser = new User();
+        deletedUser.setStatus(UserStatus.DELETED);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(deletedUser));
+
+        StringWriter out = new StringWriter();
+        PrintWriter printWriter = new PrintWriter(out);
+        when(response.getWriter()).thenReturn(printWriter);
+
+        jwtAuthenticationFilter.doFilterInternal(request, response, filterChain);
+
+        verify(response).setStatus(403);
+        verify(response).setContentType("application/problem+json");
+        assertThat(out.toString()).contains("USER_DELETED");
+        assertThat(out.toString()).contains("Hesap artık kullanılamaz");
+        verify(filterChain, never()).doFilter(any(), any());
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
     void doFilterInternal_activeUser_authenticatesAndContinues() throws Exception {
         HttpServletRequest request = mock(HttpServletRequest.class);
         HttpServletResponse response = mock(HttpServletResponse.class);

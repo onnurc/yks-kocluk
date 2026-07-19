@@ -12,7 +12,7 @@ public class RateLimitProperties {
     private String environment = "local";
     private boolean trustProxyHeaders = false;
     private LimitRule login = new LimitRule(20, 5, 60);
-    private LimitRule register = new LimitRule(5, 0, 60);
+    private LimitRule register = new LimitRule(20, 3, 3600);
     private RefreshLimitRule refresh = new RefreshLimitRule(30, 30, 60);
     private LimitRule oauth2Exchange = new LimitRule(30, 0, 60);
 

@@ -318,6 +318,7 @@ keys (merchant 3429394) go in `application-local.yml`. No core-flow change expec
 
 - **Fund distribution / payout to coaches is NOT implemented:** No database schema or production code exists. Only architectural recommendations are prepared in `docs/adr_coach_payout_architecture.md`.
 - **Mid-session WebSocket token expiry is not enforced** — a JWT is validated only at CONNECT; an already-open session is not force-closed when its access token later expires.
+- **Refresh Token Reuse/Theft Detection is deferred for MVP:** Refresh tokens are stored hashed and rotated on use, but full theft/reuse detection (i.e. revoking the entire token family/session if a revoked token is reused) is not implemented.
 - **Google OAuth2 not live-tested** (no Workspace/creds); login wiring exists but is inert without creds.
 - **Reviews don't exist** → `CoachStats.rating` is always null (totalSessions is real).
 - **Tax/Billing details:** The exact choice of Split Payout vs Single Platform Payout is pending the project accountant's feedback.

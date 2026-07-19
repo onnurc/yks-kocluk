@@ -46,6 +46,7 @@ Backend for a web platform that connects YKS exam students with university-stude
 - **Layer-based packages:** `controller / service / repository / entity / dto / enums / exception / mapper / security / config / integration`
 - **Identity lives in this application** (no Supabase, no NextAuth). Persistent container (Fly.io / Railway); **no serverless**.
 - **Transient State (Rate Limiting):** rate limiting state is kept behind `RateLimitStore` interface to keep controllers/services decoupled. IP addresses, emails, and refresh tokens are normalized and hashed (SHA-256) inside env-prefixed keys to make future Redis migration drop-in.
+- **Refresh Tokens:** stored hashed (SHA-256) and rotated on refresh. Full stolen-token family reuse detection and family revocation are deferred for MVP (conscious risk).
 - **Audit:** all entities extend a shared `BaseEntity` → `created_at` (`@CreatedDate`), `updated_at` (`@LastModifiedDate`), `version` (`@Version`). `@EnableJpaAuditing` is enabled.
 - **Deletion:** no hard-deletes. "Delete" = `User.status=DELETED` + PII anonymization if required. Messages and Reports are retained. **Do not use cascade delete.**
 - **Money:** `numeric(12,2)` / `BigDecimal`, never `float`; currency TRY.
