@@ -8,6 +8,7 @@ import com.ykskocluk.demo.entity.Package;
 import com.ykskocluk.demo.entity.Session;
 import com.ykskocluk.demo.entity.Subscription;
 import com.ykskocluk.demo.entity.User;
+import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.SessionStatus;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.exception.ApiException;
@@ -21,10 +22,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -36,6 +39,8 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -69,6 +74,7 @@ class SessionServiceTest {
 
         CoachProfile coach = new CoachProfile();
         ReflectionTestUtils.setField(coach, "id", COACH_ID);
+        coach.setStatus(CoachProfileStatus.APPROVED);
         User coachUser = new User();
         coachUser.setFullName("Coach");
         coach.setUser(coachUser);
@@ -160,5 +166,56 @@ class SessionServiceTest {
         when(coachProfileRepository.findByUserId(anyLong())).thenReturn(Optional.empty());
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.myCoachSessions(99L));
         assertThat(ex.getErrorCode()).isEqualTo("PROFILE_NOT_FOUND");
+    }
+
+    @Test
+    void book_coachPending_throwsForbidden() {
+        slot.getCoachProfile().setStatus(CoachProfileStatus.PENDING);
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.book(STUDENT_ID, request()));
+        assertThat(ex.getErrorCode()).isEqualTo("COACH_NOT_APPROVED");
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+        verify(sessionRepository, never()).saveAndFlush(any());
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void book_coachRejected_throwsForbidden() {
+        slot.getCoachProfile().setStatus(CoachProfileStatus.REJECTED);
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.book(STUDENT_ID, request()));
+        assertThat(ex.getErrorCode()).isEqualTo("COACH_NOT_APPROVED");
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+        verify(sessionRepository, never()).saveAndFlush(any());
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void book_minorStudentWithoutConsent_throwsForbidden() {
+        doThrow(new ApiException(HttpStatus.FORBIDDEN, "MINOR_CONSENT_REQUIRED", "18 yaş altı öğrenciler için veli onayı gereklidir"))
+                .when(consentService).checkConsentRequiredForAction(any());
+
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.book(STUDENT_ID, request()));
+        assertThat(ex.getErrorCode()).isEqualTo("MINOR_CONSENT_REQUIRED");
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+        verify(sessionRepository, never()).saveAndFlush(any());
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void book_minorStudentWithConsent_succeeds() {
+        // consentService.checkConsentRequiredForAction does not throw exception (mock default behavior)
+        service.book(STUDENT_ID, request());
+
+        verify(sessionRepository).saveAndFlush(any(Session.class));
+        verify(eventPublisher).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void book_consentGateOrdering() {
+        service.book(STUDENT_ID, request());
+
+        InOrder inOrder = inOrder(consentService, sessionRepository, eventPublisher);
+        inOrder.verify(consentService).checkConsentRequiredForAction(any());
+        inOrder.verify(sessionRepository).saveAndFlush(any(Session.class));
+        inOrder.verify(eventPublisher).publishEvent(any(Object.class));
     }
 }

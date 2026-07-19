@@ -104,8 +104,8 @@ Phase 8 layers the payment lifecycle on top.
 - `CoachAvailability` (coachProfile, startTime/endTime UTC, `is_booked`; **UNIQUE(coach_profile_id,
   start_time)**).
 - Endpoints: `POST/GET /api/v1/coach/availability`, `DELETE /coach/availability/{id}` (COACH, unbooked
-  only); `GET /api/v1/coaches/{id}/availability` (STUDENT/ADMIN, open future slots of APPROVED coach).
-- Invariants: reject past slot (`SLOT_IN_PAST`) and end≤start (`INVALID_SLOT_RANGE`) — validated in the
+  only, requires APPROVED coach status); `GET /api/v1/coaches/{id}/availability` (STUDENT/ADMIN, open future slots of APPROVED coach).
+- Invariants: reject past slot (`SLOT_IN_PAST`), end≤start (`INVALID_SLOT_RANGE`), and non-approved coach (`COACH_NOT_APPROVED` 403) — validated in the
   service (unit-testable); duplicate start → `SLOT_DUPLICATE`.
 
 **4c — Booking / Session (V7).**
@@ -115,6 +115,7 @@ Phase 8 layers the payment lifecycle on top.
 - **Invariants:**
   - **Double-booking guarantee = UNIQUE(`sessions.availability_id`) at INSERT** (saveAndFlush + catch →
     `SLOT_TAKEN`). Never read `is_booked` to decide; `is_booked` is a UI flag flipped after the guard.
+  - **Approved Coach Gate:** The coach associated with the availability slot must be in the `APPROVED` status, otherwise booking is rejected with `COACH_NOT_APPROVED` (403).
   - **Weekly quota** = Mon–Sun in **Europe/Istanbul** → UTC window; counts quota-consuming sessions
     by subscription vs `pkg.weeklySessions`; `>=` → `QUOTA_EXCEEDED`.
   - Booking requires an **ACTIVE** subscription with the coach (`NO_ACTIVE_SUBSCRIPTION`) — the same
