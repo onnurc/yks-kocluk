@@ -40,6 +40,10 @@ public class CoachAvailabilityService {
     @Transactional
     public AvailabilityResponse createOwn(Long coachUserId, AvailabilityCreateRequest request) {
         CoachProfile profile = requireOwnProfile(coachUserId);
+        if (profile.getStatus() != CoachProfileStatus.APPROVED) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "COACH_NOT_APPROVED",
+                    "Koç henüz onaylı değil");
+        }
         validateRange(request.startTime(), request.endTime());
 
         CoachAvailability slot = new CoachAvailability();

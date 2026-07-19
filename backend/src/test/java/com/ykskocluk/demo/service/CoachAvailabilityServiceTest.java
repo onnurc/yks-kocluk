@@ -3,7 +3,9 @@ package com.ykskocluk.demo.service;
 import com.ykskocluk.demo.dto.AvailabilityCreateRequest;
 import com.ykskocluk.demo.entity.CoachAvailability;
 import com.ykskocluk.demo.entity.CoachProfile;
+import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.exception.ApiException;
+import org.springframework.http.HttpStatus;
 import com.ykskocluk.demo.mapper.AvailabilityMapper;
 import com.ykskocluk.demo.repository.CoachAvailabilityRepository;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
@@ -45,6 +47,7 @@ class CoachAvailabilityServiceTest {
 
         CoachProfile profile = new CoachProfile();
         ReflectionTestUtils.setField(profile, "id", PROFILE_ID);
+        profile.setStatus(CoachProfileStatus.APPROVED);
         lenient().when(coachProfileRepository.findByUserId(COACH_USER_ID)).thenReturn(Optional.of(profile));
     }
 
@@ -122,5 +125,35 @@ class CoachAvailabilityServiceTest {
         ApiException ex = catchThrowableOfType(ApiException.class,
                 () -> service.deleteOwn(COACH_USER_ID, 1L));
         assertThat(ex.getErrorCode()).isEqualTo("SLOT_NOT_FOUND");
+    }
+
+    @Test
+    void create_coachPending_throwsForbidden() {
+        CoachProfile pendingProfile = new CoachProfile();
+        pendingProfile.setStatus(CoachProfileStatus.PENDING);
+        when(coachProfileRepository.findByUserId(COACH_USER_ID)).thenReturn(Optional.of(pendingProfile));
+
+        Instant start = Instant.now().plus(1, ChronoUnit.DAYS);
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.createOwn(COACH_USER_ID, request(start, start.plus(1, ChronoUnit.HOURS))));
+
+        assertThat(ex.getErrorCode()).isEqualTo("COACH_NOT_APPROVED");
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+        verify(availabilityRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void create_coachRejected_throwsForbidden() {
+        CoachProfile rejectedProfile = new CoachProfile();
+        rejectedProfile.setStatus(CoachProfileStatus.REJECTED);
+        when(coachProfileRepository.findByUserId(COACH_USER_ID)).thenReturn(Optional.of(rejectedProfile));
+
+        Instant start = Instant.now().plus(1, ChronoUnit.DAYS);
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.createOwn(COACH_USER_ID, request(start, start.plus(1, ChronoUnit.HOURS))));
+
+        assertThat(ex.getErrorCode()).isEqualTo("COACH_NOT_APPROVED");
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+        verify(availabilityRepository, never()).saveAndFlush(any());
     }
 }

@@ -96,6 +96,19 @@ To align external request payloads with the database/schema constraints, this br
 
 ---
 
+## Approved Coach Status Validation
+
+- **Booking / Session Creation Guard:**
+  - Enforced a security check in `SessionService.book` ensuring the coach profile's status is `APPROVED`.
+  - Non-approved status (e.g. `PENDING` or `REJECTED`) throws a `403 Forbidden` with the errorCode `COACH_NOT_APPROVED` and detail `"Koç henüz onaylı değil"`.
+- **Availability Creation Guard:**
+  - Enforced a security check in `CoachAvailabilityService.createOwn` verifying that the authenticated coach profile status is `APPROVED`.
+  - Non-approved status throws `403 Forbidden` with errorCode `COACH_NOT_APPROVED`.
+- **Minor Consent Regression Coverage:**
+  - Added unit test validation coverage verifying that minor STUDENTS without accepted guardian/KVKK consent are blocked from booking.
+
+---
+
 ## Validation
 
 - **Backend Package:** Clean package compilation completed successfully (`.\mvnw.cmd clean package -DskipTests`).

@@ -7,6 +7,7 @@ import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Session;
 import com.ykskocluk.demo.entity.Subscription;
 import com.ykskocluk.demo.entity.User;
+import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.SessionStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.mapper.SessionMapper;
@@ -91,6 +92,10 @@ public class SessionService {
         }
 
         CoachProfile coach = slot.getCoachProfile();
+        if (coach.getStatus() != CoachProfileStatus.APPROVED) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "COACH_NOT_APPROVED",
+                    "Koç henüz onaylı değil");
+        }
 
         // (3) Must have a LIVE subscription with this coach — ACTIVE or PAST_DUE (grace window:
         // access stays open while a failed renewal is being retried). EXPIRED/CANCELLED → blocked.
