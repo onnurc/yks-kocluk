@@ -62,6 +62,7 @@ class AuthRateLimitServiceTest {
         properties.getLogin().setWindowSeconds(60);
 
         properties.getRegister().setIpLimit(1);
+        properties.getRegister().setIdentifierLimit(1);
         properties.getRegister().setWindowSeconds(60);
 
         properties.getRefresh().setIpLimit(2);
@@ -117,10 +118,55 @@ class AuthRateLimitServiceTest {
         request.setRemoteAddr("192.168.1.1");
 
         // First allowed (limit is 1)
-        rateLimitService.checkRegister(request);
+        rateLimitService.checkRegister("student@example.com", request);
 
         // Second blocked
-        assertThatThrownBy(() -> rateLimitService.checkRegister(request))
+        assertThatThrownBy(() -> rateLimitService.checkRegister("other@example.com", request))
+                .isInstanceOf(RateLimitExceededException.class);
+    }
+
+    @Test
+    void checkRegister_identifierLimitExceeded_throwsRateLimitExceeded() {
+        MockHttpServletRequest request1 = new MockHttpServletRequest();
+        request1.setRemoteAddr("192.168.1.1");
+
+        MockHttpServletRequest request2 = new MockHttpServletRequest();
+        request2.setRemoteAddr("192.168.1.2");
+
+        // First allowed (identifier limit is 1)
+        rateLimitService.checkRegister("student@example.com", request1);
+
+        // Second blocked for same email from different IP
+        assertThatThrownBy(() -> rateLimitService.checkRegister("student@example.com", request2))
+                .isInstanceOf(RateLimitExceededException.class);
+    }
+
+    @Test
+    void checkRegister_emailNormalization() {
+        MockHttpServletRequest request1 = new MockHttpServletRequest();
+        request1.setRemoteAddr("192.168.1.1");
+
+        MockHttpServletRequest request2 = new MockHttpServletRequest();
+        request2.setRemoteAddr("192.168.1.2");
+
+        // First allowed
+        rateLimitService.checkRegister(" STUDENT@example.com ", request1);
+
+        // Second with different casing/spacing is blocked
+        assertThatThrownBy(() -> rateLimitService.checkRegister("student@example.com", request2))
+                .isInstanceOf(RateLimitExceededException.class);
+    }
+
+    @Test
+    void checkRegister_differentEmailsSameIp_stillRespectsIpLimit() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("192.168.1.1");
+
+        // First allowed (IP limit is 1)
+        rateLimitService.checkRegister("student1@example.com", request);
+
+        // Second with different email is blocked by IP limit
+        assertThatThrownBy(() -> rateLimitService.checkRegister("student2@example.com", request))
                 .isInstanceOf(RateLimitExceededException.class);
     }
 
@@ -158,9 +204,9 @@ class AuthRateLimitServiceTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("192.168.1.1");
 
-        // All allowed even though limit is 1
-        rateLimitService.checkRegister(request);
-        rateLimitService.checkRegister(request);
-        rateLimitService.checkRegister(request);
+        // All allowed even though limits are 1
+        rateLimitService.checkRegister("student@example.com", request);
+        rateLimitService.checkRegister("student@example.com", request);
+        rateLimitService.checkRegister("other@example.com", request);
     }
 }

@@ -76,8 +76,12 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             Long userId = Long.valueOf(claims.getSubject());
 
             User user = userRepository.findById(userId).orElse(null);
-            if (user != null && user.getStatus() == UserStatus.SUSPENDED) {
-                throw new MessagingException("Hesabınız askıya alınmıştır");
+            if (user != null) {
+                if (user.getStatus() == UserStatus.SUSPENDED) {
+                    throw new MessagingException("Hesabınız askıya alınmıştır");
+                } else if (user.getStatus() == UserStatus.DELETED) {
+                    throw new MessagingException("Hesap artık kullanılamaz");
+                }
             }
 
             String role = claims.get("role", String.class);

@@ -40,7 +40,7 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
-        rateLimitService.checkRegister(httpServletRequest);
+        rateLimitService.checkRegister(request.email(), httpServletRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
     }
 

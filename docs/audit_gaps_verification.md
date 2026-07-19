@@ -87,6 +87,15 @@ To align external request payloads with the database/schema constraints, this br
 
 ---
 
+## Refresh Token Security & Rotation
+
+- **Current Implementation:** Refresh tokens are stored securely as SHA-256 hashes and are rotated on every token refresh request (rotation invalidates the old token and issues a new one).
+- **Conscious Gaps for MVP:**
+  - **Token Family Reuse/Theft Detection:** The current rotation implementation revokes the presented token but does not detect if an old revoked token is reused. In a full theft detection system, reuse of a previously revoked token in the same token family would automatically revoke all active refresh tokens in that family/session. This family-level theft detection/revocation is consciously deferred for the MVP.
+  - **Session Revocation:** There is no global "logout-all-sessions" or admin-facing session revocation system, which is also deferred for future hardening.
+
+---
+
 ## Validation
 
 - **Backend Package:** Clean package compilation completed successfully (`.\mvnw.cmd clean package -DskipTests`).

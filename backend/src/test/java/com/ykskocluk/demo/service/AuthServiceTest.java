@@ -111,6 +111,42 @@ class AuthServiceTest {
         assertThat(ex.getErrorCode()).isEqualTo("ROLE_NOT_ALLOWED");
     }
 
+    @Test
+    void register_studentNullDob_throwsDateOfBirthRequired() {
+        RegisterRequest req = new RegisterRequest("student@example.com", "pass1234", "Student", Role.STUDENT, null);
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> authService.register(req));
+        assertThat(ex.getErrorCode()).isEqualTo("DATE_OF_BIRTH_REQUIRED");
+    }
+
+    @Test
+    void register_studentFutureDob_throwsInvalidDateOfBirth() {
+        java.time.LocalDate futureDob = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Istanbul")).plusDays(1);
+        RegisterRequest req = new RegisterRequest("student@example.com", "pass1234", "Student", Role.STUDENT, futureDob);
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> authService.register(req));
+        assertThat(ex.getErrorCode()).isEqualTo("INVALID_DATE_OF_BIRTH");
+    }
+
+    @Test
+    void register_studentValidDob_succeeds() {
+        java.time.LocalDate dob = java.time.LocalDate.of(2008, 1, 1);
+        RegisterRequest req = new RegisterRequest("student@example.com", "pass1234", "Student", Role.STUDENT, dob);
+        when(userRepository.existsByEmail(req.email())).thenReturn(false);
+        when(passwordEncoder.encode(req.password())).thenReturn("hashed");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        authService.register(req);
+    }
+
+    @Test
+    void register_coachNullDob_succeeds() {
+        RegisterRequest req = new RegisterRequest("coach@example.com", "pass1234", "Coach", Role.COACH, null);
+        when(userRepository.existsByEmail(req.email())).thenReturn(false);
+        when(passwordEncoder.encode(req.password())).thenReturn("hashed");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        authService.register(req);
+    }
+
     // --- login ---
 
     @Test

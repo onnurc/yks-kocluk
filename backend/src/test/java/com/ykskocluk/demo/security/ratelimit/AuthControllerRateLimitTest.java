@@ -72,7 +72,7 @@ class AuthControllerRateLimitTest {
         RegisterRequest request = new RegisterRequest("student@example.com", "password123", "FullName", Role.STUDENT, LocalDate.of(2008, 1, 1));
 
         doThrow(new RateLimitExceededException(30L))
-                .when(rateLimitService).checkRegister(any());
+                .when(rateLimitService).checkRegister(any(), any());
 
         mockMvc.perform(post("/api/v1/auth/register")
                         .with(csrf())
