@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +22,13 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     Optional<Payment> findFirstBySubscriptionIdAndStatus(Long subscriptionId, PaymentStatus status);
 
     List<Payment> findBySourcePaymentIdAndStatus(Long sourcePaymentId, PaymentStatus status);
+
+    /**
+     * Refunds of a charge in any of the given statuses. Used when reserving a new refund: a
+     * PENDING (in-flight) refund reservation consumes refundable headroom just like a SUCCESS
+     * one, so both must be counted to prevent two concurrent refunds over-refunding the charge.
+     */
+    List<Payment> findBySourcePaymentIdAndStatusIn(Long sourcePaymentId, Collection<PaymentStatus> statuses);
 
     /** Batch variant of {@link #findBySourcePaymentIdAndStatus} — avoids N+1 in admin listings. */
     List<Payment> findBySourcePaymentIdInAndStatus(List<Long> sourcePaymentIds, PaymentStatus status);
