@@ -151,6 +151,18 @@ To align external request payloads with the database/schema constraints, this br
 
 ---
 
+## Admin Report Moderation Flow
+
+- **Moderation Status Endpoint**:
+  - Implemented `PATCH /api/v1/admin/reports/{reportId}/status` in `AdminReportController` allowing admins to transition report status (`OPEN`, `REVIEWED`, `RESOLVED`, `DISMISSED`).
+  - Transition validations are enforced: `RESOLVED` and `DISMISSED` are terminal states and cannot be transitioned from. Transitions back to `OPEN` are disallowed. Non-terminal same-status no-ops return successfully.
+  - Admin tracking (`reviewedBy`) and timestamp (`reviewedAt`) are populated on the first moderation action.
+- **Duplicate Open Report Guard**:
+  - Users are blocked from submitting duplicate reports against the same target while a previous report is open (statuses: `OPEN` or `REVIEWED`). Returns `409 Conflict` + `DUPLICATE_OPEN_REPORT` error code.
+  - Tested: 21 tests passed successfully across `ReportServiceTest`, `AdminReportControllerTest`, and `ReportControllerTest`.
+
+---
+
 ## Validation
 
 - **Backend Package:** Clean package compilation completed successfully (`.\mvnw.cmd clean package -DskipTests`).

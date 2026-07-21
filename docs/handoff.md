@@ -292,7 +292,7 @@ keys (merchant 3429394) go in `application-local.yml`. No core-flow change expec
 | Phase / Slice | Scope |
 | --- | --- |
 | **KVKK & Consent** | ✅ **DONE** (Phases 7-8). Implemented `dateOfBirth` validation, minor age checks (under 18), `ConsentStatus` tracking (`PENDING`, `ACCEPTED`, `REVOKED`), parental consent modal frontend, and backend enforcement gates. |
-| **Admin Oversight & Safety** | ✅ **DONE**. Created safety reports, user suspension dashboard, and admin conversation inspection audit logger (`AdminConversationAccessLog`). |
+| **Admin Oversight & Safety** | ✅ **DONE**. Created safety reports, user suspension dashboard, and admin conversation inspection audit logger (`AdminConversationAccessLog`). Also implemented admin safety report status moderation flow (`PATCH /api/v1/admin/reports/{reportId}/status` to transition report status, tracking reviewedBy/reviewedAt) and the duplicate open report safety guard (`DUPLICATE_OPEN_REPORT`). |
 | **Admin Finance & Payout Seam** | ✅ **DONE** (Phases 9-10). Created refund/termination modal popups, webhook signature validation, idempotency guards, and model-neutral payout ledger seam (`PayoutService` and `PayoutLedger`). |
 | **Auth Rate Limiting** | ✅ **DONE** (Stabilization). Implemented Redis-compatible transient state rate limiting behind `RateLimitStore` with clean in-memory fallback. Protects `/auth/login`, `/auth/register`, and `/auth/refresh` against brute-force/abuse. |
 | **Future / Launch Blockers** | Real money transactions production configuration, legal review of auto-renew/refund policies, final production DB seeding, and domain registration. |
