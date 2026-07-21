@@ -109,6 +109,37 @@ To align external request payloads with the database/schema constraints, this br
 
 ---
 
+## Coach Management Hardening
+
+- **REJECTED Coach Resubmission:**
+  - A coach whose profile status is `REJECTED` can call `createOwn` again. The existing profile is updated in-place (headline, bio, university, department, graduationYear, tracks), status is reset to `PENDING`, and `rejectionReason` is cleared.
+  - `PENDING` or `APPROVED` profiles still throw `PROFILE_ALREADY_EXISTS` (409). No duplicate profile rows are created.
+  - Tested: `create_rejectedProfile_resubmitsToPending`, `create_pendingProfile_throwsConflict`, `create_approvedProfile_throwsConflict`.
+
+- **Availability Overlap Guard:**
+  - Service-level overlap detection added in `CoachAvailabilityService.createOwn` using JPQL: `existing.startTime < newEndTime AND existing.endTime > newStartTime`.
+  - Overlapping slots are rejected with `409 SLOT_OVERLAP`. Adjacent slots (end == start) are allowed.
+  - The existing `UNIQUE(coach_profile_id, start_time)` DB constraint remains for exact-start duplicate prevention (`SLOT_DUPLICATE`).
+  - Tested: `create_overlappingSlot_throwsConflict`, `create_nonOverlappingSlot_succeeds`.
+
+- **DB-Level Exclusion Constraint (Deferred):**
+  - A PostgreSQL `EXCLUDE USING gist` constraint on `tstzrange(start_time, end_time)` would provide concurrent-safe overlap prevention at the DB level.
+  - **Deferred** because it requires the `btree_gist` extension (not currently used in any migration), potential column type changes, and is a non-trivial migration for an MVP.
+  - The service-level guard is sufficient for single-instance MVP. If the backend scales to concurrent writes, a DB-level constraint should be added. Track as: `fix/availability-db-exclusion-constraint`.
+
+- **Non-APPROVED Coach Guards (Already on `main`):**
+  - `CoachAvailabilityService.createOwn` checks `profile.getStatus() == APPROVED` → `403 COACH_NOT_APPROVED`.
+  - `SessionService.book` checks `coach.getStatus() == APPROVED` → `403 COACH_NOT_APPROVED`.
+  - Both have unit tests for `PENDING` and `REJECTED` status coaches.
+
+- **Pagination Max-Size (Already on `main`):**
+  - Enforced globally via `spring.data.web.pageable.max-page-size: 100` in `application.yml` (line 45).
+  - This configures Spring Boot's `PageableHandlerMethodArgumentResolver` to cap any client-supplied `size` parameter at 100 across all endpoints using standard `Pageable` resolution.
+  - All 8 paginated controller endpoints use `@PageableDefault` + standard `Pageable` — no custom resolver bypasses the cap.
+  - No dedicated pagination-cap unit test exists. This is a framework-level enforcement (Spring Boot auto-configuration), not custom application code. A dedicated test is a low-priority follow-up.
+
+---
+
 ## Validation
 
 - **Backend Package:** Clean package compilation completed successfully (`.\mvnw.cmd clean package -DskipTests`).

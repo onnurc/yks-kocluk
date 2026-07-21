@@ -156,4 +156,29 @@ class CoachAvailabilityServiceTest {
         assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
         verify(availabilityRepository, never()).saveAndFlush(any());
     }
+
+    @Test
+    void create_overlappingSlot_throwsConflict() {
+        Instant start = Instant.now().plus(1, ChronoUnit.DAYS);
+        Instant end = start.plus(1, ChronoUnit.HOURS);
+        when(availabilityRepository.existsOverlapping(PROFILE_ID, start, end)).thenReturn(true);
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.createOwn(COACH_USER_ID, request(start, end)));
+
+        assertThat(ex.getErrorCode()).isEqualTo("SLOT_OVERLAP");
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+        verify(availabilityRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void create_nonOverlappingSlot_succeeds() {
+        Instant start = Instant.now().plus(1, ChronoUnit.DAYS);
+        Instant end = start.plus(1, ChronoUnit.HOURS);
+        when(availabilityRepository.existsOverlapping(PROFILE_ID, start, end)).thenReturn(false);
+
+        service.createOwn(COACH_USER_ID, request(start, end));
+
+        verify(availabilityRepository).saveAndFlush(any(CoachAvailability.class));
+    }
 }

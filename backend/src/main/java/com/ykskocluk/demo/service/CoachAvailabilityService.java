@@ -45,6 +45,10 @@ public class CoachAvailabilityService {
                     "Koç henüz onaylı değil");
         }
         validateRange(request.startTime(), request.endTime());
+        if (availabilityRepository.existsOverlapping(profile.getId(), request.startTime(), request.endTime())) {
+            throw new ApiException(HttpStatus.CONFLICT, "SLOT_OVERLAP",
+                    "Bu zaman aralığında çakışan bir uygunluk var");
+        }
 
         CoachAvailability slot = new CoachAvailability();
         slot.setCoachProfile(profile);
