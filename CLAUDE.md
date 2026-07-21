@@ -161,7 +161,7 @@ Response: wrap `Page<T>` in a `PageResponse<T>` DTO:
 | **Capacity race** | Atomic conditional UPDATE: `WHERE active_student_count < max_student_capacity`. 0 rows affected = coach is full → throw CONFLICT. |
 | **Payment idempotency** | `idempotency_key` UNIQUE. Status updated via webhook. Refund = new Payment row (`type=REFUND`, `source_payment_id` links to original). Do not mutate the existing row. Snapshot commission at transaction time (`commission_rate`, `commission_amount`, `coach_payout_amount`). |
 | **Refund ↔ payout order** | Do not release payout before the refund window closes. |
-| **Child-safety message gate** | A student may only message a coach they have an active or past Subscription with — enforced **server-side**, never trust the client. Chat attachments are closed/restricted in beta; all attachments are admin-visible. |
+| **Child-safety message gate** | A student can view history of active/past subscriptions (ACTIVE, PAST_DUE, EXPIRED, CANCELLED), but send messages only with an ACTIVE subscription. Enforced server-side. Chat attachments closed in beta. |
 | **KVKK & Minor Consent** | `ConsentRecord` required for students under 18 (recorded online/offline). If consent is not accepted or is revoked (`REVOKED`), they are blocked from checkout, booking, starting conversations, and sending messages. |
 
 ---

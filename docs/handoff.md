@@ -154,8 +154,9 @@ Phase 8 layers the payment lifecycle on top.
   inbox by last_message_at), `GET /conversations/{id}/messages` (paged), `POST /conversations/{id}/messages`
   (REST send fallback), `POST /conversations/{id}/read`.
 - **Invariants:**
-  - **Gate (server-side):** open requires `existsByStudentIdAndCoachProfileId` (**any** status — active or
-    past) else `403 MESSAGING_NOT_ALLOWED`; never-subscribed never messages.
+  - **Split Messaging Access Gates (Server-side)**:
+    - **History Access Gate**: Allowed for students with status `ACTIVE`, `PAST_DUE`, `EXPIRED`, or `CANCELLED`. If a newer attempt is `PENDING_PAYMENT` or `FAILED`, but an older valid subscription exists, history access is granted. Open/read/history paths use this gate.
+    - **Send Gate**: Allowed strictly only for students with `ACTIVE` subscription status. Blocked for all other statuses. Send path uses this gate.
   - **Membership re-checked on every send/read/history** (`403 NOT_CONVERSATION_PARTICIPANT`) — trust
     neither role nor path.
   - `last_message_at` bumped to the saved message's `createdAt` **in the same tx** as the insert.

@@ -74,8 +74,8 @@ public class MessageService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
         consentService.checkConsentRequiredForAction(student);
 
-        // The gate: must have a live subscription with this coach.
-        if (!subscriptionRepository.existsLiveSubscription(studentUserId, coachProfileId)) {
+        // The gate: must have history access with this coach.
+        if (!subscriptionRepository.existsHistoryAccessSubscription(studentUserId, coachProfileId)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "MESSAGING_NOT_ALLOWED",
                     "Yalnızca abone olduğunuz koçlarla mesajlaşabilirsiniz");
         }
@@ -97,9 +97,9 @@ public class MessageService {
     public MessageResponse sendMessage(Long senderUserId, Long conversationId, String content) {
         Conversation conversation = requireParticipant(conversationId, senderUserId);
 
-        // If the sender is the student, verify they still have a live subscription
+        // If the sender is the student, verify they still have an ACTIVE subscription
         if (conversation.getStudent().getId().equals(senderUserId)) {
-            if (!subscriptionRepository.existsLiveSubscription(senderUserId, conversation.getCoachProfile().getId())) {
+            if (!subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(senderUserId, conversation.getCoachProfile().getId(), SubscriptionStatus.ACTIVE)) {
                 throw new ApiException(HttpStatus.FORBIDDEN, "MESSAGING_NOT_ALLOWED",
                         "Mesaj göndermek için aktif bir aboneliğiniz olmalıdır");
             }
@@ -129,7 +129,7 @@ public class MessageService {
         List<Conversation> list = conversationRepository.findForUser(userId);
         if (user.getRole() == com.ykskocluk.demo.enums.Role.STUDENT) {
             list = list.stream()
-                    .filter(conversation -> subscriptionRepository.existsLiveSubscription(userId, conversation.getCoachProfile().getId()))
+                    .filter(conversation -> subscriptionRepository.existsHistoryAccessSubscription(userId, conversation.getCoachProfile().getId()))
                     .toList();
         }
         return list.stream()
@@ -141,9 +141,9 @@ public class MessageService {
     public PageResponse<MessageResponse> history(Long userId, Long conversationId, Pageable pageable) {
         Conversation conversation = requireParticipant(conversationId, userId);
 
-        // If the reader is the student, verify they still have a live subscription
+        // If the reader is the student, verify they still have history access
         if (conversation.getStudent().getId().equals(userId)) {
-            if (!subscriptionRepository.existsLiveSubscription(userId, conversation.getCoachProfile().getId())) {
+            if (!subscriptionRepository.existsHistoryAccessSubscription(userId, conversation.getCoachProfile().getId())) {
                 throw new ApiException(HttpStatus.FORBIDDEN, "MESSAGING_NOT_ALLOWED",
                         "Mesaj geçmişini görüntülemek için aktif bir aboneliğiniz olmalıdır");
             }
@@ -165,8 +165,12 @@ public class MessageService {
     @Transactional(readOnly = true)
     public boolean isParticipant(Long userId, Long conversationId) {
         return conversationRepository.findById(conversationId)
-                .map(c -> c.getStudent().getId().equals(userId)
-                        || c.getCoachProfile().getUser().getId().equals(userId))
+                .map(c -> {
+                    if (c.getStudent().getId().equals(userId)) {
+                        return subscriptionRepository.existsHistoryAccessSubscription(userId, c.getCoachProfile().getId());
+                    }
+                    return c.getCoachProfile().getUser().getId().equals(userId);
+                })
                 .orElse(false);
     }
 

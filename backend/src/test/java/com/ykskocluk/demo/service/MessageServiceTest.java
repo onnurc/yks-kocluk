@@ -88,7 +88,7 @@ class MessageServiceTest {
     @Test
     void openConversation_noSubscriptionEver_throws403() {
         when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
-        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID))
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID))
                 .thenReturn(false);
 
         ApiException ex = catchThrowableOfType(ApiException.class,
@@ -101,7 +101,7 @@ class MessageServiceTest {
     @Test
     void openConversation_pendingPaymentSubscription_throws403() {
         when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
-        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID))
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID))
                 .thenReturn(false);
 
         ApiException ex = catchThrowableOfType(ApiException.class,
@@ -111,21 +111,26 @@ class MessageServiceTest {
     }
 
     @Test
-    void openConversation_expiredSubscription_throws403() {
+    void openConversation_expiredSubscription_allowed_createsConversation() {
         when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
-        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID))
-                .thenReturn(false);
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID))
+                .thenReturn(true);
+        when(conversationRepository.findByStudentIdAndCoachProfileId(STUDENT_ID, COACH_PROFILE_ID))
+                .thenReturn(Optional.empty());
+        User student = new User();
+        ReflectionTestUtils.setField(student, "id", STUDENT_ID);
+        when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
+        when(conversationRepository.save(any(Conversation.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ApiException ex = catchThrowableOfType(ApiException.class,
-                () -> service.openConversation(STUDENT_ID, COACH_PROFILE_ID));
-        assertThat(ex.getErrorCode()).isEqualTo("MESSAGING_NOT_ALLOWED");
-        verify(conversationRepository, never()).save(any());
+        service.openConversation(STUDENT_ID, COACH_PROFILE_ID);
+
+        verify(conversationRepository).save(any(Conversation.class));
     }
 
     @Test
     void openConversation_terminatedSubscription_throws403() {
         when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
-        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID))
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID))
                 .thenReturn(false);
 
         ApiException ex = catchThrowableOfType(ApiException.class,
@@ -137,7 +142,7 @@ class MessageServiceTest {
     @Test
     void openConversation_activeSubscription_allowed_createsConversation() {
         when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
-        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID))
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID))
                 .thenReturn(true);
         when(conversationRepository.findByStudentIdAndCoachProfileId(STUDENT_ID, COACH_PROFILE_ID))
                 .thenReturn(Optional.empty());
@@ -154,7 +159,7 @@ class MessageServiceTest {
     @Test
     void openConversation_pastDueSubscription_allowed_createsConversation() {
         when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
-        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID))
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID))
                 .thenReturn(true);
         when(conversationRepository.findByStudentIdAndCoachProfileId(STUDENT_ID, COACH_PROFILE_ID))
                 .thenReturn(Optional.empty());
@@ -196,7 +201,7 @@ class MessageServiceTest {
     @Test
     void sendMessage_participant_persists_andBumpsLastMessageAt() {
         when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
-        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
+        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(STUDENT_ID, COACH_PROFILE_ID, SubscriptionStatus.ACTIVE)).thenReturn(true);
         User student = conversation.getStudent();
         when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
         Instant sentAt = Instant.now();
@@ -217,7 +222,7 @@ class MessageServiceTest {
     @Test
     void sendMessage_studentSubscriptionLaterInactive_throws403() {
         when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
-        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(false);
+        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(STUDENT_ID, COACH_PROFILE_ID, SubscriptionStatus.ACTIVE)).thenReturn(false);
 
         ApiException ex = catchThrowableOfType(ApiException.class,
                 () -> service.sendMessage(STUDENT_ID, CONVERSATION_ID, "hi"));
@@ -264,14 +269,14 @@ class MessageServiceTest {
         student.setRole(com.ykskocluk.demo.enums.Role.STUDENT);
         when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
         when(conversationRepository.findForUser(STUDENT_ID)).thenReturn(java.util.List.of(conversation));
-        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(false);
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(false);
 
         java.util.List<ConversationResponse> res = service.myConversations(STUDENT_ID);
         assertThat(res).isEmpty();
     }
 
     @Test
-    void myConversations_studentWithOneActiveAndOneExpired_returnsOnlyActive() {
+    void myConversations_studentWithOneActiveAndOneExpired_returnsBoth() {
         User student = new User();
         student.setRole(com.ykskocluk.demo.enums.Role.STUDENT);
         when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
@@ -289,12 +294,11 @@ class MessageServiceTest {
         expiredConv.setCoachProfile(coachB);
 
         when(conversationRepository.findForUser(STUDENT_ID)).thenReturn(java.util.List.of(activeConv, expiredConv));
-        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
-        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, 202L)).thenReturn(false);
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, 202L)).thenReturn(true);
 
         java.util.List<ConversationResponse> res = service.myConversations(STUDENT_ID);
-        assertThat(res).hasSize(1);
-        assertThat(res.get(0).id()).isEqualTo(CONVERSATION_ID);
+        assertThat(res).hasSize(2);
     }
 
     @Test
@@ -303,7 +307,7 @@ class MessageServiceTest {
         student.setRole(com.ykskocluk.demo.enums.Role.STUDENT);
         when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
         when(conversationRepository.findForUser(STUDENT_ID)).thenReturn(java.util.List.of(conversation));
-        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
 
         java.util.List<ConversationResponse> res = service.myConversations(STUDENT_ID);
         assertThat(res).isNotEmpty();
@@ -315,7 +319,7 @@ class MessageServiceTest {
         student.setRole(com.ykskocluk.demo.enums.Role.STUDENT);
         when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
         when(conversationRepository.findForUser(STUDENT_ID)).thenReturn(java.util.List.of(conversation));
-        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
 
         java.util.List<ConversationResponse> res = service.myConversations(STUDENT_ID);
         assertThat(res).isNotEmpty();
@@ -330,13 +334,13 @@ class MessageServiceTest {
 
         java.util.List<ConversationResponse> res = service.myConversations(COACH_USER_ID);
         assertThat(res).isNotEmpty();
-        verify(subscriptionRepository, never()).existsLiveSubscription(any(), any());
+        verify(subscriptionRepository, never()).existsHistoryAccessSubscription(any(), any());
     }
 
     @Test
     void history_inactiveStudent_throws403() {
         when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
-        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(false);
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(false);
 
         ApiException ex = catchThrowableOfType(ApiException.class,
                 () -> service.history(STUDENT_ID, CONVERSATION_ID, org.springframework.data.domain.Pageable.unpaged()));
@@ -346,7 +350,7 @@ class MessageServiceTest {
     @Test
     void history_activeStudent_allowed() {
         when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
-        when(subscriptionRepository.existsLiveSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
         when(messageRepository.findByConversationIdOrderByCreatedAtDesc(eq(CONVERSATION_ID), any()))
                 .thenReturn(org.springframework.data.domain.Page.empty());
 
@@ -361,6 +365,97 @@ class MessageServiceTest {
                 .thenReturn(org.springframework.data.domain.Page.empty());
 
         service.history(COACH_USER_ID, CONVERSATION_ID, org.springframework.data.domain.Pageable.unpaged());
-        verify(subscriptionRepository, never()).existsLiveSubscription(any(), any());
+        verify(subscriptionRepository, never()).existsHistoryAccessSubscription(any(), any());
+    }
+
+    // --- new access pass tests ---
+
+    @Test
+    void historyGate_allowsActivePastDueExpiredCancelled() {
+        when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
+        when(conversationRepository.findByStudentIdAndCoachProfileId(STUDENT_ID, COACH_PROFILE_ID))
+                .thenReturn(Optional.of(conversation));
+
+        ConversationResponse response = service.openConversation(STUDENT_ID, COACH_PROFILE_ID);
+        assertThat(response).isNotNull();
+    }
+
+    @Test
+    void historyGate_rejectsPendingPaymentTerminatedOrNone() {
+        when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(false);
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.openConversation(STUDENT_ID, COACH_PROFILE_ID));
+        assertThat(ex.getErrorCode()).isEqualTo("MESSAGING_NOT_ALLOWED");
+    }
+
+    @Test
+    void sendGate_allowsActive() {
+        when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
+        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(STUDENT_ID, COACH_PROFILE_ID, SubscriptionStatus.ACTIVE))
+                .thenReturn(true);
+        User student = conversation.getStudent();
+        when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
+        Instant sentAt = Instant.now();
+        Message msg = new Message();
+        ReflectionTestUtils.setField(msg, "createdAt", sentAt);
+        when(messageRepository.saveAndFlush(any(Message.class))).thenReturn(msg);
+        when(messageMapper.toResponse(any())).thenReturn(
+                new MessageResponse(1L, CONVERSATION_ID, STUDENT_ID, "Student", "content", sentAt, null));
+
+        MessageResponse response = service.sendMessage(STUDENT_ID, CONVERSATION_ID, "content");
+        assertThat(response).isNotNull();
+    }
+
+    @Test
+    void sendGate_rejectsPastDueExpiredCancelledPendingPaymentTerminatedOrNone() {
+        when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
+        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(STUDENT_ID, COACH_PROFILE_ID, SubscriptionStatus.ACTIVE))
+                .thenReturn(false);
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.sendMessage(STUDENT_ID, CONVERSATION_ID, "content"));
+        assertThat(ex.getErrorCode()).isEqualTo("MESSAGING_NOT_ALLOWED");
+    }
+
+    @Test
+    void mixedSubscriptions_allowsHistoryButRejectsSend() {
+        // Mock history gate to return true (older valid subscription exists)
+        when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
+        when(messageRepository.findByConversationIdOrderByCreatedAtDesc(eq(CONVERSATION_ID), any()))
+                .thenReturn(org.springframework.data.domain.Page.empty());
+
+        // History access should be allowed
+        service.history(STUDENT_ID, CONVERSATION_ID, org.springframework.data.domain.Pageable.unpaged());
+        verify(messageRepository).findByConversationIdOrderByCreatedAtDesc(eq(CONVERSATION_ID), any());
+
+        // Send gate rejects (no active subscription, maybe only pending or failed renewal)
+        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(STUDENT_ID, COACH_PROFILE_ID, SubscriptionStatus.ACTIVE))
+                .thenReturn(false);
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.sendMessage(STUDENT_ID, CONVERSATION_ID, "content"));
+        assertThat(ex.getErrorCode()).isEqualTo("MESSAGING_NOT_ALLOWED");
+    }
+
+    @Test
+    void checkParticipant_studentWithHistoryAccess_returnsTrue() {
+        when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
+
+        boolean isPart = service.isParticipant(STUDENT_ID, CONVERSATION_ID);
+        assertThat(isPart).isTrue();
+    }
+
+    @Test
+    void checkParticipant_studentWithoutHistoryAccess_returnsFalse() {
+        when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(false);
+
+        boolean isPart = service.isParticipant(STUDENT_ID, CONVERSATION_ID);
+        assertThat(isPart).isFalse();
     }
 }
