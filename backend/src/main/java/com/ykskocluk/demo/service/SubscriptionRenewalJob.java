@@ -44,7 +44,10 @@ public class SubscriptionRenewalJob {
     /** Daily at 03:00 Europe/Istanbul (low traffic), overridable via {@code app.payment.renewal-cron}. */
     @Scheduled(cron = "${app.payment.renewal-cron:0 0 3 * * *}", zone = "Europe/Istanbul")
     public void scheduledRun() {
-        runRenewals(Instant.now());
+        Instant now = Instant.now();
+        // Free up subscriptions stuck in PENDING_PAYMENT (abandoned/failed checkout) before renewals.
+        billingService.expireStalePendingCheckouts(now);
+        runRenewals(now);
     }
 
     /**

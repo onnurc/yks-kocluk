@@ -78,7 +78,7 @@ class SubscriptionServiceTest {
 
     @BeforeEach
     void setUp() {
-        paymentProperties = new PaymentProperties(new BigDecimal("0.2000"), 3);
+        paymentProperties = new PaymentProperties(new BigDecimal("0.2000"), 3, 30);
         service = new SubscriptionService(subscriptionRepository, packageRepository,
             coachProfileRepository, userRepository, paymentRepository, paymentProperties,
             iyzicoClient, subscriptionMapper, entityManager,

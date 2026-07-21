@@ -26,6 +26,7 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 /**
  * The auto-renew billing core (Phase 8b). Charges saved cards on renewal, handles the failed-payment
@@ -213,6 +214,54 @@ public class SubscriptionBillingService {
     private void expire(Subscription sub) {
         sub.setStatus(SubscriptionStatus.EXPIRED);
         coachProfileRepository.decrementActiveStudentCount(sub.getCoachProfile().getId());
+    }
+
+    /**
+     * Releases subscriptions stuck in PENDING_PAYMENT past the checkout timeout — either the
+     * payment webhook never arrived (abandoned checkout) or it arrived as FAILURE, which leaves the
+     * subscription PENDING_PAYMENT. Without this they permanently block the student from
+     * re-subscribing to that coach (ALREADY_SUBSCRIBED), and the renewal job never selects them.
+     *
+     * <p>Each subscription is expired in its own transaction (one failure never aborts the batch),
+     * re-checking status + age inside the tx to avoid racing a webhook that just activated it. The
+     * PENDING charge row is finalized to FAILED so a late webhook is treated as idempotent instead
+     * of reactivating an expired subscription. No capacity is released — PENDING_PAYMENT never
+     * consumed a seat (capacity is taken only on activation). Returns the number expired.
+     */
+    public int expireStalePendingCheckouts(Instant now) {
+        Instant cutoff = now.minus(paymentProperties.pendingCheckoutTimeoutMinutes(), ChronoUnit.MINUTES);
+        List<Long> staleIds = subscriptionRepository.findStalePendingCheckoutIds(cutoff);
+        int expired = 0;
+        for (Long id : staleIds) {
+            try {
+                if (Boolean.TRUE.equals(tx.execute(status -> expireOnePendingCheckout(id, cutoff)))) {
+                    expired++;
+                }
+            } catch (Exception e) {
+                log.error("Failed to expire stale pending checkout {}: {}", id, e.getMessage(), e);
+            }
+        }
+        if (expired > 0) {
+            log.info("Expired {} stale PENDING_PAYMENT subscription(s) at {}", expired, now);
+        }
+        return expired;
+    }
+
+    /** tx: re-verify (guards a just-arrived webhook) then EXPIRE the sub and FAIL its PENDING charge. */
+    private boolean expireOnePendingCheckout(Long subscriptionId, Instant cutoff) {
+        Subscription sub = subscriptionRepository.findById(subscriptionId).orElse(null);
+        if (sub == null
+                || sub.getStatus() != SubscriptionStatus.PENDING_PAYMENT
+                || sub.getCreatedAt().isAfter(cutoff)) {
+            return false;   // activated, already handled, or no longer stale — leave it
+        }
+        sub.setStatus(SubscriptionStatus.EXPIRED);
+        for (Payment p : paymentRepository.findBySubscriptionIdOrderByCreatedAtDesc(subscriptionId)) {
+            if (p.getStatus() == PaymentStatus.PENDING) {
+                p.setStatus(PaymentStatus.FAILED);
+            }
+        }
+        return true;
     }
 
     /**
