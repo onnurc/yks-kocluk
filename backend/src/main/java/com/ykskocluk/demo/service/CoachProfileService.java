@@ -51,7 +51,22 @@ public class CoachProfileService {
 
     @Transactional
     public CoachProfileResponse createOwn(Long userId, CoachProfileCreateRequest request) {
-        if (coachProfileRepository.existsByUserId(userId)) {
+        var existing = coachProfileRepository.findByUserId(userId);
+        if (existing.isPresent()) {
+            CoachProfile profile = existing.get();
+            if (profile.getStatus() == CoachProfileStatus.REJECTED) {
+                // Resubmission: REJECTED → PENDING with updated fields.
+                University university = requireUniversity(request.universityId());
+                profile.setHeadline(request.headline());
+                profile.setBio(request.bio());
+                profile.setUniversity(university);
+                profile.setDepartment(request.department());
+                profile.setGraduationYear(request.graduationYear());
+                profile.setStatus(CoachProfileStatus.PENDING);
+                profile.setRejectionReason(null);
+                replaceTracks(profile, request.tracks());
+                return coachProfileMapper.toResponse(profile, request.tracks());
+            }
             throw new ApiException(HttpStatus.CONFLICT, "PROFILE_ALREADY_EXISTS",
                     "Koç profiliniz zaten mevcut");
         }

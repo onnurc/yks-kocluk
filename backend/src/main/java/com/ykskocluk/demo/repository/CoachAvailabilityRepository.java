@@ -2,6 +2,8 @@ package com.ykskocluk.demo.repository;
 
 import com.ykskocluk.demo.entity.CoachAvailability;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
@@ -18,4 +20,18 @@ public interface CoachAvailabilityRepository extends JpaRepository<CoachAvailabi
 
     /** Ownership-scoped lookup for delete — only matches the coach's own slot. */
     Optional<CoachAvailability> findByIdAndCoachProfileId(Long id, Long coachProfileId);
+
+    /**
+     * Returns true if any existing slot for the coach overlaps the given [startTime, endTime) range.
+     * Overlap formula: existing.startTime &lt; newEndTime AND existing.endTime &gt; newStartTime.
+     */
+    @Query("""
+            select count(a) > 0 from CoachAvailability a
+             where a.coachProfile.id = :coachProfileId
+               and a.startTime < :endTime
+               and a.endTime > :startTime
+            """)
+    boolean existsOverlapping(@Param("coachProfileId") Long coachProfileId,
+                              @Param("startTime") Instant startTime,
+                              @Param("endTime") Instant endTime);
 }

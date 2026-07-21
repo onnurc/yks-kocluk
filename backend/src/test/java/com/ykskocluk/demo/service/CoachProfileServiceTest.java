@@ -59,7 +59,7 @@ class CoachProfileServiceTest {
 
     @Test
     void create_setsPendingAndDefaultCapacity() {
-        when(coachProfileRepository.existsByUserId(1L)).thenReturn(false);
+        when(coachProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
         when(userRepository.findById(1L)).thenReturn(Optional.of(new User()));
         when(universityRepository.findById(5L)).thenReturn(Optional.of(new University()));
 
@@ -73,8 +73,10 @@ class CoachProfileServiceTest {
     }
 
     @Test
-    void create_duplicateProfile_throwsConflict() {
-        when(coachProfileRepository.existsByUserId(1L)).thenReturn(true);
+    void create_pendingProfile_throwsConflict() {
+        CoachProfile pending = new CoachProfile();
+        pending.setStatus(CoachProfileStatus.PENDING);
+        when(coachProfileRepository.findByUserId(1L)).thenReturn(Optional.of(pending));
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.createOwn(1L, createRequest()));
         assertThat(ex.getErrorCode()).isEqualTo("PROFILE_ALREADY_EXISTS");
@@ -82,8 +84,36 @@ class CoachProfileServiceTest {
     }
 
     @Test
+    void create_approvedProfile_throwsConflict() {
+        CoachProfile approved = new CoachProfile();
+        approved.setStatus(CoachProfileStatus.APPROVED);
+        when(coachProfileRepository.findByUserId(1L)).thenReturn(Optional.of(approved));
+
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.createOwn(1L, createRequest()));
+        assertThat(ex.getErrorCode()).isEqualTo("PROFILE_ALREADY_EXISTS");
+        verify(coachProfileRepository, never()).save(any());
+    }
+
+    @Test
+    void create_rejectedProfile_resubmitsToPending() {
+        CoachProfile rejected = new CoachProfile();
+        rejected.setStatus(CoachProfileStatus.REJECTED);
+        rejected.setRejectionReason("Eksik bilgi");
+        when(coachProfileRepository.findByUserId(1L)).thenReturn(Optional.of(rejected));
+        when(universityRepository.findById(5L)).thenReturn(Optional.of(new University()));
+
+        service.createOwn(1L, createRequest());
+
+        assertThat(rejected.getStatus()).isEqualTo(CoachProfileStatus.PENDING);
+        assertThat(rejected.getRejectionReason()).isNull();
+        assertThat(rejected.getHeadline()).isEqualTo("Deneyimli koç");
+        // Resubmission updates existing row — no new save() call.
+        verify(coachProfileRepository, never()).save(any());
+    }
+
+    @Test
     void create_unknownUniversity_throwsNotFound() {
-        when(coachProfileRepository.existsByUserId(1L)).thenReturn(false);
+        when(coachProfileRepository.findByUserId(1L)).thenReturn(Optional.empty());
         when(userRepository.findById(1L)).thenReturn(Optional.of(new User()));
         when(universityRepository.findById(5L)).thenReturn(Optional.empty());
 

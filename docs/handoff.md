@@ -78,6 +78,9 @@ application (real company/tax info) still deferred to launch.
   `POST .../{id}/reject`.
 - Invariants: only admin changes status; post-approval edits stay APPROVED; `AccessDeniedException`
   re-thrown in the handler so it routes to the 403 ProblemDetail handler (not 500).
+  **REJECTED resubmission:** a REJECTED coach can call `createOwn` again — the existing profile is
+  updated in-place (fields + tracks), status reset to PENDING, rejectionReason cleared. PENDING or
+  APPROVED profiles still throw `PROFILE_ALREADY_EXISTS` (409). No duplicate rows created.
 
 ### Phase 3 — Search  (read-only)
 - Endpoints: `GET /api/v1/coaches` (APPROVED-only; filters track/universityId/q; paginated,
@@ -106,7 +109,10 @@ Phase 8 layers the payment lifecycle on top.
 - Endpoints: `POST/GET /api/v1/coach/availability`, `DELETE /coach/availability/{id}` (COACH, unbooked
   only, requires APPROVED coach status); `GET /api/v1/coaches/{id}/availability` (STUDENT/ADMIN, open future slots of APPROVED coach).
 - Invariants: reject past slot (`SLOT_IN_PAST`), end≤start (`INVALID_SLOT_RANGE`), and non-approved coach (`COACH_NOT_APPROVED` 403) — validated in the
-  service (unit-testable); duplicate start → `SLOT_DUPLICATE`.
+  service (unit-testable); duplicate start → `SLOT_DUPLICATE`; **overlapping time ranges** →
+  `SLOT_OVERLAP` (409, service-level JPQL check: `existing.startTime < newEndTime AND
+  existing.endTime > newStartTime`). Adjacent slots (end == start) are allowed. DB-level exclusion
+  constraint (`btree_gist`) deferred — service guard sufficient for single-instance MVP.
 
 **4c — Booking / Session (V7).**
 - `Session` (student, coachProfile, subscription, **availability nullable+UNIQUE**, status
