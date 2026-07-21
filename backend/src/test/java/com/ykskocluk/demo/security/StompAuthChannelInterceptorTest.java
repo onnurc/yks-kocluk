@@ -121,4 +121,41 @@ class StompAuthChannelInterceptorTest {
         assertThat(auth).isNotNull();
         assertThat(auth.getPrincipal()).isEqualTo(3L);
     }
+
+    @Test
+    void preSend_subscribe_callsIsParticipant() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        accessor.setLeaveMutable(true);
+        accessor.setDestination("/topic/conversations/50");
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(3L);
+        accessor.setUser(auth);
+
+        Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+
+        when(messageService.isParticipant(3L, 50L)).thenReturn(true);
+
+        Message<?> result = interceptor.preSend(message, null);
+        assertThat(result).isNotNull();
+        verify(messageService).isParticipant(3L, 50L);
+    }
+
+    @Test
+    void preSend_subscribeNonParticipant_throwsMessagingException() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        accessor.setLeaveMutable(true);
+        accessor.setDestination("/topic/conversations/50");
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(3L);
+        accessor.setUser(auth);
+
+        Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+
+        when(messageService.isParticipant(3L, 50L)).thenReturn(false);
+
+        MessagingException ex = catchThrowableOfType(MessagingException.class,
+                () -> interceptor.preSend(message, null));
+        assertThat(ex).isNotNull();
+        assertThat(ex.getMessage()).contains("Bu konuşmaya erişiminiz yok");
+    }
 }

@@ -140,6 +140,17 @@ To align external request payloads with the database/schema constraints, this br
 
 ---
 
+## Messaging & WebSocket Access Hardening
+
+- **Split Messaging Permission Gates**:
+  - Centralized messaging authorization into two clear gates: **History Access Gate** (for reading/viewing/opening conversation history) and **Send Gate** (for sending new messages).
+  - **History Access Gate**: Allowed for students with status `ACTIVE`, `PAST_DUE`, `EXPIRED`, or `CANCELLED`. If a newer renewal attempt is `PENDING_PAYMENT` or `FAILED`, but an older valid subscription exists, history access remains allowed.
+  - **Send Gate**: Strictly allowed only for students with `ACTIVE` subscription status. All other statuses (`PAST_DUE`, `EXPIRED`, `CANCELLED`, `PENDING_PAYMENT`, `TERMINATED`, or no subscription) are blocked.
+  - Enforced identically across REST endpoints (`openConversation`, `history`, `myConversations` use the History gate; `sendMessage` uses the Send gate) and STOMP channels (STOMP `SUBSCRIBE` uses the History gate via `isParticipant`; STOMP `SEND` uses the Send gate via `sendMessage`).
+  - Tested: 32 tests passed successfully in `MessageServiceTest` and `StompAuthChannelInterceptorTest`.
+
+---
+
 ## Validation
 
 - **Backend Package:** Clean package compilation completed successfully (`.\mvnw.cmd clean package -DskipTests`).
