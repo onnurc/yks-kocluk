@@ -372,8 +372,13 @@ public class SubscriptionService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAYMENT_STATUS", "Sadece başarılı ödemeler iade edilebilir");
         }
 
-        // Calculate already refunded amount
-        List<Payment> existingRefunds = paymentRepository.findBySourcePaymentIdAndStatus(paymentId, PaymentStatus.SUCCESS);
+        // Already-spoken-for amount = SUCCESS refunds + still-in-flight PENDING reservations.
+        // The findByIdForUpdate lock above serializes concurrent reserves on this charge, but a
+        // reservation is only visible to the next reserver if we count PENDING too — otherwise two
+        // concurrent full-amount refunds each see 0 refunded and both reserve, over-refunding the
+        // charge. FAILED refunds released their reservation, so they are excluded.
+        List<Payment> existingRefunds = paymentRepository.findBySourcePaymentIdAndStatusIn(
+                paymentId, List.of(PaymentStatus.PENDING, PaymentStatus.SUCCESS));
         BigDecimal totalRefunded = existingRefunds.stream()
                 .map(Payment::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);

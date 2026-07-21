@@ -74,6 +74,18 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
             """)
     List<Long> findDueSubscriptionIds(@Param("now") Instant now);
 
+    /**
+     * Stuck-checkout set for cleanup (Phase 8): subscriptions left PENDING_PAYMENT since before
+     * {@code cutoff} — either the payment webhook never arrived or it arrived as FAILURE. These
+     * are expired so the student is no longer blocked (ALREADY_SUBSCRIBED) from re-subscribing.
+     */
+    @Query("""
+            select s.id from Subscription s
+             where s.status = com.ykskocluk.demo.enums.SubscriptionStatus.PENDING_PAYMENT
+               and s.createdAt <= :cutoff
+            """)
+    List<Long> findStalePendingCheckoutIds(@Param("cutoff") Instant cutoff);
+
     /** Email snapshot for the renewal job's after-commit mail dispatch (no lazy entity access). */
     @Query("""
             select new com.ykskocluk.demo.dto.SubscriptionEmailView(

@@ -107,6 +107,9 @@ app:
     commission-rate: ${PAYMENT_COMMISSION_RATE:0.20}
     # Daily charge attempts in the PAST_DUE grace window before a subscription EXPIRES.
     retry-days: ${PAYMENT_RETRY_DAYS:3}
+    # How long a subscription may stay PENDING_PAYMENT (unpaid/abandoned or failed checkout)
+    # before the renewal job expires it and frees the student to subscribe to that coach again.
+    pending-checkout-timeout-minutes: ${PAYMENT_PENDING_CHECKOUT_TIMEOUT_MINUTES:30}
     # Renewal job schedule — daily 03:00 Europe/Istanbul (zone set on the @Scheduled).
     renewal-cron: ${PAYMENT_RENEWAL_CRON:0 0 3 * * *}
 

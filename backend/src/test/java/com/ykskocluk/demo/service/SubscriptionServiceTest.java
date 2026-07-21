@@ -78,7 +78,7 @@ class SubscriptionServiceTest {
 
     @BeforeEach
     void setUp() {
-        paymentProperties = new PaymentProperties(new BigDecimal("0.2000"), 3);
+        paymentProperties = new PaymentProperties(new BigDecimal("0.2000"), 3, 30);
         service = new SubscriptionService(subscriptionRepository, packageRepository,
             coachProfileRepository, userRepository, paymentRepository, paymentProperties,
             iyzicoClient, subscriptionMapper, entityManager,
@@ -485,7 +485,7 @@ class SubscriptionServiceTest {
         original.setProviderReference("prov-ref-123");
 
         when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(original));
-        when(paymentRepository.findBySourcePaymentIdAndStatus(100L, PaymentStatus.SUCCESS))
+        when(paymentRepository.findBySourcePaymentIdAndStatusIn(100L, List.of(PaymentStatus.PENDING, PaymentStatus.SUCCESS)))
                 .thenReturn(List.of());
         when(iyzicoClient.refund(eq("prov-ref-123"), eq(new BigDecimal("150.00")), any()))
                 .thenReturn(new RefundResult(true, "refund-prov-ref-999", null, null));
@@ -528,7 +528,7 @@ class SubscriptionServiceTest {
         prevRefund.setStatus(PaymentStatus.SUCCESS);
 
         when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(original));
-        when(paymentRepository.findBySourcePaymentIdAndStatus(100L, PaymentStatus.SUCCESS))
+        when(paymentRepository.findBySourcePaymentIdAndStatusIn(100L, List.of(PaymentStatus.PENDING, PaymentStatus.SUCCESS)))
                 .thenReturn(List.of(prevRefund));
         // New refund request of 50.00 (remaining is 150.00 - 50.00 = 100.00)
         when(iyzicoClient.refund(eq("prov-ref-123"), eq(new BigDecimal("50.00")), any()))
@@ -556,7 +556,7 @@ class SubscriptionServiceTest {
         prevRefund.setStatus(PaymentStatus.SUCCESS);
 
         when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(original));
-        when(paymentRepository.findBySourcePaymentIdAndStatus(100L, PaymentStatus.SUCCESS))
+        when(paymentRepository.findBySourcePaymentIdAndStatusIn(100L, List.of(PaymentStatus.PENDING, PaymentStatus.SUCCESS)))
                 .thenReturn(List.of(prevRefund));
 
         // Remaining is 30.00, requesting 40.00 should fail
@@ -610,7 +610,7 @@ class SubscriptionServiceTest {
         original.setProviderReference("prov-ref-123");
 
         when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(original));
-        when(paymentRepository.findBySourcePaymentIdAndStatus(100L, PaymentStatus.SUCCESS))
+        when(paymentRepository.findBySourcePaymentIdAndStatusIn(100L, List.of(PaymentStatus.PENDING, PaymentStatus.SUCCESS)))
                 .thenReturn(List.of());
         when(iyzicoClient.refund(eq("prov-ref-123"), eq(new BigDecimal("50.00")), any()))
                 .thenReturn(new RefundResult(false, null, "REFUND_ERROR", "Invalid transaction state"));
