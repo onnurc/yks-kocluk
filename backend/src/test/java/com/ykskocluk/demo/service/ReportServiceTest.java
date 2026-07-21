@@ -59,6 +59,7 @@ class ReportServiceTest {
         org.springframework.test.util.ReflectionTestUtils.setField(reporter, "id", 1L);
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(reporter));
+        when(reportRepository.existsOpenReport(1L, ReportTargetType.MESSAGE, 42L)).thenReturn(false);
 
         Message msg = new Message();
         org.springframework.test.util.ReflectionTestUtils.setField(msg, "id", 42L);
@@ -144,6 +145,7 @@ class ReportServiceTest {
         User reporter = new User();
         org.springframework.test.util.ReflectionTestUtils.setField(reporter, "id", 1L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(reporter));
+        when(reportRepository.existsOpenReport(1L, ReportTargetType.USER, 1L)).thenReturn(false);
 
         ReportCreateRequest request = new ReportCreateRequest(ReportTargetType.USER, 1L, "Self-report", null);
 
@@ -160,6 +162,7 @@ class ReportServiceTest {
         User reporter = new User();
         org.springframework.test.util.ReflectionTestUtils.setField(reporter, "id", 1L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(reporter));
+        when(reportRepository.existsOpenReport(1L, ReportTargetType.USER, 2L)).thenReturn(false);
         when(userRepository.existsById(2L)).thenReturn(false);
 
         ReportCreateRequest request = new ReportCreateRequest(ReportTargetType.USER, 2L, "Inappropriate", null);
@@ -177,6 +180,7 @@ class ReportServiceTest {
         User reporter = new User();
         org.springframework.test.util.ReflectionTestUtils.setField(reporter, "id", 1L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(reporter));
+        when(reportRepository.existsOpenReport(1L, ReportTargetType.CONVERSATION, 99L)).thenReturn(false);
 
         Conversation conv = new Conversation();
         org.springframework.test.util.ReflectionTestUtils.setField(conv, "id", 99L);
@@ -200,5 +204,128 @@ class ReportServiceTest {
         assertThat(ex).isNotNull();
         assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(ex.getErrorCode()).isEqualTo("NOT_CONVERSATION_PARTICIPANT");
+    }
+
+    @Test
+    void createReport_duplicateOpenReport_throwsConflict() {
+        User reporter = new User();
+        org.springframework.test.util.ReflectionTestUtils.setField(reporter, "id", 1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(reporter));
+        when(reportRepository.existsOpenReport(1L, ReportTargetType.USER, 2L)).thenReturn(true);
+
+        ReportCreateRequest request = new ReportCreateRequest(ReportTargetType.USER, 2L, "Duplicate", null);
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> reportService.createReport(1L, request));
+
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(ex.getErrorCode()).isEqualTo("DUPLICATE_OPEN_REPORT");
+        assertThat(ex.getMessage()).isEqualTo("Bu kullanıcı için zaten açık bir şikayetiniz var");
+    }
+
+    @Test
+    void updateReportStatus_success_transitionsAndSetsReviewedFields() {
+        Report report = new Report();
+        org.springframework.test.util.ReflectionTestUtils.setField(report, "id", 100L);
+        report.setStatus(ReportStatus.OPEN);
+
+        User reporter = new User();
+        org.springframework.test.util.ReflectionTestUtils.setField(reporter, "id", 1L);
+        report.setReporter(reporter);
+
+        User admin = new User();
+        org.springframework.test.util.ReflectionTestUtils.setField(admin, "id", 5L);
+
+        when(reportRepository.findById(100L)).thenReturn(Optional.of(report));
+        when(userRepository.findById(5L)).thenReturn(Optional.of(admin));
+
+        ReportResponse response = reportService.updateReportStatus(5L, 100L, ReportStatus.REVIEWED);
+
+        assertThat(response).isNotNull();
+        assertThat(response.status()).isEqualTo(ReportStatus.REVIEWED);
+        assertThat(response.reviewedAt()).isNotNull();
+        assertThat(response.reviewedByAdminId()).isEqualTo(5L);
+
+        verify(reportRepository).saveAndFlush(report);
+    }
+
+    @Test
+    void updateReportStatus_sameStatusNonTerminal_noOp() {
+        Report report = new Report();
+        org.springframework.test.util.ReflectionTestUtils.setField(report, "id", 100L);
+        report.setStatus(ReportStatus.REVIEWED);
+
+        User reporter = new User();
+        org.springframework.test.util.ReflectionTestUtils.setField(reporter, "id", 1L);
+        report.setReporter(reporter);
+
+        when(reportRepository.findById(100L)).thenReturn(Optional.of(report));
+
+        ReportResponse response = reportService.updateReportStatus(5L, 100L, ReportStatus.REVIEWED);
+
+        assertThat(response).isNotNull();
+        assertThat(response.status()).isEqualTo(ReportStatus.REVIEWED);
+        verify(reportRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void updateReportStatus_sameStatusTerminal_throwsConflict() {
+        Report report = new Report();
+        org.springframework.test.util.ReflectionTestUtils.setField(report, "id", 100L);
+        report.setStatus(ReportStatus.RESOLVED);
+
+        when(reportRepository.findById(100L)).thenReturn(Optional.of(report));
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> reportService.updateReportStatus(5L, 100L, ReportStatus.RESOLVED));
+
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(ex.getErrorCode()).isEqualTo("INVALID_REPORT_STATUS_TRANSITION");
+    }
+
+    @Test
+    void updateReportStatus_invalidTransitionFromTerminal_throwsConflict() {
+        Report report = new Report();
+        org.springframework.test.util.ReflectionTestUtils.setField(report, "id", 100L);
+        report.setStatus(ReportStatus.DISMISSED);
+
+        when(reportRepository.findById(100L)).thenReturn(Optional.of(report));
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> reportService.updateReportStatus(5L, 100L, ReportStatus.RESOLVED));
+
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(ex.getErrorCode()).isEqualTo("INVALID_REPORT_STATUS_TRANSITION");
+    }
+
+    @Test
+    void updateReportStatus_transitionToOpen_throwsConflict() {
+        Report report = new Report();
+        org.springframework.test.util.ReflectionTestUtils.setField(report, "id", 100L);
+        report.setStatus(ReportStatus.REVIEWED);
+
+        when(reportRepository.findById(100L)).thenReturn(Optional.of(report));
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> reportService.updateReportStatus(5L, 100L, ReportStatus.OPEN));
+
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(ex.getErrorCode()).isEqualTo("INVALID_REPORT_STATUS_TRANSITION");
+    }
+
+    @Test
+    void updateReportStatus_reportNotFound_throwsNotFound() {
+        when(reportRepository.findById(100L)).thenReturn(Optional.empty());
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> reportService.updateReportStatus(5L, 100L, ReportStatus.REVIEWED));
+
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(ex.getErrorCode()).isEqualTo("REPORT_NOT_FOUND");
     }
 }

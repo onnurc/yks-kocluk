@@ -49,6 +49,12 @@ public class ReportService {
         User reporter = userRepository.findById(reporterUserId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
 
+        // Duplicate check
+        if (reportRepository.existsOpenReport(reporterUserId, request.targetType(), request.targetId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "DUPLICATE_OPEN_REPORT",
+                    "Bu kullanıcı için zaten açık bir şikayetiniz var");
+        }
+
         // Validate targets
         if (request.targetType() == ReportTargetType.USER) {
             if (reporterUserId.equals(request.targetId())) {
@@ -101,6 +107,45 @@ public class ReportService {
             page = reportRepository.findAll(pageable);
         }
         return PageResponse.from(page.map(this::toResponse));
+    }
+
+    @Transactional
+    public ReportResponse updateReportStatus(Long adminUserId, Long reportId, ReportStatus requestedStatus) {
+        Report report = reportRepository.findById(reportId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "REPORT_NOT_FOUND", "Rapor bulunamadı"));
+
+        ReportStatus currentStatus = report.getStatus();
+        if (currentStatus == requestedStatus) {
+            if (currentStatus == ReportStatus.RESOLVED || currentStatus == ReportStatus.DISMISSED) {
+                throw new ApiException(HttpStatus.CONFLICT, "INVALID_REPORT_STATUS_TRANSITION",
+                        "Sonlandırılmış bir raporun durumu değiştirilemez");
+            }
+            return toResponse(report);
+        }
+
+        if (currentStatus == ReportStatus.RESOLVED || currentStatus == ReportStatus.DISMISSED) {
+            throw new ApiException(HttpStatus.CONFLICT, "INVALID_REPORT_STATUS_TRANSITION",
+                    "Sonlandırılmış bir raporun durumu değiştirilemez");
+        }
+
+        if (requestedStatus == ReportStatus.OPEN) {
+            throw new ApiException(HttpStatus.CONFLICT, "INVALID_REPORT_STATUS_TRANSITION",
+                    "Rapor durumu tekrar başlangıç durumuna alınamaz");
+        }
+
+        report.setStatus(requestedStatus);
+
+        if (report.getReviewedAt() == null) {
+            report.setReviewedAt(java.time.Instant.now());
+        }
+        if (report.getReviewedBy() == null) {
+            User admin = userRepository.findById(adminUserId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
+            report.setReviewedBy(admin);
+        }
+
+        reportRepository.saveAndFlush(report);
+        return toResponse(report);
     }
 
     private void validateSort(Pageable pageable) {
