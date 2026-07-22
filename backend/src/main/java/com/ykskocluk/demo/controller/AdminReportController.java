@@ -3,9 +3,13 @@ package com.ykskocluk.demo.controller;
 import com.ykskocluk.demo.dto.AdminReportStatusUpdateRequest;
 import com.ykskocluk.demo.dto.PageResponse;
 import com.ykskocluk.demo.dto.ReportResponse;
+import com.ykskocluk.demo.dto.ReportStatusUpdateResult;
 import com.ykskocluk.demo.enums.ReportStatus;
+import com.ykskocluk.demo.integration.MailClient;
 import com.ykskocluk.demo.service.ReportService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -27,10 +31,14 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminReportController {
 
-    private final ReportService reportService;
+    private static final Logger log = LoggerFactory.getLogger(AdminReportController.class);
 
-    public AdminReportController(ReportService reportService) {
+    private final ReportService reportService;
+    private final MailClient mailClient;
+
+    public AdminReportController(ReportService reportService, MailClient mailClient) {
         this.reportService = reportService;
+        this.mailClient = mailClient;
     }
 
     @GetMapping
@@ -45,6 +53,15 @@ public class AdminReportController {
             @AuthenticationPrincipal Long adminUserId,
             @PathVariable Long reportId,
             @Valid @RequestBody AdminReportStatusUpdateRequest request) {
-        return reportService.updateReportStatus(adminUserId, reportId, request.status());
+        ReportStatusUpdateResult result = reportService.updateReportStatus(adminUserId, reportId, request.status());
+        if (result.transitioned()) {
+            try {
+                mailClient.sendReportStatusUpdated(result.reporterEmail(), result.newStatus());
+            } catch (Exception e) {
+                // Best-effort: status update is already committed; never let a mail failure surface.
+                log.error("Report-status-updated email failed for report {}: {}", reportId, e.getMessage(), e);
+            }
+        }
+        return result.response();
     }
 }

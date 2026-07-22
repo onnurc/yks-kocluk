@@ -6,6 +6,7 @@ package com.ykskocluk.demo.dto;
 public record SuspendResponse(
         Long userId,
         String status,
-        String reason
+        String reason,
+        String email
 ) {
 }

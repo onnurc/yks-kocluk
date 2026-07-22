@@ -36,6 +36,7 @@ class UserServiceTest {
         User user = new User();
         user.setStatus(UserStatus.ACTIVE);
         user.setRole(com.ykskocluk.demo.enums.Role.STUDENT);
+        user.setEmail("suspended@example.com");
 
         when(userRepository.findById(2L)).thenReturn(Optional.of(user));
 
@@ -44,10 +45,12 @@ class UserServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.status()).isEqualTo("SUSPENDED");
         assertThat(response.reason()).isEqualTo("Suspicious activity");
+        assertThat(response.email()).isEqualTo("suspended@example.com");
 
         verify(userRepository).saveAndFlush(argThat(u ->
                 u.getStatus() == UserStatus.SUSPENDED &&
-                u.getSuspensionReason().equals("Suspicious activity")
+                u.getSuspensionReason().equals("Suspicious activity") &&
+                "suspended@example.com".equals(u.getEmail())
         ));
     }
 

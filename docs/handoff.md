@@ -285,7 +285,18 @@ accountant**. Not hardcoded into the flow.
 charge**) replacing the stub, the stub flipping to `@Profile("test")` — same final shape as Meet/Mail. Sandbox
 keys (merchant 3429394) go in `application-local.yml`. No core-flow change expected (the seam is the only swap).
 
+### Safety & Moderation Notification Emails (Phase 10 / fix/safety-notification-emails)
+
+- **What:** Added transactional email notifications for report, admin status update, and suspension events via the best-effort `MailClient` Resend integration.
+- **Rules:**
+  - **Report creation:** Confirms to the reporter that their report was received. Intentionally does **not** email the reported user (anti-harassment check).
+  - **Report status moderation:** Emails the reporter on a successful transition of report status to `REVIEWED`, `RESOLVED`, or `DISMISSED`. No email sent on invalid transitions or same-status no-ops.
+  - **User suspension:** Emails the suspended user to notify them that their account access has been restricted. Stays quiet if target user is not found or suspension fails (e.g. self-suspend check).
+- **Execution:** Mail dispatch happens synchronously at the controller level immediately after service-level `@Transactional` write-tx commits. Caught-and-swallowed inside a double-backstop try-catch block so mail-server failures/timeouts **never** block the API response or roll back database records. SMS and unsuspend flows remain future-phase/deferred.
+- **Tests:** Added 10 controller/service tests ensuring best-effort exception swallowing, mail-client method targeting, DTO mail metadata propagation, and state-transition gate checks.
+
 ---
+
 
 ## What's next
 

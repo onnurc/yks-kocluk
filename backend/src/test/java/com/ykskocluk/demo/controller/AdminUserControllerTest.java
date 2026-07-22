@@ -7,6 +7,7 @@ import com.ykskocluk.demo.security.JwtService;
 import com.ykskocluk.demo.service.UserService;
 import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -49,13 +50,16 @@ class AdminUserControllerTest {
     @MockitoBean
     UserRepository userRepository;
 
+    @MockitoBean
+    com.ykskocluk.demo.integration.MailClient mailClient;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
     @WithMockUser(roles = "ADMIN")
     void admin_canSuspendUser() throws Exception {
         SuspendRequest request = new SuspendRequest("Toxicity");
-        SuspendResponse response = new SuspendResponse(5L, "SUSPENDED", "Toxicity");
+        SuspendResponse response = new SuspendResponse(5L, "SUSPENDED", "Toxicity", "user@example.com");
 
         when(userService.suspendUser(any(), eq(5L), eq("Toxicity"))).thenReturn(response);
 
@@ -67,6 +71,42 @@ class AdminUserControllerTest {
                 .andExpect(jsonPath("$.userId").value(5))
                 .andExpect(jsonPath("$.status").value("SUSPENDED"))
                 .andExpect(jsonPath("$.reason").value("Toxicity"));
+
+        org.mockito.Mockito.verify(mailClient).sendUserSuspended("user@example.com");
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void admin_suspendUser_mailThrows_stillSucceeds() throws Exception {
+        SuspendRequest request = new SuspendRequest("Toxicity");
+        SuspendResponse response = new SuspendResponse(5L, "SUSPENDED", "Toxicity", "user@example.com");
+
+        when(userService.suspendUser(any(), eq(5L), eq("Toxicity"))).thenReturn(response);
+        org.mockito.Mockito.doThrow(new RuntimeException("Mail server down"))
+                .when(mailClient).sendUserSuspended(any());
+
+        mockMvc.perform(post("/api/v1/admin/users/5/suspend")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void admin_suspendUser_failedSuspend_doesNotSendMail() throws Exception {
+        SuspendRequest request = new SuspendRequest("Toxicity");
+
+        when(userService.suspendUser(any(), eq(5L), eq("Toxicity")))
+                .thenThrow(new com.ykskocluk.demo.exception.ApiException(HttpStatus.BAD_REQUEST, "CANNOT_SUSPEND_SELF", "Self"));
+
+        mockMvc.perform(post("/api/v1/admin/users/5/suspend")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+
+        org.mockito.Mockito.verify(mailClient, org.mockito.Mockito.never()).sendUserSuspended(any());
     }
 
     @Test
