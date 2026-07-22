@@ -41,7 +41,8 @@ public class UserService {
         return new SuspendResponse(
                 user.getId(),
                 user.getStatus().name(),
-                user.getSuspensionReason()
+                user.getSuspensionReason(),
+                user.getEmail()
         );
     }
 }

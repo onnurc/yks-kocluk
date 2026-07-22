@@ -170,3 +170,26 @@ To align external request payloads with the database/schema constraints, this br
 - **Frontend Build:** The React production build successfully compiled without errors (`npm run build`).
 - **Frontend Lint:** Pre-existing lint violations are present and were intentionally not fixed on this branch.
 - **Docker Dependency:** The full integration test suite utilizing Testcontainers/PostgreSQL was not run locally due to the absence of a local Docker daemon.
+
+---
+
+## Safety & Moderation Notification Emails
+
+Safety/moderation flows now include transactional email notifications via the best-effort `MailClient` architecture:
+
+- **Notifications Added:**
+  - **Report Received:** Confirms to the reporter that their safety report was successfully received.
+    - *Subject:* `Şikayetiniz alındı`
+    - *Recipient:* Reporter only. (The reported user is intentionally **not** notified to prevent retaliation/harassment).
+  - **Report Status Updated:** Notifies the reporter when the status of their report transitions to `REVIEWED`, `RESOLVED`, or `DISMISSED`.
+    - *Subject:* Varies based on the new status (`Şikayetiniz incelemeye alındı` / `Şikayetiniz sonuçlandırıldı` / `Şikayetiniz kapatıldı`).
+    - *Recipient:* Reporter only.
+    - *No-ops:* Stays quiet (no email sent) on same-status updates that do not transition the state.
+  - **User Suspended:** Notifies the suspended user that their account access has been restricted.
+    - *Subject:* `Hesabınız askıya alındı`
+    - *Recipient:* Suspended user only. No email is sent if the suspension is rejected (self-suspend or admin target validation fails) or if the user is not found.
+- **Architectural Constraints & Best-Effort Delivery:**
+  - Email notifications are **best-effort** and run outside of the main database transactional boundary (dispatched from the controller layer after successful service commits).
+  - Mail dispatch uses a try/catch double-backstop to ensure any mail delivery exception (e.g. timeout or provider outage) is logged and **never** rolls back the database write or breaks the API response.
+  - No `@Async` or queuing/multithreading is introduced, maintaining simple, synchronous best-effort execution.
+  - SMS notifications and unsuspend flows remain deferred/future-phase items.

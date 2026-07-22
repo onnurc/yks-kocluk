@@ -2,7 +2,9 @@ package com.ykskocluk.demo.service;
 
 import com.ykskocluk.demo.dto.PageResponse;
 import com.ykskocluk.demo.dto.ReportCreateRequest;
+import com.ykskocluk.demo.dto.ReportCreationResult;
 import com.ykskocluk.demo.dto.ReportResponse;
+import com.ykskocluk.demo.dto.ReportStatusUpdateResult;
 import com.ykskocluk.demo.entity.Report;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.entity.Conversation;
@@ -77,8 +79,12 @@ class ReportServiceTest {
 
         ReportCreateRequest request = new ReportCreateRequest(ReportTargetType.MESSAGE, 42L, "Harassment", "Details here");
 
-        ReportResponse response = reportService.createReport(1L, request);
+        ReportCreationResult result = reportService.createReport(1L, request);
 
+        assertThat(result).isNotNull();
+        assertThat(result.reporterEmail()).isEqualTo("reporter@example.com");
+
+        ReportResponse response = result.response();
         assertThat(response).isNotNull();
         assertThat(response.targetType()).isEqualTo(ReportTargetType.MESSAGE);
         assertThat(response.targetId()).isEqualTo(42L);
@@ -231,6 +237,7 @@ class ReportServiceTest {
         report.setStatus(ReportStatus.OPEN);
 
         User reporter = new User();
+        reporter.setEmail("reporter@example.com");
         org.springframework.test.util.ReflectionTestUtils.setField(reporter, "id", 1L);
         report.setReporter(reporter);
 
@@ -240,8 +247,14 @@ class ReportServiceTest {
         when(reportRepository.findById(100L)).thenReturn(Optional.of(report));
         when(userRepository.findById(5L)).thenReturn(Optional.of(admin));
 
-        ReportResponse response = reportService.updateReportStatus(5L, 100L, ReportStatus.REVIEWED);
+        ReportStatusUpdateResult result = reportService.updateReportStatus(5L, 100L, ReportStatus.REVIEWED);
 
+        assertThat(result).isNotNull();
+        assertThat(result.transitioned()).isTrue();
+        assertThat(result.newStatus()).isEqualTo(ReportStatus.REVIEWED);
+        assertThat(result.reporterEmail()).isEqualTo("reporter@example.com");
+
+        ReportResponse response = result.response();
         assertThat(response).isNotNull();
         assertThat(response.status()).isEqualTo(ReportStatus.REVIEWED);
         assertThat(response.reviewedAt()).isNotNull();
@@ -257,13 +270,19 @@ class ReportServiceTest {
         report.setStatus(ReportStatus.REVIEWED);
 
         User reporter = new User();
+        reporter.setEmail("reporter@example.com");
         org.springframework.test.util.ReflectionTestUtils.setField(reporter, "id", 1L);
         report.setReporter(reporter);
 
         when(reportRepository.findById(100L)).thenReturn(Optional.of(report));
 
-        ReportResponse response = reportService.updateReportStatus(5L, 100L, ReportStatus.REVIEWED);
+        ReportStatusUpdateResult result = reportService.updateReportStatus(5L, 100L, ReportStatus.REVIEWED);
 
+        assertThat(result).isNotNull();
+        assertThat(result.transitioned()).isFalse();
+        assertThat(result.reporterEmail()).isEqualTo("reporter@example.com");
+
+        ReportResponse response = result.response();
         assertThat(response).isNotNull();
         assertThat(response.status()).isEqualTo(ReportStatus.REVIEWED);
         verify(reportRepository, never()).saveAndFlush(any());

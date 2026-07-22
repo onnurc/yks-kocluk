@@ -1,5 +1,7 @@
 package com.ykskocluk.demo.integration;
 
+import com.ykskocluk.demo.enums.ReportStatus;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -24,4 +26,13 @@ public interface MailClient {
 
     /** Cancellation confirmed — auto-renew is off; access continues until {@code accessUntil}. */
     void sendCancellationConfirmed(String toEmail, String coachName, Instant accessUntil);
+
+    /** Confirm to the reporter that their safety report was received. */
+    void sendReportReceived(String toEmail);
+
+    /** Notify the reporter that their report status has been updated by moderation. */
+    void sendReportStatusUpdated(String toEmail, ReportStatus newStatus);
+
+    /** Notify the user that their account has been suspended. */
+    void sendUserSuspended(String toEmail);
 }

@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.integration;
 
 import com.ykskocluk.demo.config.ResendProperties;
+import com.ykskocluk.demo.enums.ReportStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
@@ -107,6 +108,50 @@ public class ResendMailClient implements MailClient {
                      <strong>%s</strong> tarihine kadar açık kalacaktır.</p>
                 </div>
                 """.formatted(coachName, until));
+    }
+
+    @Override
+    public void sendReportReceived(String toEmail) {
+        send(toEmail, "Şikayetiniz alındı", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Şikayetiniz alındı</h2>
+                  <p>Şikayetiniz başarıyla alınmıştır. Moderasyon ekibimiz platform kuralları
+                     doğrultusunda inceleme yapacaktır.</p>
+                </div>
+                """);
+    }
+
+    @Override
+    public void sendReportStatusUpdated(String toEmail, ReportStatus newStatus) {
+        String subject = switch (newStatus) {
+            case REVIEWED -> "Şikayetiniz incelemeye alındı";
+            case RESOLVED -> "Şikayetiniz sonuçlandırıldı";
+            case DISMISSED -> "Şikayetiniz kapatıldı";
+            default -> "Şikayet durumu güncellendi";
+        };
+        String body = switch (newStatus) {
+            case REVIEWED -> "Şikayetiniz moderasyon ekibimiz tarafından incelemeye alınmıştır.";
+            case RESOLVED -> "Şikayetiniz değerlendirilmiş ve sonuçlandırılmıştır. Gerekli işlemler platform kuralları doğrultusunda uygulanmıştır.";
+            case DISMISSED -> "Şikayetiniz değerlendirilmiş ve kapatılmıştır.";
+            default -> "Şikayetinizin durumu güncellenmiştir.";
+        };
+        send(toEmail, subject, """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>%s</h2>
+                  <p>%s</p>
+                </div>
+                """.formatted(subject, body));
+    }
+
+    @Override
+    public void sendUserSuspended(String toEmail) {
+        send(toEmail, "Hesabınız askıya alındı", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Hesabınız askıya alındı</h2>
+                  <p>Hesabınıza erişim platform kuralları doğrultusunda kısıtlanmıştır.
+                     Detaylı bilgi için destek ekibimizle iletişime geçebilirsiniz.</p>
+                </div>
+                """);
     }
 
     /** Single best-effort POST to Resend — swallows-and-logs every error (timeouts included). */

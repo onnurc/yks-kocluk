@@ -2,7 +2,9 @@ package com.ykskocluk.demo.service;
 
 import com.ykskocluk.demo.dto.PageResponse;
 import com.ykskocluk.demo.dto.ReportCreateRequest;
+import com.ykskocluk.demo.dto.ReportCreationResult;
 import com.ykskocluk.demo.dto.ReportResponse;
+import com.ykskocluk.demo.dto.ReportStatusUpdateResult;
 import com.ykskocluk.demo.entity.Report;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.entity.Conversation;
@@ -45,7 +47,7 @@ public class ReportService {
     }
 
     @Transactional
-    public ReportResponse createReport(Long reporterUserId, ReportCreateRequest request) {
+    public ReportCreationResult createReport(Long reporterUserId, ReportCreateRequest request) {
         User reporter = userRepository.findById(reporterUserId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
 
@@ -94,7 +96,7 @@ public class ReportService {
 
         reportRepository.saveAndFlush(report);
 
-        return toResponse(report);
+        return new ReportCreationResult(toResponse(report), reporter.getEmail());
     }
 
     @Transactional(readOnly = true)
@@ -110,7 +112,7 @@ public class ReportService {
     }
 
     @Transactional
-    public ReportResponse updateReportStatus(Long adminUserId, Long reportId, ReportStatus requestedStatus) {
+    public ReportStatusUpdateResult updateReportStatus(Long adminUserId, Long reportId, ReportStatus requestedStatus) {
         Report report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "REPORT_NOT_FOUND", "Rapor bulunamadı"));
 
@@ -120,7 +122,8 @@ public class ReportService {
                 throw new ApiException(HttpStatus.CONFLICT, "INVALID_REPORT_STATUS_TRANSITION",
                         "Sonlandırılmış bir raporun durumu değiştirilemez");
             }
-            return toResponse(report);
+            // Same-status no-op — no transition, no email
+            return new ReportStatusUpdateResult(toResponse(report), report.getReporter().getEmail(), false, currentStatus);
         }
 
         if (currentStatus == ReportStatus.RESOLVED || currentStatus == ReportStatus.DISMISSED) {
@@ -145,7 +148,7 @@ public class ReportService {
         }
 
         reportRepository.saveAndFlush(report);
-        return toResponse(report);
+        return new ReportStatusUpdateResult(toResponse(report), report.getReporter().getEmail(), true, requestedStatus);
     }
 
     private void validateSort(Pageable pageable) {

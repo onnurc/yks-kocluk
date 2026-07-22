@@ -1,5 +1,6 @@
 package com.ykskocluk.demo.integration;
 
+import com.ykskocluk.demo.enums.ReportStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
@@ -46,5 +47,20 @@ public class StubMailClient implements MailClient {
     public void sendCancellationConfirmed(String toEmail, String coachName, Instant accessUntil) {
         log.info("[STUB MailClient] cancellation-confirmed mail to {} (coach {}, accessUntil {})",
                 toEmail, coachName, accessUntil);
+    }
+
+    @Override
+    public void sendReportReceived(String toEmail) {
+        log.info("[STUB MailClient] report-received mail to {}", toEmail);
+    }
+
+    @Override
+    public void sendReportStatusUpdated(String toEmail, ReportStatus newStatus) {
+        log.info("[STUB MailClient] report-status-updated mail to {} (newStatus {})", toEmail, newStatus);
+    }
+
+    @Override
+    public void sendUserSuspended(String toEmail) {
+        log.info("[STUB MailClient] user-suspended mail to {}", toEmail);
     }
 }

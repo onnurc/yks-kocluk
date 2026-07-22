@@ -1,9 +1,13 @@
 package com.ykskocluk.demo.controller;
 
 import com.ykskocluk.demo.dto.ReportCreateRequest;
+import com.ykskocluk.demo.dto.ReportCreationResult;
 import com.ykskocluk.demo.dto.ReportResponse;
+import com.ykskocluk.demo.integration.MailClient;
 import com.ykskocluk.demo.service.ReportService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,10 +23,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/reports")
 public class ReportController {
 
-    private final ReportService reportService;
+    private static final Logger log = LoggerFactory.getLogger(ReportController.class);
 
-    public ReportController(ReportService reportService) {
+    private final ReportService reportService;
+    private final MailClient mailClient;
+
+    public ReportController(ReportService reportService, MailClient mailClient) {
         this.reportService = reportService;
+        this.mailClient = mailClient;
     }
 
     @PostMapping
@@ -30,6 +38,13 @@ public class ReportController {
     public ReportResponse createReport(
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody ReportCreateRequest request) {
-        return reportService.createReport(userId, request);
+        ReportCreationResult result = reportService.createReport(userId, request);
+        try {
+            mailClient.sendReportReceived(result.reporterEmail());
+        } catch (Exception e) {
+            // Best-effort: report is already committed; never let a mail failure surface.
+            log.error("Report-received email failed for report {}: {}", result.response().id(), e.getMessage(), e);
+        }
+        return result.response();
     }
 }

@@ -50,6 +50,9 @@ class AdminReportControllerTest {
     @MockitoBean
     UserRepository userRepository;
 
+    @MockitoBean
+    com.ykskocluk.demo.integration.MailClient mailClient;
+
     @Test
     @WithMockUser(roles = "ADMIN")
     void admin_canListReports() throws Exception {
@@ -76,8 +79,44 @@ class AdminReportControllerTest {
     @Test
     @WithMockUser(username = "5", roles = "ADMIN")
     void admin_canUpdateReportStatus() throws Exception {
-        when(reportService.updateReportStatus(eq(5L), eq(100L), any()))
-                .thenReturn(new ReportResponse(100L, 1L, com.ykskocluk.demo.enums.ReportTargetType.USER, 2L, "Reason", null, com.ykskocluk.demo.enums.ReportStatus.REVIEWED, java.time.Instant.now(), java.time.Instant.now(), 5L));
+        ReportResponse reportResponse = new ReportResponse(100L, 1L, com.ykskocluk.demo.enums.ReportTargetType.USER, 2L, "Reason", null, com.ykskocluk.demo.enums.ReportStatus.REVIEWED, java.time.Instant.now(), java.time.Instant.now(), 5L);
+        when(reportService.updateReportStatus(any(), eq(100L), eq(com.ykskocluk.demo.enums.ReportStatus.REVIEWED)))
+                .thenReturn(new com.ykskocluk.demo.dto.ReportStatusUpdateResult(reportResponse, "reporter@example.com", true, com.ykskocluk.demo.enums.ReportStatus.REVIEWED));
+
+        mockMvc.perform(patch("/api/v1/admin/reports/100/status")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"REVIEWED\"}"))
+                .andExpect(status().isOk());
+
+        org.mockito.Mockito.verify(mailClient).sendReportStatusUpdated("reporter@example.com", com.ykskocluk.demo.enums.ReportStatus.REVIEWED);
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "ADMIN")
+    void admin_updateReportStatus_noTransition_doesNotSendEmail() throws Exception {
+        ReportResponse reportResponse = new ReportResponse(100L, 1L, com.ykskocluk.demo.enums.ReportTargetType.USER, 2L, "Reason", null, com.ykskocluk.demo.enums.ReportStatus.REVIEWED, java.time.Instant.now(), java.time.Instant.now(), 5L);
+        when(reportService.updateReportStatus(any(), eq(100L), eq(com.ykskocluk.demo.enums.ReportStatus.REVIEWED)))
+                .thenReturn(new com.ykskocluk.demo.dto.ReportStatusUpdateResult(reportResponse, "reporter@example.com", false, com.ykskocluk.demo.enums.ReportStatus.REVIEWED));
+
+        mockMvc.perform(patch("/api/v1/admin/reports/100/status")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"REVIEWED\"}"))
+                .andExpect(status().isOk());
+
+        org.mockito.Mockito.verify(mailClient, org.mockito.Mockito.never()).sendReportStatusUpdated(any(), any());
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "ADMIN")
+    void admin_updateReportStatus_mailThrows_stillSucceeds() throws Exception {
+        ReportResponse reportResponse = new ReportResponse(100L, 1L, com.ykskocluk.demo.enums.ReportTargetType.USER, 2L, "Reason", null, com.ykskocluk.demo.enums.ReportStatus.REVIEWED, java.time.Instant.now(), java.time.Instant.now(), 5L);
+        when(reportService.updateReportStatus(any(), eq(100L), eq(com.ykskocluk.demo.enums.ReportStatus.REVIEWED)))
+                .thenReturn(new com.ykskocluk.demo.dto.ReportStatusUpdateResult(reportResponse, "reporter@example.com", true, com.ykskocluk.demo.enums.ReportStatus.REVIEWED));
+
+        org.mockito.Mockito.doThrow(new RuntimeException("Mail service down"))
+                .when(mailClient).sendReportStatusUpdated(any(), any());
 
         mockMvc.perform(patch("/api/v1/admin/reports/100/status")
                         .with(csrf())
