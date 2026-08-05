@@ -53,4 +53,7 @@ public class User extends BaseEntity {
 
     @Column(name = "date_of_birth")
     private java.time.LocalDate dateOfBirth;
+
+    @Column(name = "legal_onboarding_completed", nullable = false)
+    private boolean legalOnboardingCompleted = true;
 }

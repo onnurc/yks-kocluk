@@ -378,9 +378,17 @@ Both standing credential-rotation action items are **DONE** (no longer open):
 
 ---
 
-## Migrations (V1–V17, all applied to Neon)
+## Migrations (V1–V19)
 
-V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subscriptions · V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging · V10 payments_autorenew · V11 webhook_verifications · V12-V13 idempotency_checks · V14-V16 demo_seed_safety · V17 minor_consent_status.
+V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subscriptions · V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging · V10 payments_autorenew · V11 webhook_verifications · V12-V13 safety/admin · V14-V16 demo seed · V17 legacy minor-consent status · V18 OAuth login codes · V19 versioned legal documents and acceptances. V19 must be applied before clients use the new registration contract.
+
+## Versioned registration legal acceptance
+
+- `KVKK_NOTICE` (Aydınlatma Metni) and `EXPLICIT_CONSENT` (Açık Rıza) are distinct. KVKK Notice is publicly readable and has no mandatory acceptance checkbox.
+- Registration requires current published `TERMS_OF_USE` and `EXPLICIT_CONSENT` document IDs. Marketing email and SMS preferences are separate, optional opt-ins.
+- No guardian account or guardian verification exists. `date_of_birth` and legacy `consent_records` remain for compatibility/audit, but age or a revoked legacy record no longer creates a separate checkout, booking, conversation, or message gate.
+- Existing users are backfilled as legally onboarded to avoid lockout. Newly created Google OAuth users are not auto-accepted and use `POST /api/v1/auth/legal-onboarding` before protected product actions.
+- V19 seeds clearly labelled placeholder version `1.0` documents. Approved legal wording must replace them before production reliance.
 
 ## Critical-path tests (the ones to never break)
 `AuthServiceTest` · `SubscriptionCapacityConcurrencyTest` · `SessionDoubleBookingConcurrencyTest` · `SessionQuotaBoundaryTest` · `SessionLifecycleTest` · `MessageServiceTest` / `MessageGateIntegrationTest` (child-safety gate) · `WebSocketAuthTest` · `SubscriptionRenewalConcurrencyTest` · `SubscriptionBillingServiceTest` · `MinorConsentServiceTest` · `InMemoryRateLimitStoreTest` · `AuthRateLimitServiceTest` · `AuthControllerRateLimitTest`.

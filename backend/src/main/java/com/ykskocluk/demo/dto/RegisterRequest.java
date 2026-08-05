@@ -24,9 +24,17 @@ public record RegisterRequest(
         @NotNull(message = "Rol seçilmeli")
         Role role,
 
-        java.time.LocalDate dateOfBirth
+        java.time.LocalDate dateOfBirth,
+        Long acceptedTermsDocumentId,
+        Long acceptedExplicitConsentDocumentId,
+        Boolean marketingEmailOptIn,
+        Boolean marketingSmsOptIn
 ) {
     public RegisterRequest(String email, String password, String fullName, Role role) {
-        this(email, password, fullName, role, null);
+        this(email, password, fullName, role, null, null, null, false, false);
+    }
+
+    public RegisterRequest(String email, String password, String fullName, Role role, java.time.LocalDate dateOfBirth) {
+        this(email, password, fullName, role, dateOfBirth, null, null, false, false);
     }
 }

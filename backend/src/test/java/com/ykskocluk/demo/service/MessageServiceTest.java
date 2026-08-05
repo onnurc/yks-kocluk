@@ -140,7 +140,7 @@ class MessageServiceTest {
     }
 
     @Test
-    void openConversation_activeSubscription_allowed_createsConversation() {
+    void openConversation_minorWithoutLegacyConsent_allowedWhenCommonOnboardingComplete() {
         when(coachProfileRepository.findById(COACH_PROFILE_ID)).thenReturn(Optional.of(coach));
         when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID))
                 .thenReturn(true);
@@ -148,12 +148,14 @@ class MessageServiceTest {
                 .thenReturn(Optional.empty());
         User student = new User();
         ReflectionTestUtils.setField(student, "id", STUDENT_ID);
+        student.setDateOfBirth(java.time.LocalDate.now().minusYears(16));
         when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
         when(conversationRepository.save(any(Conversation.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.openConversation(STUDENT_ID, COACH_PROFILE_ID);
 
         verify(conversationRepository).save(any(Conversation.class));
+        verify(consentService).checkConsentRequiredForAction(student);
     }
 
     @Test

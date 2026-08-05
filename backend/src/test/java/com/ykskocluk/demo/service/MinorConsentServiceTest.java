@@ -43,13 +43,14 @@ class MinorConsentServiceTest {
     @Mock private com.ykskocluk.demo.mapper.UserMapper userMapper;
     @Mock private com.ykskocluk.demo.config.JwtProperties jwtProperties;
     @Mock private OAuth2LoginCodeService oauth2LoginCodeService;
+    @Mock private LegalAcceptanceService legalAcceptanceService;
 
     @InjectMocks private ConsentService consentService;
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(userRepository, refreshTokenRepository, passwordEncoder, jwtService, userMapper, jwtProperties, oauth2LoginCodeService);
+        authService = new AuthService(userRepository, refreshTokenRepository, passwordEncoder, jwtService, userMapper, jwtProperties, oauth2LoginCodeService, legalAcceptanceService);
         lenient().when(jwtService.generateAccessToken(any())).thenReturn("dummy-access");
         lenient().when(jwtProperties.refreshTtl()).thenReturn(java.time.Duration.ofDays(30));
         lenient().when(refreshTokenRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -146,24 +147,14 @@ class MinorConsentServiceTest {
     }
 
     @Test
-    void checkConsentRequired_minorStudentNoRecord_throwsConsentRequired() {
+    void checkConsentRequired_minorStudentNoLegacyRecord_usesGeneralOnboardingGate() {
         User user = new User();
         ReflectionTestUtils.setField(user, "id", 42L);
         user.setRole(Role.STUDENT);
         user.setDateOfBirth(LocalDate.now(ZoneId.of("Europe/Istanbul")).minusYears(17));
 
-        when(consentRecordRepository.existsByUserIdAndConsentTypeAndDocumentVersionAndStatus(
-                42L, ConsentType.KVKK, ConsentService.CURRENT_KVKK_VERSION, ConsentStatus.ACCEPTED
-        )).thenReturn(false);
-
-        ApiException ex = catchThrowableOfType(
-                ApiException.class,
-                () -> consentService.checkConsentRequiredForAction(user)
-        );
-
-        assertThat(ex).isNotNull();
-        assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(ex.getErrorCode()).isEqualTo("MINOR_CONSENT_REQUIRED");
+        consentService.checkConsentRequiredForAction(user);
+        org.mockito.Mockito.verify(legalAcceptanceService).requireCompleted(user);
     }
 
     @Test
@@ -173,32 +164,19 @@ class MinorConsentServiceTest {
         user.setRole(Role.STUDENT);
         user.setDateOfBirth(LocalDate.now(ZoneId.of("Europe/Istanbul")).minusYears(17));
 
-        when(consentRecordRepository.existsByUserIdAndConsentTypeAndDocumentVersionAndStatus(
-                42L, ConsentType.KVKK, ConsentService.CURRENT_KVKK_VERSION, ConsentStatus.ACCEPTED
-        )).thenReturn(true);
-
-        consentService.checkConsentRequiredForAction(user); // should not throw
+        consentService.checkConsentRequiredForAction(user);
+        org.mockito.Mockito.verify(legalAcceptanceService).requireCompleted(user);
     }
 
     @Test
-    void checkConsentRequired_minorStudentRevoked_throwsConsentRequired() {
+    void checkConsentRequired_minorStudentRevokedLegacyRecord_doesNotCreateSeparateGate() {
         User user = new User();
         ReflectionTestUtils.setField(user, "id", 42L);
         user.setRole(Role.STUDENT);
         user.setDateOfBirth(LocalDate.now(ZoneId.of("Europe/Istanbul")).minusYears(17));
 
-        when(consentRecordRepository.existsByUserIdAndConsentTypeAndDocumentVersionAndStatus(
-                42L, ConsentType.KVKK, ConsentService.CURRENT_KVKK_VERSION, ConsentStatus.ACCEPTED
-        )).thenReturn(false);
-
-        ApiException ex = catchThrowableOfType(
-                ApiException.class,
-                () -> consentService.checkConsentRequiredForAction(user)
-        );
-
-        assertThat(ex).isNotNull();
-        assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(ex.getErrorCode()).isEqualTo("MINOR_CONSENT_REQUIRED");
+        consentService.checkConsentRequiredForAction(user);
+        org.mockito.Mockito.verify(legalAcceptanceService).requireCompleted(user);
     }
 
     @Test

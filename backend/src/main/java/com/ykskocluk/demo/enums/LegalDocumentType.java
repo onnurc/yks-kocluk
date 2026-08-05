@@ -1,0 +1,12 @@
+package com.ykskocluk.demo.enums;
+
+public enum LegalDocumentType {
+    KVKK_NOTICE,
+    EXPLICIT_CONSENT,
+    TERMS_OF_USE,
+    PRIVACY_POLICY,
+    COOKIE_POLICY,
+    PRE_INFORMATION_FORM,
+    DISTANCE_SALES_AGREEMENT,
+    REFUND_CANCELLATION_POLICY
+}

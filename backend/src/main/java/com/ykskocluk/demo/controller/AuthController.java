@@ -7,7 +7,10 @@ import com.ykskocluk.demo.dto.OAuth2ExchangeRequest;
 import com.ykskocluk.demo.dto.RefreshRequest;
 import com.ykskocluk.demo.dto.RegisterRequest;
 import com.ykskocluk.demo.dto.UserResponse;
+import com.ykskocluk.demo.dto.LegalOnboardingRequest;
+import com.ykskocluk.demo.dto.LegalOnboardingResponse;
 import com.ykskocluk.demo.service.AuthService;
+import com.ykskocluk.demo.service.LegalAcceptanceService;
 import com.ykskocluk.demo.security.ratelimit.AuthRateLimitService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -29,13 +32,16 @@ public class AuthController {
     private final AuthService authService;
     private final AuthRateLimitService rateLimitService;
     private final HttpServletRequest httpServletRequest;
+    private final LegalAcceptanceService legalAcceptanceService;
 
     public AuthController(AuthService authService,
                           AuthRateLimitService rateLimitService,
-                          HttpServletRequest httpServletRequest) {
+                          HttpServletRequest httpServletRequest,
+                          LegalAcceptanceService legalAcceptanceService) {
         this.authService = authService;
         this.rateLimitService = rateLimitService;
         this.httpServletRequest = httpServletRequest;
+        this.legalAcceptanceService = legalAcceptanceService;
     }
 
     @PostMapping("/register")
@@ -73,5 +79,14 @@ public class AuthController {
     @PreAuthorize("isAuthenticated()")
     public UserResponse me(@AuthenticationPrincipal Long userId) {
         return authService.getCurrentUser(userId);
+    }
+
+    @PostMapping("/legal-onboarding")
+    @PreAuthorize("isAuthenticated()")
+    public LegalOnboardingResponse completeLegalOnboarding(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody LegalOnboardingRequest request) {
+        legalAcceptanceService.completeOnboarding(userId, request);
+        return new LegalOnboardingResponse(true);
     }
 }

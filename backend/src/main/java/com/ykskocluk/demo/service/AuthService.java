@@ -42,6 +42,7 @@ public class AuthService {
     private final UserMapper userMapper;
     private final JwtProperties jwtProperties;
     private final OAuth2LoginCodeService oauth2LoginCodeService;
+    private final LegalAcceptanceService legalAcceptanceService;
 
     public AuthService(UserRepository userRepository,
                        RefreshTokenRepository refreshTokenRepository,
@@ -49,7 +50,8 @@ public class AuthService {
                        JwtService jwtService,
                        UserMapper userMapper,
                        JwtProperties jwtProperties,
-                       OAuth2LoginCodeService oauth2LoginCodeService) {
+                       OAuth2LoginCodeService oauth2LoginCodeService,
+                       LegalAcceptanceService legalAcceptanceService) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
@@ -57,6 +59,7 @@ public class AuthService {
         this.userMapper = userMapper;
         this.jwtProperties = jwtProperties;
         this.oauth2LoginCodeService = oauth2LoginCodeService;
+        this.legalAcceptanceService = legalAcceptanceService;
     }
 
     @Transactional
@@ -80,6 +83,8 @@ public class AuthService {
             throw new ApiException(HttpStatus.CONFLICT, "EMAIL_ALREADY_EXISTS",
                     "Bu e-posta zaten kayıtlı");
         }
+        LegalAcceptanceService.RequiredDocuments requiredDocuments = legalAcceptanceService.validateRequired(
+                request.acceptedTermsDocumentId(), request.acceptedExplicitConsentDocumentId());
         User user = new User();
         user.setEmail(request.email());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
@@ -91,6 +96,8 @@ public class AuthService {
             user.setDateOfBirth(request.dateOfBirth());
         }
         userRepository.save(user);
+        legalAcceptanceService.recordRegistrationAcceptances(user, requiredDocuments,
+                Boolean.TRUE.equals(request.marketingEmailOptIn()), Boolean.TRUE.equals(request.marketingSmsOptIn()));
         return issueTokens(user);
     }
 
@@ -170,6 +177,7 @@ public class AuthService {
                 user.setStatus(UserStatus.ACTIVE);
                 user.setGoogleSub(googleSub);
                 user.setEmailVerified(true);
+                user.setLegalOnboardingCompleted(false);
                 userRepository.save(user);
             }
         }

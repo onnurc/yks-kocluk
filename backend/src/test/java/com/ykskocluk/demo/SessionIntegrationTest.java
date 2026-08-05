@@ -49,7 +49,7 @@ class SessionIntegrationTest {
         String json = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"password123","fullName":"%s","role":"%s","dateOfBirth":"2005-01-01"}
+                                {"email":"%s","password":"password123","fullName":"%s","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
                                 """.formatted(email, email.split("@")[0], role)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();

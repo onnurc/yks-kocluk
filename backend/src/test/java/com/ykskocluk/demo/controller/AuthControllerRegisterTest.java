@@ -39,6 +39,9 @@ class AuthControllerRegisterTest {
     private AuthService authService;
 
     @MockitoBean
+    private com.ykskocluk.demo.service.LegalAcceptanceService legalAcceptanceService;
+
+    @MockitoBean
     private AuthRateLimitService rateLimitService;
 
     @MockitoBean
@@ -120,5 +123,16 @@ class AuthControllerRegisterTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.accessToken").value("access-token"))
                 .andExpect(jsonPath("$.user.email").value("coach@example.com"));
+    }
+
+    @Test
+    @WithMockUser
+    void legalOnboarding_authenticatedUser_completesOwnOnboarding() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/legal-onboarding")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"termsDocumentId\":3,\"explicitConsentDocumentId\":2}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.legalOnboardingCompleted").value(true));
     }
 }

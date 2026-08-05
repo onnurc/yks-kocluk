@@ -189,20 +189,19 @@ class SessionServiceTest {
     }
 
     @Test
-    void book_minorStudentWithoutConsent_throwsForbidden() {
-        doThrow(new ApiException(HttpStatus.FORBIDDEN, "MINOR_CONSENT_REQUIRED", "18 yaş altı öğrenciler için veli onayı gereklidir"))
+    void book_incompleteLegalOnboarding_throwsForbidden() {
+        doThrow(new ApiException(HttpStatus.FORBIDDEN, "LEGAL_ONBOARDING_REQUIRED", "Hukuki kayıt onayı gerekli"))
                 .when(consentService).checkConsentRequiredForAction(any());
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.book(STUDENT_ID, request()));
-        assertThat(ex.getErrorCode()).isEqualTo("MINOR_CONSENT_REQUIRED");
+        assertThat(ex.getErrorCode()).isEqualTo("LEGAL_ONBOARDING_REQUIRED");
         assertThat(ex.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
         verify(sessionRepository, never()).saveAndFlush(any());
         verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 
     @Test
-    void book_minorStudentWithConsent_succeeds() {
-        // consentService.checkConsentRequiredForAction does not throw exception (mock default behavior)
+    void book_minorStudentWithoutLegacyConsent_succeedsWhenCommonOnboardingComplete() {
         service.book(STUDENT_ID, request());
 
         verify(sessionRepository).saveAndFlush(any(Session.class));

@@ -162,7 +162,7 @@ Response: wrap `Page<T>` in a `PageResponse<T>` DTO:
 | **Payment idempotency** | `idempotency_key` UNIQUE. Status updated via webhook. Refund = new Payment row (`type=REFUND`, `source_payment_id` links to original). Do not mutate the existing row. Snapshot commission at transaction time (`commission_rate`, `commission_amount`, `coach_payout_amount`). |
 | **Refund ↔ payout order** | Do not release payout before the refund window closes. |
 | **Child-safety message gate** | A student can view history of active/past subscriptions (ACTIVE, PAST_DUE, EXPIRED, CANCELLED), but send messages only with an ACTIVE subscription. Enforced server-side. Chat attachments closed in beta. |
-| **KVKK & Minor Consent** | `ConsentRecord` required for students under 18 (recorded online/offline). If consent is not accepted or is revoked (`REVOKED`), they are blocked from checkout, booking, starting conversations, and sending messages. |
+| **Registration Legal Acceptance** | Every registering user accepts current `TERMS_OF_USE` and separate `EXPLICIT_CONSENT`. `KVKK_NOTICE` is public information with no required checkbox; marketing opt-ins are optional. There is no guardian-verification or separate minor-consent product gate. Legacy `ConsentRecord` rows remain historical. New Google users complete legal onboarding before checkout, booking, or messaging. |
 
 ---
 
