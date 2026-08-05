@@ -16,6 +16,7 @@ import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.mapper.UserMapper;
 import com.ykskocluk.demo.repository.RefreshTokenRepository;
 import com.ykskocluk.demo.repository.UserRepository;
+import com.ykskocluk.demo.repository.AccountDeletionRequestRepository;
 import com.ykskocluk.demo.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,13 +51,15 @@ class AuthServiceTest {
     @Mock JwtProperties jwtProperties;
     @Mock OAuth2LoginCodeService oauth2LoginCodeService;
     @Mock LegalAcceptanceService legalAcceptanceService;
+    @Mock AccountDeletionRequestRepository accountDeletionRequestRepository;
 
     AuthService authService;
 
     @BeforeEach
     void setUp() {
         authService = new AuthService(userRepository, refreshTokenRepository,
-                passwordEncoder, jwtService, userMapper, jwtProperties, oauth2LoginCodeService, legalAcceptanceService);
+                passwordEncoder, jwtService, userMapper, jwtProperties, oauth2LoginCodeService,
+                legalAcceptanceService, accountDeletionRequestRepository);
         // Common stubs for the issueTokens() path; lenient so failure tests don't trip strict stubbing.
         lenient().when(jwtService.generateAccessToken(any())).thenReturn("access-token");
         lenient().when(jwtService.getAccessTtlSeconds()).thenReturn(900L);
@@ -73,6 +76,18 @@ class AuthServiceTest {
         u.setRole(Role.STUDENT);
         u.setStatus(UserStatus.ACTIVE);
         return u;
+    }
+
+    @Test
+    void googleLogin_deletedIdentityCannotBeRecreated() {
+        when(accountDeletionRequestRepository.existsByIdentityEmailHashAndStatus(anyString(), any()))
+                .thenReturn(true);
+
+        ApiException error = catchThrowableOfType(ApiException.class, () ->
+                authService.upsertGoogleUser("deleted@example.com", "sub", "Deleted", true));
+
+        assertThat(error.getErrorCode()).isEqualTo("ACCOUNT_DELETED");
+        verify(userRepository, never()).save(any());
     }
 
     // --- register ---

@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.service;
 
 import com.ykskocluk.demo.dto.LegalOnboardingRequest;
+import com.ykskocluk.demo.dto.ExplicitConsentWithdrawalResponse;
 import com.ykskocluk.demo.dto.SubscriptionCheckoutRequest;
 import com.ykskocluk.demo.entity.LegalAcceptance;
 import com.ykskocluk.demo.entity.LegalDocument;
@@ -25,12 +26,14 @@ public class LegalAcceptanceService {
     private final LegalDocumentService documentService;
     private final LegalAcceptanceRepository acceptanceRepository;
     private final UserRepository userRepository;
+    private final MarketingPreferenceService marketingPreferenceService;
 
     public LegalAcceptanceService(LegalDocumentService documentService, LegalAcceptanceRepository acceptanceRepository,
-                                  UserRepository userRepository) {
+                                  UserRepository userRepository, MarketingPreferenceService marketingPreferenceService) {
         this.documentService = documentService;
         this.acceptanceRepository = acceptanceRepository;
         this.userRepository = userRepository;
+        this.marketingPreferenceService = marketingPreferenceService;
     }
 
     public RequiredDocuments validateRequired(Long termsDocumentId, Long explicitConsentDocumentId) {
@@ -92,8 +95,7 @@ public class LegalAcceptanceService {
                                                boolean emailOptIn, boolean smsOptIn) {
         record(user, documents.terms(), LegalAcceptanceType.ACCEPTED, REGISTRATION);
         record(user, documents.explicitConsent(), LegalAcceptanceType.ACCEPTED, REGISTRATION);
-        if (emailOptIn) record(user, documents.explicitConsent(), LegalAcceptanceType.MARKETING_OPT_IN, "MARKETING_EMAIL");
-        if (smsOptIn) record(user, documents.explicitConsent(), LegalAcceptanceType.MARKETING_OPT_IN, "MARKETING_SMS");
+        marketingPreferenceService.recordRegistrationPreferences(user, emailOptIn, smsOptIn);
         user.setLegalOnboardingCompleted(true);
     }
 
@@ -111,6 +113,26 @@ public class LegalAcceptanceService {
             throw new ApiException(HttpStatus.FORBIDDEN, "LEGAL_ONBOARDING_REQUIRED",
                     "Devam etmek için hukuki kayıt onaylarını tamamlayın");
         }
+    }
+
+    @Transactional
+    public ExplicitConsentWithdrawalResponse withdrawExplicitConsent(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
+        var active = acceptanceRepository
+                .findByUserIdAndDocumentTypeAndAcceptanceTypeAndWithdrawnAtIsNull(
+                        userId, LegalDocumentType.EXPLICIT_CONSENT, LegalAcceptanceType.ACCEPTED);
+        Instant withdrawnAt = acceptanceRepository
+                .findFirstByUserIdAndDocumentTypeAndAcceptanceTypeAndWithdrawnAtIsNotNullOrderByWithdrawnAtDesc(
+                        userId, LegalDocumentType.EXPLICIT_CONSENT, LegalAcceptanceType.ACCEPTED)
+                .map(LegalAcceptance::getWithdrawnAt).orElse(null);
+        if (!active.isEmpty()) {
+            withdrawnAt = Instant.now();
+            Instant finalWithdrawnAt = withdrawnAt;
+            active.forEach(acceptance -> acceptance.setWithdrawnAt(finalWithdrawnAt));
+        }
+        user.setLegalOnboardingCompleted(false);
+        return new ExplicitConsentWithdrawalResponse(false, withdrawnAt);
     }
 
     private void record(User user, LegalDocument document, LegalAcceptanceType type, String source) {

@@ -16,4 +16,8 @@ public interface OAuth2LoginCodeRepository extends JpaRepository<OAuth2LoginCode
     @Modifying
     @Query("UPDATE OAuth2LoginCode c SET c.consumedAt = :now WHERE c.codeHash = :codeHash AND c.consumedAt IS NULL AND c.expiresAt > :now")
     int consumeCodeAtomically(@Param("codeHash") String codeHash, @Param("now") Instant now);
+
+    @Modifying
+    @Query("UPDATE OAuth2LoginCode c SET c.consumedAt = :now WHERE c.user.id = :userId AND c.consumedAt IS NULL")
+    int consumeAllForUser(@Param("userId") Long userId, @Param("now") Instant now);
 }

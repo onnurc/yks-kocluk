@@ -35,6 +35,7 @@ class LegalAcceptanceServiceTest {
     @Mock LegalDocumentService documentService;
     @Mock LegalAcceptanceRepository acceptanceRepository;
     @Mock UserRepository userRepository;
+    @Mock MarketingPreferenceService marketingPreferenceService;
     LegalAcceptanceService service;
     LegalDocument terms;
     LegalDocument explicit;
@@ -44,7 +45,8 @@ class LegalAcceptanceServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new LegalAcceptanceService(documentService, acceptanceRepository, userRepository);
+        service = new LegalAcceptanceService(documentService, acceptanceRepository, userRepository,
+                marketingPreferenceService);
         terms = document(3L, LegalDocumentType.TERMS_OF_USE);
         explicit = document(2L, LegalDocumentType.EXPLICIT_CONSENT);
         preInformation = document(6L, LegalDocumentType.PRE_INFORMATION_FORM);
@@ -102,9 +104,46 @@ class LegalAcceptanceServiceTest {
         service.recordRegistrationAcceptances(user,
                 new LegalAcceptanceService.RequiredDocuments(terms, explicit), true, true);
         ArgumentCaptor<LegalAcceptance> captor = ArgumentCaptor.forClass(LegalAcceptance.class);
-        verify(acceptanceRepository, times(4)).save(captor.capture());
+        verify(acceptanceRepository, times(2)).save(captor.capture());
         List<String> sources = captor.getAllValues().stream().map(LegalAcceptance::getSource).toList();
-        assertThat(sources).contains("REGISTRATION", "MARKETING_EMAIL", "MARKETING_SMS");
+        assertThat(sources).containsOnly("REGISTRATION");
+        verify(marketingPreferenceService).recordRegistrationPreferences(user, true, true);
+    }
+
+    @Test
+    void withdrawExplicitConsent_preservesEvidenceAndReopensOnboarding() {
+        User user = user(10L, true);
+        LegalAcceptance explicitAcceptance = new LegalAcceptance();
+        explicitAcceptance.setDocumentType(LegalDocumentType.EXPLICIT_CONSENT);
+        LegalAcceptance termsAcceptance = new LegalAcceptance();
+        termsAcceptance.setDocumentType(LegalDocumentType.TERMS_OF_USE);
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user));
+        when(acceptanceRepository.findByUserIdAndDocumentTypeAndAcceptanceTypeAndWithdrawnAtIsNull(
+                eq(10L), eq(LegalDocumentType.EXPLICIT_CONSENT), any()))
+                .thenReturn(List.of(explicitAcceptance));
+
+        var response = service.withdrawExplicitConsent(10L);
+
+        assertThat(response.legalOnboardingCompleted()).isFalse();
+        assertThat(response.withdrawnAt()).isNotNull();
+        assertThat(explicitAcceptance.getWithdrawnAt()).isNotNull();
+        assertThat(termsAcceptance.getWithdrawnAt()).isNull();
+        assertThat(user.isLegalOnboardingCompleted()).isFalse();
+        verify(acceptanceRepository, never()).delete(any());
+    }
+
+    @Test
+    void withdrawExplicitConsent_repeatedCallIsIdempotent() {
+        User user = user(10L, false);
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user));
+        when(acceptanceRepository.findByUserIdAndDocumentTypeAndAcceptanceTypeAndWithdrawnAtIsNull(
+                eq(10L), eq(LegalDocumentType.EXPLICIT_CONSENT), any())).thenReturn(List.of());
+
+        var response = service.withdrawExplicitConsent(10L);
+
+        assertThat(response.legalOnboardingCompleted()).isFalse();
+        verify(acceptanceRepository, never()).save(any());
+        verify(acceptanceRepository, never()).delete(any());
     }
 
     @Test

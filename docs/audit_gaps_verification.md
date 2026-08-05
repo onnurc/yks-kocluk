@@ -51,6 +51,16 @@ Note that:
 - V20 separates user-level acceptance uniqueness from checkout-level uniqueness, preventing duplicate evidence on the same pending attempt while allowing later genuine transactions to accept the same static legal version.
 - Legal validation completes before any subscription/payment reservation or Iyzico initialization. The external call remains outside the database transaction.
 - Final legal text is not present. The seeded version `1.0` documents are clearly marked placeholders.
+
+## Privacy and account lifecycle foundation
+
+- V21 adds one current marketing state per user/channel, one authenticated cookie-preference row per user, and a controlled account-deletion request. No existing user is backfilled as opted in; necessary storage is implied true and optional categories default false.
+- Marketing permission is independent from transactional/service/safety notifications. No marketing sender, analytics provider, advertising SDK, or anonymous visitor identifier was added.
+- Cookie preference writes validate the submitted document against the current effective published `COOKIE_POLICY`; wrong-type, stale, retired, and future-effective rows cannot become current preferences.
+- Required Explicit Consent withdrawal preserves the acceptance snapshot with `withdrawn_at`, reopens legal onboarding, and leaves Terms/KVKK evidence untouched. The existing legal gate continues to protect checkout, booking, conversation creation, and message sending.
+- Completed deletion anonymizes account/profile PII, makes coaches undiscoverable, revokes refresh/OAuth login codes, unlinks Google identity, and keeps the main user row as `DELETED`. Financial, subscription, legal/checkout evidence, message, report, security, and audit relations are not hard-deleted or rewritten.
+- Deletion identity hashes are retained only to prevent a deleted password/Google identity from silently recreating an account. Exact legal retention periods, message-retention duration, external object cleanup, failed-request operator tooling, and a suspended-user support path remain production TODOs.
+- Refund/service-commencement policy and coach-transfer behavior are unchanged.
 - Refund/service-commencement behavior is deliberately unchanged: the exact commencement event remains unresolved, and no automatic eligibility logic is introduced here.
 
 ---

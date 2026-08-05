@@ -380,7 +380,7 @@ Both standing credential-rotation action items are **DONE** (no longer open):
 
 ## Migrations (V1–V20)
 
-V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subscriptions · V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging · V10 payments_autorenew · V11 webhook_verifications · V12-V13 safety/admin · V14-V16 demo seed · V17 legacy minor-consent status · V18 OAuth login codes · V19 versioned legal documents and acceptances · V20 checkout legal documents and transaction-linked evidence.
+V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subscriptions · V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging · V10 payments_autorenew · V11 webhook_verifications · V12-V13 safety/admin · V14-V16 demo seed · V17 legacy minor-consent status · V18 OAuth login codes · V19 versioned legal documents and acceptances · V20 checkout legal documents and transaction-linked evidence · V21 privacy preferences and account deletion.
 
 ## Versioned registration legal acceptance
 
@@ -398,6 +398,15 @@ V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subsc
 - Package, coach, duplicate-subscription, user, and legal-onboarding checks run before checkout-document validation. Subscription/payment/evidence commit together; Iyzico initialization remains outside the transaction and is never called after legal validation failure.
 - V20 content is explicit placeholder text pending approved legal wording.
 - Refund eligibility and the technical event defining service commencement remain unresolved and unchanged. This work adds no automatic refund decision or coach-transfer behavior.
+
+## Privacy preferences, consent withdrawal, and account deletion
+
+- Marketing email and SMS permissions are optional, explicit, channel-specific states. Registration/onboarding opt-ins now persist through `marketing_preferences`; existing users and omitted flags default to not granted. Transactional service, payment, booking, subscription, security, and moderation emails do not consult marketing preferences.
+- Authenticated cookie preferences are stored in `privacy_preferences`. Necessary storage is always enabled, while analytics and marketing default to false and require the current effective published `COOKIE_POLICY`. Anonymous visitor choices remain a frontend/browser-local concern; no anonymous tracking identifier was introduced.
+- `POST /api/v1/privacy/explicit-consent/withdraw` timestamps active Explicit Consent evidence and sets `legalOnboardingCompleted=false`. Terms and KVKK Notice are untouched. Checkout, booking, conversation creation, and message sending retain their existing legal-onboarding gate; the existing onboarding API can record the current consent again.
+- Account deletion is a synchronous controlled workflow: it records a deletion request, sets `UserStatus.DELETED`, revokes refresh tokens and pending OAuth login codes, unlinks Google identity, clears profile PII and optional preferences, and replaces account identity with a unique non-original placeholder. Deleted identity hashes prevent password/Google recreation with the same identity.
+- The main user, messages, reports, subscriptions, payments/refunds, legal acceptances, checkout evidence, and audit/security records are retained for integrity and dispute/accounting needs. Exact statutory retention periods—including message retention—and operational deletion of external storage objects remain production legal-policy TODOs.
+- Suspended users cannot currently self-request deletion because the JWT filter blocks all suspended-account API access; an admin/support remediation path is still needed. Refund/service-commencement and coach-transfer rules are unchanged.
 
 ## Critical-path tests (the ones to never break)
 `AuthServiceTest` · `SubscriptionCapacityConcurrencyTest` · `SessionDoubleBookingConcurrencyTest` · `SessionQuotaBoundaryTest` · `SessionLifecycleTest` · `MessageServiceTest` / `MessageGateIntegrationTest` (child-safety gate) · `WebSocketAuthTest` · `SubscriptionRenewalConcurrencyTest` · `SubscriptionBillingServiceTest` · `MinorConsentServiceTest` · `InMemoryRateLimitStoreTest` · `AuthRateLimitServiceTest` · `AuthControllerRateLimitTest`.
