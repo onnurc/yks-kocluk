@@ -44,6 +44,15 @@ Note that:
 - Legacy minor-consent APIs and records remain for backward compatibility and audit history. Age-based enforcement is deprecated and no longer separately blocks product actions; there is no guardian-verification flow.
 - Initial version `1.0` content is explicitly placeholder text pending the legal team's approved wording.
 
+## Checkout legal-document acceptance
+
+- New subscription checkout requests carry current IDs for `PRE_INFORMATION_FORM`, `DISTANCE_SALES_AGREEMENT`, and `REFUND_CANCELLATION_POLICY`, plus one aggregate acceptance flag matching the single UI checkbox.
+- Although the UI has one checkbox, three separate `LegalAcceptance` rows are stored with version/hash snapshots and links to the exact subscription and initial payment attempt.
+- V20 separates user-level acceptance uniqueness from checkout-level uniqueness, preventing duplicate evidence on the same pending attempt while allowing later genuine transactions to accept the same static legal version.
+- Legal validation completes before any subscription/payment reservation or Iyzico initialization. The external call remains outside the database transaction.
+- Final legal text is not present. The seeded version `1.0` documents are clearly marked placeholders.
+- Refund/service-commencement behavior is deliberately unchanged: the exact commencement event remains unresolved, and no automatic eligibility logic is introduced here.
+
 ---
 
 ## DemoSeedCleanupComponent

@@ -14,6 +14,7 @@ import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PackageRepository;
 import com.ykskocluk.demo.repository.PaymentRepository;
+import com.ykskocluk.demo.repository.LegalAcceptanceRepository;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
 import com.ykskocluk.demo.repository.UniversityRepository;
 import com.ykskocluk.demo.repository.UserRepository;
@@ -48,6 +49,7 @@ class SubscriptionCheckoutIntegrationTest {
     @Autowired PackageRepository packageRepository;
     @Autowired SubscriptionRepository subscriptionRepository;
     @Autowired PaymentRepository paymentRepository;
+    @Autowired LegalAcceptanceRepository legalAcceptanceRepository;
 
     private String register(String email, String role) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
@@ -103,7 +105,7 @@ class SubscriptionCheckoutIntegrationTest {
         String student = register(studentEmail, "STUDENT");
         long packageId = firstPackageId(student);
 
-        String body = "{\"coachId\":%d,\"packageId\":%d}".formatted(coachId, packageId);
+        String body = checkoutBody(coachId, packageId);
         String response = mockMvc.perform(post("/api/v1/subscriptions/checkout")
                         .header("Authorization", "Bearer " + student)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -124,6 +126,14 @@ class SubscriptionCheckoutIntegrationTest {
         assertThat(coachProfileRepository.findById((long) coachId).orElseThrow().getActiveStudentCount()).isZero();
 
         assertThat(paymentRepository.findById(paymentId).orElseThrow().getStatus()).isEqualTo(PaymentStatus.PENDING);
+        var acceptances = legalAcceptanceRepository.findBySubscriptionIdOrderByIdAsc(subscriptionId);
+        assertThat(acceptances).hasSize(3);
+        assertThat(acceptances).allSatisfy(acceptance -> {
+            assertThat(acceptance.getPayment().getId()).isEqualTo(paymentId);
+            assertThat(acceptance.getDocumentVersion()).isEqualTo("1.0");
+            assertThat(acceptance.getDocumentContentHash()).hasSize(64);
+            assertThat(acceptance.getSource()).isEqualTo("SUBSCRIPTION_CHECKOUT");
+        });
     }
 
     @Test
@@ -132,13 +142,15 @@ class SubscriptionCheckoutIntegrationTest {
         int coachId = approvedCoachProfileId("coach-checkout-dupe@example.com", admin);
         String student = register("student-checkout-dupe@example.com", "STUDENT");
         long packageId = firstPackageId(student);
-        String body = "{\"coachId\":%d,\"packageId\":%d}".formatted(coachId, packageId);
+        String body = checkoutBody(coachId, packageId);
 
-        mockMvc.perform(post("/api/v1/subscriptions/checkout")
+        String firstResponse = mockMvc.perform(post("/api/v1/subscriptions/checkout")
                         .header("Authorization", "Bearer " + student)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isCreated());
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long subscriptionId = JsonPath.read(firstResponse, "$.subscriptionId");
 
         mockMvc.perform(post("/api/v1/subscriptions/checkout")
                         .header("Authorization", "Bearer " + student)
@@ -146,6 +158,7 @@ class SubscriptionCheckoutIntegrationTest {
                         .content(body))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("ALREADY_SUBSCRIBED"));
+        assertThat(legalAcceptanceRepository.findBySubscriptionIdOrderByIdAsc(subscriptionId)).hasSize(3);
     }
 
     @Test
@@ -166,7 +179,7 @@ class SubscriptionCheckoutIntegrationTest {
         String student = register("student-succeed@example.com", "STUDENT");
         long packageId = firstPackageId(student);
 
-        String body = "{\"coachId\":%d,\"packageId\":%d}".formatted(coachId, packageId);
+        String body = checkoutBody(coachId, packageId);
         String checkoutRes = mockMvc.perform(post("/api/v1/subscriptions/checkout")
                         .header("Authorization", "Bearer " + student)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -215,7 +228,7 @@ class SubscriptionCheckoutIntegrationTest {
         String studentB = register("student-succeed-b@example.com", "STUDENT");
         long packageId = firstPackageId(studentA);
 
-        String body = "{\"coachId\":%d,\"packageId\":%d}".formatted(coachId, packageId);
+        String body = checkoutBody(coachId, packageId);
         String checkoutRes = mockMvc.perform(post("/api/v1/subscriptions/checkout")
                         .header("Authorization", "Bearer " + studentA)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -239,7 +252,7 @@ class SubscriptionCheckoutIntegrationTest {
         String student = register("student-webhook-succeed@example.com", "STUDENT");
         long packageId = firstPackageId(student);
 
-        String body = "{\"coachId\":%d,\"packageId\":%d}".formatted(coachId, packageId);
+        String body = checkoutBody(coachId, packageId);
         String checkoutRes = mockMvc.perform(post("/api/v1/subscriptions/checkout")
                         .header("Authorization", "Bearer " + student)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -285,7 +298,7 @@ class SubscriptionCheckoutIntegrationTest {
         String student = register("student-webhook-fail@example.com", "STUDENT");
         long packageId = firstPackageId(student);
 
-        String body = "{\"coachId\":%d,\"packageId\":%d}".formatted(coachId, packageId);
+        String body = checkoutBody(coachId, packageId);
         String checkoutRes = mockMvc.perform(post("/api/v1/subscriptions/checkout")
                         .header("Authorization", "Bearer " + student)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -315,6 +328,12 @@ class SubscriptionCheckoutIntegrationTest {
                         .content("{\"paymentId\":%d,\"status\":\"FAILURE\"}".formatted(paymentId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("IDEMPOTENT"));
+    }
+
+    private String checkoutBody(long coachId, long packageId) {
+        return ("{\"coachId\":%d,\"packageId\":%d,\"preInformationDocumentId\":6,"
+                + "\"distanceSalesDocumentId\":7,\"refundCancellationPolicyDocumentId\":8,"
+                + "\"legalDocumentsAccepted\":true}").formatted(coachId, packageId);
     }
 
     // webhook_invalidStatus_returnsBadRequest and webhook_unknownPaymentId_returnsNotFound were

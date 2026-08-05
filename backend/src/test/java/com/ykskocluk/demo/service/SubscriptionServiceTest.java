@@ -2,6 +2,7 @@ package com.ykskocluk.demo.service;
 
 import com.ykskocluk.demo.config.PaymentProperties;
 import com.ykskocluk.demo.dto.SubscriptionCheckoutResponse;
+import com.ykskocluk.demo.dto.SubscriptionCheckoutRequest;
 import com.ykskocluk.demo.dto.SubscriptionCreateRequest;
 import com.ykskocluk.demo.dto.SubscriptionResponse;
 import com.ykskocluk.demo.dto.IyzicoWebhookRequest;
@@ -36,6 +37,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.http.HttpStatus;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -48,6 +50,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -67,6 +71,7 @@ class SubscriptionServiceTest {
     @Mock SubscriptionMapper subscriptionMapper;
     @Mock EntityManager entityManager;
     @Mock com.ykskocluk.demo.service.ConsentService consentService;
+    @Mock LegalAcceptanceService legalAcceptanceService;
     @Mock org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     PaymentProperties paymentProperties;
@@ -83,7 +88,7 @@ class SubscriptionServiceTest {
             coachProfileRepository, userRepository, paymentRepository, paymentProperties,
             iyzicoClient, subscriptionMapper, entityManager,
             new com.ykskocluk.demo.config.IyzicoProperties(false, "sandbox", "dummy", "dummy", "dummy", "dummy"),
-            consentService, transactionManager);
+            consentService, legalAcceptanceService, transactionManager);
 
         Package pkg = new Package();
         ReflectionTestUtils.setField(pkg, "id", PKG_ID);
@@ -115,6 +120,10 @@ class SubscriptionServiceTest {
 
     private SubscriptionCreateRequest request() {
         return new SubscriptionCreateRequest(COACH_ID, PKG_ID);
+    }
+
+    private SubscriptionCheckoutRequest checkoutRequest() {
+        return new SubscriptionCheckoutRequest(COACH_ID, PKG_ID, 6L, 7L, 8L, true);
     }
 
     @Test
@@ -201,7 +210,7 @@ class SubscriptionServiceTest {
             return payment;
         });
 
-        SubscriptionCheckoutResponse response = service.checkout(STUDENT_ID, request());
+        SubscriptionCheckoutResponse response = service.checkout(STUDENT_ID, checkoutRequest());
 
         assertThat(response.subscriptionId()).isEqualTo(11L);
         assertThat(response.paymentId()).isEqualTo(22L);
@@ -210,6 +219,49 @@ class SubscriptionServiceTest {
         assertThat(response.checkoutToken()).isEqualTo("stub-checkout-token");
         verify(coachProfileRepository, never()).incrementActiveStudentCountIfRoom(COACH_ID);
         verify(paymentRepository).saveAndFlush(any(Payment.class));
+        verify(legalAcceptanceService).validateCheckout(checkoutRequest());
+        verify(legalAcceptanceService).recordCheckoutAcceptances(any(User.class), any(Subscription.class),
+                any(Payment.class), any());
+    }
+
+    @Test
+    void checkout_legalValidationFailure_happensBeforePaymentProviderInitialization() {
+        when(legalAcceptanceService.validateCheckout(any())).thenThrow(new ApiException(
+                HttpStatus.BAD_REQUEST, "REQUIRED_CHECKOUT_LEGAL_ACCEPTANCE_MISSING", "Kabul gerekli"));
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.checkout(STUDENT_ID, checkoutRequest()));
+
+        assertThat(ex.getErrorCode()).isEqualTo("REQUIRED_CHECKOUT_LEGAL_ACCEPTANCE_MISSING");
+        verify(subscriptionRepository, never()).saveAndFlush(any());
+        verify(paymentRepository, never()).saveAndFlush(any());
+        verify(iyzicoClient, never()).initializeCheckout(any(), any(), any(), any());
+    }
+
+    @Test
+    void checkout_existingPendingPayment_preservesDuplicateGuardAndCreatesNoEvidence() {
+        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(
+                STUDENT_ID, COACH_ID, SubscriptionStatus.PENDING_PAYMENT)).thenReturn(true);
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.checkout(STUDENT_ID, checkoutRequest()));
+
+        assertThat(ex.getErrorCode()).isEqualTo("ALREADY_SUBSCRIBED");
+        verifyNoInteractions(legalAcceptanceService);
+        verify(iyzicoClient, never()).initializeCheckout(any(), any(), any(), any());
+    }
+
+    @Test
+    void checkout_incompleteRegistrationLegalOnboarding_remainsBlocked() {
+        doThrow(new ApiException(HttpStatus.FORBIDDEN, "LEGAL_ONBOARDING_REQUIRED", "Onboarding gerekli"))
+                .when(consentService).checkConsentRequiredForAction(any());
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.checkout(STUDENT_ID, checkoutRequest()));
+
+        assertThat(ex.getErrorCode()).isEqualTo("LEGAL_ONBOARDING_REQUIRED");
+        verifyNoInteractions(legalAcceptanceService);
+        verify(iyzicoClient, never()).initializeCheckout(any(), any(), any(), any());
     }
 
     @Test

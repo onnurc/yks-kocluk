@@ -378,9 +378,9 @@ Both standing credential-rotation action items are **DONE** (no longer open):
 
 ---
 
-## Migrations (V1–V19)
+## Migrations (V1–V20)
 
-V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subscriptions · V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging · V10 payments_autorenew · V11 webhook_verifications · V12-V13 safety/admin · V14-V16 demo seed · V17 legacy minor-consent status · V18 OAuth login codes · V19 versioned legal documents and acceptances. V19 must be applied before clients use the new registration contract.
+V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subscriptions · V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging · V10 payments_autorenew · V11 webhook_verifications · V12-V13 safety/admin · V14-V16 demo seed · V17 legacy minor-consent status · V18 OAuth login codes · V19 versioned legal documents and acceptances · V20 checkout legal documents and transaction-linked evidence.
 
 ## Versioned registration legal acceptance
 
@@ -389,6 +389,15 @@ V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subsc
 - No guardian account or guardian verification exists. `date_of_birth` and legacy `consent_records` remain for compatibility/audit, but age or a revoked legacy record no longer creates a separate checkout, booking, conversation, or message gate.
 - Existing users are backfilled as legally onboarded to avoid lockout. Newly created Google OAuth users are not auto-accepted and use `POST /api/v1/auth/legal-onboarding` before protected product actions.
 - V19 seeds clearly labelled placeholder version `1.0` documents. Approved legal wording must replace them before production reliance.
+
+## Checkout legal acceptance
+
+- The UI presents one mandatory checkbox covering the current Ön Bilgilendirme Formu, Mesafeli Satış Sözleşmesi, and İade / İptal Politikası.
+- The backend validates all three submitted current document IDs and creates three separate immutable acceptance records. Every record snapshots document type, version, content hash, and acceptance time.
+- Checkout acceptance evidence is linked to both the reserved subscription and its initial payment attempt. The database permits one active evidence row per checkout/document and keeps registration/onboarding uniqueness separate.
+- Package, coach, duplicate-subscription, user, and legal-onboarding checks run before checkout-document validation. Subscription/payment/evidence commit together; Iyzico initialization remains outside the transaction and is never called after legal validation failure.
+- V20 content is explicit placeholder text pending approved legal wording.
+- Refund eligibility and the technical event defining service commencement remain unresolved and unchanged. This work adds no automatic refund decision or coach-transfer behavior.
 
 ## Critical-path tests (the ones to never break)
 `AuthServiceTest` · `SubscriptionCapacityConcurrencyTest` · `SessionDoubleBookingConcurrencyTest` · `SessionQuotaBoundaryTest` · `SessionLifecycleTest` · `MessageServiceTest` / `MessageGateIntegrationTest` (child-safety gate) · `WebSocketAuthTest` · `SubscriptionRenewalConcurrencyTest` · `SubscriptionBillingServiceTest` · `MinorConsentServiceTest` · `InMemoryRateLimitStoreTest` · `AuthRateLimitServiceTest` · `AuthControllerRateLimitTest`.

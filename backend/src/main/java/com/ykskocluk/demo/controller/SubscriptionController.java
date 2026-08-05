@@ -2,6 +2,7 @@ package com.ykskocluk.demo.controller;
 
 import com.ykskocluk.demo.dto.SubscriptionCreateRequest;
 import com.ykskocluk.demo.dto.SubscriptionCheckoutResponse;
+import com.ykskocluk.demo.dto.SubscriptionCheckoutRequest;
 import com.ykskocluk.demo.dto.SubscriptionResponse;
 import com.ykskocluk.demo.integration.MailClient;
 import com.ykskocluk.demo.service.CancelResult;
@@ -55,7 +56,7 @@ public class SubscriptionController {
 
     @PostMapping("/checkout")
     public ResponseEntity<SubscriptionCheckoutResponse> checkout(@AuthenticationPrincipal Long studentUserId,
-                                                                 @Valid @RequestBody SubscriptionCreateRequest request) {
+                                                                 @Valid @RequestBody SubscriptionCheckoutRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(subscriptionService.checkout(studentUserId, request));
     }
 

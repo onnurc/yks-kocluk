@@ -163,6 +163,7 @@ Response: wrap `Page<T>` in a `PageResponse<T>` DTO:
 | **Refund ↔ payout order** | Do not release payout before the refund window closes. |
 | **Child-safety message gate** | A student can view history of active/past subscriptions (ACTIVE, PAST_DUE, EXPIRED, CANCELLED), but send messages only with an ACTIVE subscription. Enforced server-side. Chat attachments closed in beta. |
 | **Registration Legal Acceptance** | Every registering user accepts current `TERMS_OF_USE` and separate `EXPLICIT_CONSENT`. `KVKK_NOTICE` is public information with no required checkbox; marketing opt-ins are optional. There is no guardian-verification or separate minor-consent product gate. Legacy `ConsentRecord` rows remain historical. New Google users complete legal onboarding before checkout, booking, or messaging. |
+| **Checkout Legal Acceptance** | Subscription checkout uses one UI checkbox for current `PRE_INFORMATION_FORM`, `DISTANCE_SALES_AGREEMENT`, and `REFUND_CANCELLATION_POLICY`, while the backend stores three separate version/hash snapshots linked to the subscription and payment attempt before external checkout initialization. Refund/service-commencement rules are unchanged and unresolved. |
 
 ---
 

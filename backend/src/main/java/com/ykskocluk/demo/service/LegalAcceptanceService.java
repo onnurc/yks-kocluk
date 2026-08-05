@@ -1,8 +1,11 @@
 package com.ykskocluk.demo.service;
 
 import com.ykskocluk.demo.dto.LegalOnboardingRequest;
+import com.ykskocluk.demo.dto.SubscriptionCheckoutRequest;
 import com.ykskocluk.demo.entity.LegalAcceptance;
 import com.ykskocluk.demo.entity.LegalDocument;
+import com.ykskocluk.demo.entity.Payment;
+import com.ykskocluk.demo.entity.Subscription;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.LegalAcceptanceType;
 import com.ykskocluk.demo.enums.LegalDocumentType;
@@ -18,6 +21,7 @@ import java.time.Instant;
 @Service
 public class LegalAcceptanceService {
     private static final String REGISTRATION = "REGISTRATION";
+    private static final String SUBSCRIPTION_CHECKOUT = "SUBSCRIPTION_CHECKOUT";
     private final LegalDocumentService documentService;
     private final LegalAcceptanceRepository acceptanceRepository;
     private final UserRepository userRepository;
@@ -46,6 +50,42 @@ public class LegalAcceptanceService {
                     "Gönderilen hukuki doküman güncel değil");
         }
         return new RequiredDocuments(terms, explicit);
+    }
+
+    public CheckoutDocuments validateCheckout(SubscriptionCheckoutRequest request) {
+        if (request == null || !request.legalDocumentsAccepted()
+                || request.preInformationDocumentId() == null
+                || request.distanceSalesDocumentId() == null
+                || request.refundCancellationPolicyDocumentId() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "REQUIRED_CHECKOUT_LEGAL_ACCEPTANCE_MISSING",
+                    "Ödeme öncesi hukuki dokümanlar kabul edilmelidir");
+        }
+
+        LegalDocument submittedPreInformation = requireType(
+                request.preInformationDocumentId(), LegalDocumentType.PRE_INFORMATION_FORM);
+        LegalDocument submittedDistanceSales = requireType(
+                request.distanceSalesDocumentId(), LegalDocumentType.DISTANCE_SALES_AGREEMENT);
+        LegalDocument submittedRefundPolicy = requireType(
+                request.refundCancellationPolicyDocumentId(), LegalDocumentType.REFUND_CANCELLATION_POLICY);
+
+        LegalDocument currentPreInformation = documentService.currentEntity(LegalDocumentType.PRE_INFORMATION_FORM);
+        LegalDocument currentDistanceSales = documentService.currentEntity(LegalDocumentType.DISTANCE_SALES_AGREEMENT);
+        LegalDocument currentRefundPolicy = documentService.currentEntity(LegalDocumentType.REFUND_CANCELLATION_POLICY);
+
+        if (!currentPreInformation.getId().equals(submittedPreInformation.getId())
+                || !currentDistanceSales.getId().equals(submittedDistanceSales.getId())
+                || !currentRefundPolicy.getId().equals(submittedRefundPolicy.getId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "CHECKOUT_LEGAL_DOCUMENT_NOT_CURRENT",
+                    "Gönderilen ödeme hukuki dokümanlarından biri güncel değil");
+        }
+        return new CheckoutDocuments(currentPreInformation, currentDistanceSales, currentRefundPolicy);
+    }
+
+    public void recordCheckoutAcceptances(User user, Subscription subscription, Payment payment,
+                                          CheckoutDocuments documents) {
+        recordCheckout(user, subscription, payment, documents.preInformation());
+        recordCheckout(user, subscription, payment, documents.distanceSales());
+        recordCheckout(user, subscription, payment, documents.refundCancellationPolicy());
     }
 
     public void recordRegistrationAcceptances(User user, RequiredDocuments documents,
@@ -88,5 +128,38 @@ public class LegalAcceptanceService {
         acceptanceRepository.save(acceptance);
     }
 
+    private LegalDocument requireType(Long documentId, LegalDocumentType expectedType) {
+        LegalDocument document = documentService.findById(documentId);
+        if (document.getType() != expectedType) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "CHECKOUT_LEGAL_DOCUMENT_TYPE_MISMATCH",
+                    "Hukuki doküman beklenen türle eşleşmiyor");
+        }
+        return document;
+    }
+
+    private void recordCheckout(User user, Subscription subscription, Payment payment, LegalDocument document) {
+        if (acceptanceRepository
+                .existsBySubscriptionIdAndLegalDocumentIdAndAcceptanceTypeAndSourceAndWithdrawnAtIsNull(
+                        subscription.getId(), document.getId(), LegalAcceptanceType.ACCEPTED,
+                        SUBSCRIPTION_CHECKOUT)) {
+            return;
+        }
+        LegalAcceptance acceptance = new LegalAcceptance();
+        acceptance.setUser(user);
+        acceptance.setLegalDocument(document);
+        acceptance.setDocumentType(document.getType());
+        acceptance.setDocumentVersion(document.getDocumentVersion());
+        acceptance.setDocumentContentHash(document.getContentHash());
+        acceptance.setAcceptanceType(LegalAcceptanceType.ACCEPTED);
+        acceptance.setAcceptedAt(Instant.now());
+        acceptance.setSource(SUBSCRIPTION_CHECKOUT);
+        acceptance.setSubscription(subscription);
+        acceptance.setPayment(payment);
+        acceptanceRepository.save(acceptance);
+    }
+
     public record RequiredDocuments(LegalDocument terms, LegalDocument explicitConsent) { }
+
+    public record CheckoutDocuments(LegalDocument preInformation, LegalDocument distanceSales,
+                                    LegalDocument refundCancellationPolicy) { }
 }

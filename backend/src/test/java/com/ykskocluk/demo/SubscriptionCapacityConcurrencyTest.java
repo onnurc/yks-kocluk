@@ -2,6 +2,7 @@ package com.ykskocluk.demo;
 
 import com.ykskocluk.demo.dto.SubscriptionCheckoutResponse;
 import com.ykskocluk.demo.dto.SubscriptionCreateRequest;
+import com.ykskocluk.demo.dto.SubscriptionCheckoutRequest;
 import com.ykskocluk.demo.dto.IyzicoWebhookRequest;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Payment;
@@ -90,8 +91,8 @@ class SubscriptionCapacityConcurrencyTest {
         Long packageId = packageRepository.findByActiveTrueOrderByPriceAsc().get(0).getId();
 
         // 1. Both checkout (which is fine, checkout doesn't check/increment capacity)
-        SubscriptionCheckoutResponse checkoutA = subscriptionService.checkout(studentA.getId(), new SubscriptionCreateRequest(coachId, packageId));
-        SubscriptionCheckoutResponse checkoutB = subscriptionService.checkout(studentB.getId(), new SubscriptionCreateRequest(coachId, packageId));
+        SubscriptionCheckoutResponse checkoutA = subscriptionService.checkout(studentA.getId(), checkoutRequest(coachId, packageId));
+        SubscriptionCheckoutResponse checkoutB = subscriptionService.checkout(studentB.getId(), checkoutRequest(coachId, packageId));
 
         // 2. Both try to concurrently succeed payment
         ExecutorService pool = Executors.newFixedThreadPool(2);
@@ -163,7 +164,7 @@ class SubscriptionCapacityConcurrencyTest {
         User student = student("student-same-" + UUID.randomUUID() + "@example.com");
         Long packageId = packageRepository.findByActiveTrueOrderByPriceAsc().get(0).getId();
 
-        SubscriptionCheckoutResponse checkout = subscriptionService.checkout(student.getId(), new SubscriptionCreateRequest(coachId, packageId));
+        SubscriptionCheckoutResponse checkout = subscriptionService.checkout(student.getId(), checkoutRequest(coachId, packageId));
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch start = new CountDownLatch(1);
@@ -221,7 +222,7 @@ class SubscriptionCapacityConcurrencyTest {
         User student = student("student-web-same-" + UUID.randomUUID() + "@example.com");
         Long packageId = packageRepository.findByActiveTrueOrderByPriceAsc().get(0).getId();
 
-        SubscriptionCheckoutResponse checkout = subscriptionService.checkout(student.getId(), new SubscriptionCreateRequest(coachId, packageId));
+        SubscriptionCheckoutResponse checkout = subscriptionService.checkout(student.getId(), checkoutRequest(coachId, packageId));
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch start = new CountDownLatch(1);
@@ -290,5 +291,9 @@ class SubscriptionCapacityConcurrencyTest {
 
         CoachProfile reloaded = coachProfileRepository.findById(coachId).orElseThrow();
         assertThat(reloaded.getActiveStudentCount()).isZero(); // successfully rolled back!
+    }
+
+    private SubscriptionCheckoutRequest checkoutRequest(Long coachId, Long packageId) {
+        return new SubscriptionCheckoutRequest(coachId, packageId, 6L, 7L, 8L, true);
     }
 }
