@@ -9,9 +9,33 @@ export interface CurrentUser {
   role: UserRole;
   status: UserStatus;
   dateOfBirth?: string;
+  legalOnboardingCompleted: boolean;
 }
 
 export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  fullName: string;
+  role: "STUDENT" | "COACH";
+  dateOfBirth?: string;
+  acceptedTermsDocumentId: number;
+  acceptedExplicitConsentDocumentId: number;
+  marketingEmailOptIn: boolean;
+  marketingSmsOptIn: boolean;
+}
+
+export interface LegalOnboardingRequest {
+  termsDocumentId: number;
+  explicitConsentDocumentId: number;
+  marketingEmailOptIn: boolean;
+  marketingSmsOptIn: boolean;
+}
+
+export interface LegalOnboardingResponse {
+  legalOnboardingCompleted: boolean;
 }

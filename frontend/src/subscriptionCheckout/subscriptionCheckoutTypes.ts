@@ -3,6 +3,10 @@ import type { SubscriptionStatus, PaymentStatus } from "../studentDashboard/stud
 export interface SubscriptionCheckoutRequest {
   coachId: number;
   packageId: number;
+  preInformationDocumentId: number;
+  distanceSalesDocumentId: number;
+  refundCancellationPolicyDocumentId: number;
+  legalDocumentsAccepted: true;
 }
 
 export interface SubscriptionCheckoutResponse {

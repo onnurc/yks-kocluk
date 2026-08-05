@@ -1,7 +1,8 @@
 import { getAccessToken } from "../auth/tokenStorage";
 import { ApiError } from "./ApiError";
+import type { FieldError } from "./ApiError";
 
-const getBaseUrl = (): string => {
+export const getApiBaseUrl = (): string => {
   return (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080").replace(/\/$/, "");
 };
 
@@ -10,7 +11,7 @@ export const request = async <T>(
   options: RequestInit = {}
 ): Promise<T> => {
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
-  const url = `${getBaseUrl()}${cleanPath}`;
+  const url = `${getApiBaseUrl()}${cleanPath}`;
   const headers = new Headers(options.headers);
 
   if (options.body && !headers.has("Content-Type")) {
@@ -28,7 +29,7 @@ export const request = async <T>(
   });
 
   if (!response.ok) {
-    let errorData: any = {};
+    let errorData: Record<string, unknown> = {};
     try {
       errorData = await response.json();
     } catch {
@@ -36,10 +37,16 @@ export const request = async <T>(
     }
 
     const status = response.status;
-    const title = errorData.title || response.statusText || "Error";
-    const detail = errorData.detail || errorData.message || "An unexpected error occurred.";
-    const code = errorData.errorCode || errorData.code;
-    const fieldErrors = errorData.fieldErrors || errorData.errors;
+    const title = typeof errorData.title === "string" ? errorData.title : response.statusText || "Error";
+    const detail = typeof errorData.detail === "string" ? errorData.detail : typeof errorData.message === "string" ? errorData.message : "An unexpected error occurred.";
+    const codeValue = errorData.errorCode || errorData.code;
+    const code = typeof codeValue === "string" ? codeValue : undefined;
+    const fieldErrorsValue = errorData.fieldErrors || errorData.errors;
+    const fieldErrors = Array.isArray(fieldErrorsValue) ? fieldErrorsValue as FieldError[] : undefined;
+
+    if (code === "LEGAL_ONBOARDING_REQUIRED") {
+      window.dispatchEvent(new Event("legal-onboarding-required"));
+    }
 
     throw new ApiError(status, title, detail, code, fieldErrors);
   }
@@ -58,15 +65,21 @@ export const request = async <T>(
 export const httpClient = {
   get: <T>(path: string, headers?: Record<string, string>) =>
     request<T>(path, { method: "GET", headers }),
-  post: <T>(path: string, body?: any, headers?: Record<string, string>) =>
+  post: <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
     request<T>(path, {
       method: "POST",
       body: body ? JSON.stringify(body) : undefined,
       headers,
     }),
-  put: <T>(path: string, body?: any, headers?: Record<string, string>) =>
+  put: <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
     request<T>(path, {
       method: "PUT",
+      body: body ? JSON.stringify(body) : undefined,
+      headers,
+    }),
+  patch: <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
+    request<T>(path, {
+      method: "PATCH",
       body: body ? JSON.stringify(body) : undefined,
       headers,
     }),

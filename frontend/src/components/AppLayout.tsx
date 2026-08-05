@@ -1,11 +1,13 @@
 import React from "react";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
-import { KvkkConsentModal } from "../safety/KvkkConsentModal";
+import { LegalDocumentViewer } from "../legal/LegalDocumentViewer";
+import { useLegalDocuments } from "../legal/useLegalDocuments";
 
 export const AppLayout: React.FC = () => {
-  const { user, isAuthenticated, logout, hasConsented } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const footerDocuments = useLegalDocuments(["KVKK_NOTICE", "PRIVACY_POLICY", "TERMS_OF_USE"]);
 
   const handleLogout = async () => {
     await logout();
@@ -22,6 +24,7 @@ export const AppLayout: React.FC = () => {
           {isAuthenticated && (
             <nav style={{ display: "flex", gap: "1rem" }}>
               <Link to="/dashboard" style={{ color: "#ccc", textDecoration: "none" }}>Anasayfa</Link>
+              <Link to="/privacy" style={{ color: "#ccc", textDecoration: "none" }}>Gizlilik</Link>
               {user?.role === "STUDENT" && (
                 <>
                   <Link to="/coaches" style={{ color: "#ccc", textDecoration: "none" }}>Koç Keşfet</Link>
@@ -50,13 +53,18 @@ export const AppLayout: React.FC = () => {
       </header>
 
       <main style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
-        {!hasConsented && isAuthenticated ? <KvkkConsentModal /> : <Outlet />}
+        <Outlet />
       </main>
 
       <footer style={{ textAlign: "center", padding: "1rem", backgroundColor: "#e9ecef", borderTop: "1px solid #dee2e6" }}>
-        <p style={{ margin: 0, fontSize: "0.9rem", color: "#6c757d" }}>
+        <p style={{ margin: "0 0 .5rem", fontSize: "0.9rem", color: "#6c757d" }}>
           &copy; {new Date().getFullYear()} YKS Koçluk Platformu. Phase 0 Temelleri.
         </p>
+        <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: "1rem", fontSize: ".85rem" }}>
+          <LegalDocumentViewer label="KVKK Aydınlatma Metni" document={footerDocuments.documents.KVKK_NOTICE} loading={footerDocuments.loading} error={footerDocuments.error} onRetry={() => void footerDocuments.reload()} />
+          <LegalDocumentViewer label="Gizlilik Politikası" document={footerDocuments.documents.PRIVACY_POLICY} loading={footerDocuments.loading} error={footerDocuments.error} onRetry={() => void footerDocuments.reload()} />
+          <LegalDocumentViewer label="Kullanım Koşulları" document={footerDocuments.documents.TERMS_OF_USE} loading={footerDocuments.loading} error={footerDocuments.error} onRetry={() => void footerDocuments.reload()} />
+        </div>
       </footer>
     </div>
   );
