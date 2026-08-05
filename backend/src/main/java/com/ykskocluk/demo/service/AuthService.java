@@ -11,10 +11,12 @@ import com.ykskocluk.demo.entity.RefreshToken;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.UserStatus;
+import com.ykskocluk.demo.enums.AccountDeletionStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.mapper.UserMapper;
 import com.ykskocluk.demo.repository.RefreshTokenRepository;
 import com.ykskocluk.demo.repository.UserRepository;
+import com.ykskocluk.demo.repository.AccountDeletionRequestRepository;
 import com.ykskocluk.demo.security.JwtService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -43,6 +45,7 @@ public class AuthService {
     private final JwtProperties jwtProperties;
     private final OAuth2LoginCodeService oauth2LoginCodeService;
     private final LegalAcceptanceService legalAcceptanceService;
+    private final AccountDeletionRequestRepository accountDeletionRequestRepository;
 
     public AuthService(UserRepository userRepository,
                        RefreshTokenRepository refreshTokenRepository,
@@ -51,7 +54,8 @@ public class AuthService {
                        UserMapper userMapper,
                        JwtProperties jwtProperties,
                        OAuth2LoginCodeService oauth2LoginCodeService,
-                       LegalAcceptanceService legalAcceptanceService) {
+                       LegalAcceptanceService legalAcceptanceService,
+                       AccountDeletionRequestRepository accountDeletionRequestRepository) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
@@ -60,10 +64,12 @@ public class AuthService {
         this.jwtProperties = jwtProperties;
         this.oauth2LoginCodeService = oauth2LoginCodeService;
         this.legalAcceptanceService = legalAcceptanceService;
+        this.accountDeletionRequestRepository = accountDeletionRequestRepository;
     }
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        ensureIdentityWasNotDeleted(request.email(), null);
         if (request.role() == Role.ADMIN) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "ROLE_NOT_ALLOWED",
                     "Bu rol ile kayıt olunamaz");
@@ -154,6 +160,7 @@ public class AuthService {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS",
                     "E-posta adresi doğrulanmamış");
         }
+        ensureIdentityWasNotDeleted(email, googleSub);
 
         Optional<User> bySub = userRepository.findByGoogleSub(googleSub);
         User user;
@@ -188,6 +195,7 @@ public class AuthService {
     @Transactional
     public AuthResponse exchangeOAuth2Code(String rawCode) {
         User user = oauth2LoginCodeService.consumeCode(rawCode);
+        ensureActive(user);
         return issueTokens(user);
     }
 
@@ -211,6 +219,18 @@ public class AuthService {
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw new ApiException(HttpStatus.FORBIDDEN, "ACCOUNT_NOT_ACTIVE",
                     "Hesabınız aktif değil");
+        }
+    }
+
+    private void ensureIdentityWasNotDeleted(String email, String googleSub) {
+        boolean deletedEmail = accountDeletionRequestRepository.existsByIdentityEmailHashAndStatus(
+                AccountDeletionService.identityHash(email), AccountDeletionStatus.COMPLETED);
+        boolean deletedSubject = googleSub != null
+                && accountDeletionRequestRepository.existsByOauthSubjectHashAndStatus(
+                        AccountDeletionService.identityHash(googleSub), AccountDeletionStatus.COMPLETED);
+        if (deletedEmail || deletedSubject) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "ACCOUNT_DELETED",
+                    "Silinmiş hesap kimliği yeniden kullanılamaz");
         }
     }
 

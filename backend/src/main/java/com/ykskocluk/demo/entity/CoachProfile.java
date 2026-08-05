@@ -37,8 +37,8 @@ public class CoachProfile extends BaseEntity {
     @Column(length = 2000)
     private String bio;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "university_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "university_id")
     private University university;
 
     @Column(length = 150)
