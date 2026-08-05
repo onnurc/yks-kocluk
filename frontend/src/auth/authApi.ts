@@ -1,5 +1,5 @@
 import { httpClient } from "../api/httpClient";
-import type { AuthResponse, CurrentUser } from "./authTypes";
+import type { AuthResponse, CurrentUser, LegalOnboardingRequest, LegalOnboardingResponse, RegisterRequest } from "./authTypes";
 import { getRefreshToken } from "./tokenStorage";
 
 export const authApi = {
@@ -7,15 +7,14 @@ export const authApi = {
     return httpClient.post<AuthResponse>("/api/v1/auth/login", { email, password });
   },
 
-  register: async (email: string, password: string, fullName: string, role: string, dateOfBirth?: string): Promise<AuthResponse> => {
-    return httpClient.post<AuthResponse>("/api/v1/auth/register", {
-      email,
-      password,
-      fullName,
-      role,
-      dateOfBirth,
-    });
-  },
+  register: (request: RegisterRequest): Promise<AuthResponse> =>
+    httpClient.post<AuthResponse>("/api/v1/auth/register", request),
+
+  exchangeOAuthCode: (code: string): Promise<AuthResponse> =>
+    httpClient.post<AuthResponse>("/api/v1/auth/oauth2/exchange", { code }),
+
+  completeLegalOnboarding: (request: LegalOnboardingRequest): Promise<LegalOnboardingResponse> =>
+    httpClient.post<LegalOnboardingResponse>("/api/v1/auth/legal-onboarding", request),
 
   getCurrentUser: async (): Promise<CurrentUser> => {
     return httpClient.get<CurrentUser>("/api/v1/auth/me");

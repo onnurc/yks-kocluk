@@ -4,6 +4,12 @@ import { useAuth } from "../auth/AuthProvider";
 import { subscriptionCheckoutApi } from "./subscriptionCheckoutApi";
 import type { StudentDashboardResponse } from "../studentDashboard/studentDashboardTypes";
 import { FormError } from "../components/FormError";
+import { LegalDocumentViewer } from "../legal/LegalDocumentViewer";
+import { isStaleLegalDocumentError, legalErrorMessage } from "../legal/legalErrors";
+import { useLegalDocuments } from "../legal/useLegalDocuments";
+import { ApiError } from "../api/ApiError";
+
+const CHECKOUT_DOCUMENT_TYPES = ["PRE_INFORMATION_FORM", "DISTANCE_SALES_AGREEMENT", "REFUND_CANCELLATION_POLICY"] as const;
 
 interface CheckoutSectionProps {
   coachId: number;
@@ -24,16 +30,18 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
 }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<any | null>(null);
+  const [error, setError] = useState<ApiError | Error | string | null>(null);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [legalDocumentsAccepted, setLegalDocumentsAccepted] = useState(false);
+  const legalDocuments = useLegalDocuments([...CHECKOUT_DOCUMENT_TYPES]);
 
   const subStatus = dashboardData?.subscription?.status;
   const isPending = subStatus === "PENDING_PAYMENT";
   const isActive = subStatus === "ACTIVE";
-  const isEligible = user?.role === "STUDENT" && !isPending && !isActive;
+  const isEligible = user?.role === "STUDENT" && user.legalOnboardingCompleted && !isPending && !isActive;
 
   const handleCheckout = async () => {
-    if (!isEligible || loading) return;
+    if (!isEligible || loading || !legalDocuments.ready || !legalDocumentsAccepted) return;
 
     setLoading(true);
     setError(null);
@@ -43,6 +51,10 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
       const response = await subscriptionCheckoutApi.checkout({
         coachId,
         packageId,
+        preInformationDocumentId: legalDocuments.documents.PRE_INFORMATION_FORM!.id,
+        distanceSalesDocumentId: legalDocuments.documents.DISTANCE_SALES_AGREEMENT!.id,
+        refundCancellationPolicyDocumentId: legalDocuments.documents.REFUND_CANCELLATION_POLICY!.id,
+        legalDocumentsAccepted: true,
       });
 
       if (response && response.checkoutUrl) {
@@ -63,14 +75,19 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
           } else {
             throw new Error("Güvenli olmayan veya izin verilmeyen ödeme yönlendirme adresi.");
           }
-        } catch (e: any) {
-          throw new Error(e.message || "Geçersiz ödeme yönlendirme adresi.");
+        } catch (cause: unknown) {
+          const message = cause instanceof Error ? cause.message : "Geçersiz ödeme yönlendirme adresi.";
+          throw new Error(message, { cause });
         }
       } else {
         throw new Error("Ödeme oturumu adresi alınamadı.");
       }
-    } catch (err: any) {
-      setError(err);
+    } catch (err: unknown) {
+      setError(legalErrorMessage(err) || (err instanceof Error ? err : "Ödeme işlemi başlatılamadı."));
+      if (isStaleLegalDocumentError(err)) {
+        setLegalDocumentsAccepted(false);
+        await legalDocuments.reload();
+      }
     } finally {
       setLoading(false);
     }
@@ -78,7 +95,7 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
 
   // Check button label and state
   let buttonLabel = "Ödemeye Geç";
-  let buttonDisabled = !isEligible || loading;
+  let buttonDisabled = !isEligible || loading || !legalDocuments.ready || !legalDocumentsAccepted;
 
   if (loading) {
     buttonLabel = "Ödeme Oturumu Hazırlanıyor...";
@@ -89,13 +106,19 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
   } else if (user?.role !== "STUDENT") {
     buttonLabel = "Yalnızca Öğrenciler Satın Alabilir";
     buttonDisabled = true;
+  } else if (!user.legalOnboardingCompleted) {
+    buttonLabel = "Önce Hukuki Onayları Tamamlayın";
+  } else if (legalDocuments.loading) {
+    buttonLabel = "Hukuki Metinler Yükleniyor...";
+  } else if (!legalDocumentsAccepted) {
+    buttonLabel = "Sözleşmeleri Kabul Edin";
   }
 
   // Handle specialized API error codes or status
   let customErrorMessage = "";
   if (error) {
-    const status = error.status;
-    const code = error.code || error.errorCode;
+    const status = error instanceof ApiError ? error.status : undefined;
+    const code = error instanceof ApiError ? error.code : undefined;
 
     if (status === 409 || code === "ALREADY_SUBSCRIBED") {
       customErrorMessage = "Bu koç ile zaten aktif veya bekleyen bir aboneliğiniz var.";
@@ -120,7 +143,7 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
       {customErrorMessage ? (
         <div style={{ padding: "0.75rem", border: "1px solid #f5c6cb", borderRadius: "4px", backgroundColor: "#f8d7da", color: "#721c24", marginBottom: "1rem", fontSize: "0.9rem" }}>
           ⚠️ {customErrorMessage}
-          {(error.status === 409 || error.code === "ALREADY_SUBSCRIBED") && (
+          {(error instanceof ApiError && (error.status === 409 || error.code === "ALREADY_SUBSCRIBED")) && (
             <div style={{ marginTop: "0.5rem" }}>
               <Link to="/dashboard" style={{ color: "#721c24", fontWeight: "bold", textDecoration: "underline" }}>
                 Panele Geri Dön
@@ -147,6 +170,27 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
       {!isPending && !isActive && !error && (
         <div style={{ padding: "0.75rem", border: "1px solid #ced4da", borderRadius: "4px", backgroundColor: "#f8f9fa", color: "#495057", marginBottom: "1rem", fontSize: "0.9rem" }}>
           ℹ️ "Ödemeye Geç" butonuna tıkladığınızda ödeme sayfasına yönlendirileceksiniz.
+        </div>
+      )}
+
+      {!isPending && !isActive && (
+        <div style={{ padding: "1rem", border: "1px solid #cbd5e1", borderRadius: "6px", background: "#fff", color: "#334155", marginBottom: "1rem" }}>
+          <p style={{ marginTop: 0, fontWeight: 700 }}>Ödeme öncesi hukuki metinler</p>
+          {legalDocuments.loading && <p role="status">Hukuki metinler yükleniyor…</p>}
+          {legalDocuments.error && (
+            <p role="alert" style={{ color: "#b91c1c" }}>
+              Hukuki metinler yüklenemedi. <button type="button" onClick={() => void legalDocuments.reload()}>Yeniden Dene</button>
+            </p>
+          )}
+          <ul style={{ paddingLeft: "1.25rem" }}>
+            <li><LegalDocumentViewer label="Ön Bilgilendirme Formu" document={legalDocuments.documents.PRE_INFORMATION_FORM} loading={legalDocuments.loading} error={legalDocuments.error} onRetry={() => void legalDocuments.reload()} /></li>
+            <li><LegalDocumentViewer label="Mesafeli Satış Sözleşmesi" document={legalDocuments.documents.DISTANCE_SALES_AGREEMENT} loading={legalDocuments.loading} error={legalDocuments.error} onRetry={() => void legalDocuments.reload()} /></li>
+            <li><LegalDocumentViewer label="İade / İptal Politikası" document={legalDocuments.documents.REFUND_CANCELLATION_POLICY} loading={legalDocuments.loading} error={legalDocuments.error} onRetry={() => void legalDocuments.reload()} /></li>
+          </ul>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: ".65rem" }}>
+            <input id="accept-checkout-documents" type="checkbox" checked={legalDocumentsAccepted} onChange={(event) => setLegalDocumentsAccepted(event.target.checked)} disabled={!legalDocuments.ready || loading || !user?.legalOnboardingCompleted} />
+            <label htmlFor="accept-checkout-documents">Ön Bilgilendirme Formu’nu, Mesafeli Satış Sözleşmesi’ni ve İade / İptal Politikası’nı okudum ve kabul ediyorum. <strong>(Zorunlu)</strong></label>
+          </div>
         </div>
       )}
 

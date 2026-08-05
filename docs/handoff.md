@@ -5,6 +5,18 @@ Single-file resume point for a fresh session. **Factual, based on the code as it
 
 _Last updated: 2026-06-27._
 
+## Frontend legal/compliance integration
+
+- Registration loads the current `TERMS_OF_USE`, `EXPLICIT_CONSENT`, and `KVKK_NOTICE`. It sends the two required accepted document IDs plus independent optional email/SMS marketing choices. The KVKK notice is a link, not a separate acceptance checkbox.
+- Google OAuth returns to `/oauth/callback`, exchanges its one-time code, and sends users whose `legalOnboardingCompleted` is false to `/legal-onboarding`. Product routes remain unavailable until the current Terms and Explicit Consent are accepted.
+- Subscription checkout loads and displays the current pre-information form, distance-sales agreement, and refund/cancellation policy. One required checkbox sends all three current document IDs with `legalDocumentsAccepted: true`.
+- `/privacy` exposes authenticated marketing and cookie preferences, Explicit Consent withdrawal/re-onboarding, account-deletion status, and confirmed account deletion.
+- The legacy frontend guardian/minor KVKK modal and guardian-required copy were retired. Date of birth remains in student registration because the backend still requires it.
+- Legal content is rendered as plain text from the backend. Seeded backend legal text remains placeholder content and is not production-approved.
+- Authenticated cookie preferences are synchronized with the backend. Anonymous-visitor cookie preference/banner behavior remains browser/frontend work and is not implemented by this integration.
+- Frontend component testing is now configured with Vitest, jsdom, and Testing Library; `npm test` covers the core registration, OAuth/onboarding, checkout, withdrawal, preference, and deletion behaviors.
+- The broader visual redesign remains separate from this focused integration.
+
 ---
 
 ## Status at a glance

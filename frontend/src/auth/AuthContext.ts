@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type { CurrentUser } from "./authTypes";
+import type { RegisterRequest } from "./authTypes";
 
 export interface AuthContextType {
   user: CurrentUser | null;
@@ -7,14 +8,12 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isSuspended: boolean;
-  hasConsented: boolean;
-  consentVersion: string;
-  consentStatus: string;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, fullName: string, role: string, dateOfBirth?: string) => Promise<void>;
+  register: (request: RegisterRequest) => Promise<void>;
+  completeOAuthLogin: (code: string) => Promise<CurrentUser>;
   logout: () => Promise<void>;
   refreshCurrentUser: () => Promise<void>;
-  setHasConsented: (val: boolean) => void;
+  clearSession: () => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

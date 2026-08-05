@@ -17,6 +17,10 @@ import { CoachDetailPage } from "./pages/CoachDetailPage";
 import { BookingsPage } from "./pages/BookingsPage";
 import { MessagesPage } from "./pages/MessagesPage";
 import { ConversationPage } from "./pages/ConversationPage";
+import { OAuthCallbackPage } from "./pages/OAuthCallbackPage";
+import { LegalOnboardingPage } from "./pages/LegalOnboardingPage";
+import { PrivacySettingsPage } from "./pages/PrivacySettingsPage";
+import { LegalOnboardingRoute } from "./routes/LegalOnboardingRoute";
 import "./App.css";
 
 const App: React.FC = () => {
@@ -28,11 +32,15 @@ const App: React.FC = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/suspended" element={<SuspendedPage />} />
+          <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
 
           {/* Protected Routes */}
           <Route element={<ProtectedRoute />}>
+            <Route path="/legal-onboarding" element={<LegalOnboardingPage />} />
             <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/privacy" element={<PrivacySettingsPage />} />
+              <Route element={<LegalOnboardingRoute />}>
+                <Route path="/dashboard" element={<DashboardPage />} />
               
               {/* Student-only Routes */}
               <Route element={<RoleRoute allowedRoles={["STUDENT"]} />}>
@@ -48,6 +56,7 @@ const App: React.FC = () => {
                 <Route path="/admin" element={<AdminDashboardPage />} />
                 <Route path="/admin/safety" element={<AdminSafetyPage />} />
                 <Route path="/admin/finance" element={<AdminFinancePage />} />
+              </Route>
               </Route>
             </Route>
           </Route>

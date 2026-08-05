@@ -15,6 +15,18 @@ Note that:
 - WebSocketAuthTest timing/flakiness was resolved and verified in a previous branch (`fix/websocket-auth-message-delivery`).
 - Frontend lint cleanup is intentionally deferred to a future frontend QA/lint branch.
 
+## Frontend legal/compliance integration status
+
+- The frontend now consumes current legal documents through `GET /api/v1/legal-documents/{type}/current` and uses a reusable plain-text modal viewer in registration, checkout, footer links, onboarding, and privacy settings.
+- Registration supplies current Terms and Explicit Consent IDs and optional, independent email/SMS marketing choices. The KVKK notice remains informational.
+- Google OAuth has a callback/code-exchange route and a dedicated legal-onboarding route. `legalOnboardingCompleted` is retained in auth state and gates product routes without silently accepting documents.
+- Checkout supplies the current pre-information, distance-sales, and refund/cancellation IDs and cannot start until the aggregate checkbox is selected.
+- Authenticated marketing and cookie preferences, consent withdrawal, and account deletion are exposed under `/privacy`. Successful deletion clears local tokens before redirecting to login.
+- The obsolete age-based guardian modal is no longer rendered and its frontend component was removed. Backend legacy consent compatibility remains unchanged.
+- Anonymous cookie preferences are not synchronized to the authenticated backend API; a future public cookie-banner implementation must store them locally in the browser.
+- Backend documents are still placeholder content. This integration renders them without asserting that they are production-final.
+- Focused Vitest/Testing Library coverage verifies required registration and checkout consent, current document IDs, stale-document recovery, OAuth/onboarding redirects, cookie/marketing preferences, withdrawal, and confirmed deletion.
+
 ---
 
 ## OAuth2 Login Status

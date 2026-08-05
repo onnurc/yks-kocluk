@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
-import type { CurrentUser } from "./authTypes";
+import type { CurrentUser, RegisterRequest } from "./authTypes";
 import { authApi } from "./authApi";
 import { getAccessToken, setAccessToken, setRefreshToken, clearAllTokens } from "./tokenStorage";
 import { ApiError } from "../api/ApiError";
-import { safetyApi } from "../safety/safetyApi";
 import { AuthContext } from "./AuthContext";
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -12,9 +11,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [accessToken, setAccessTokenState] = useState<string | null>(getAccessToken());
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSuspended, setIsSuspended] = useState<boolean>(false);
-  const [hasConsented, setHasConsented] = useState<boolean>(true);
-  const [consentVersion, setConsentVersion] = useState<string>("v1.0");
-  const [consentStatus, setConsentStatus] = useState<string>("PENDING");
+
+  const clearSession = useCallback(() => {
+    clearAllTokens();
+    setUser(null);
+    setAccessTokenState(null);
+    setIsSuspended(false);
+  }, []);
 
   const handleSuspendedUser = useCallback(() => {
     setIsSuspended(true);
@@ -32,43 +35,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       setUser(currentUser);
       setIsSuspended(false);
-
-      const isMinor = (dateOfBirth?: string) => {
-        if (!dateOfBirth) return false;
-        const birthDate = new Date(dateOfBirth);
-        const today = new Date();
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const m = today.getMonth() - birthDate.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-          age--;
-        }
-        return age < 18;
-      };
-
-      if (currentUser.role === "STUDENT" && isMinor(currentUser.dateOfBirth)) {
-        try {
-          const status = await safetyApi.checkConsentStatus("KVKK");
-          setHasConsented(status.hasConsented);
-          setConsentVersion(status.currentVersion);
-          setConsentStatus(status.status);
-        } catch {
-          setHasConsented(false);
-          setConsentStatus("PENDING");
-        }
-      } else {
-        setHasConsented(true);
-        setConsentStatus("ACCEPTED");
-      }
     } catch (error) {
-      if (error instanceof ApiError && (error.code === "USER_SUSPENDED" || error.status === 403)) {
+      if (error instanceof ApiError && error.code === "USER_SUSPENDED") {
         handleSuspendedUser();
       } else {
-        clearAllTokens();
-        setUser(null);
-        setAccessTokenState(null);
+        clearSession();
       }
     }
-  }, [handleSuspendedUser]);
+  }, [clearSession, handleSuspendedUser]);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
@@ -79,7 +53,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setAccessTokenState(response.accessToken);
       await refreshCurrentUser();
     } catch (error) {
-      if (error instanceof ApiError && (error.code === "USER_SUSPENDED" || error.status === 403)) {
+      if (error instanceof ApiError && error.code === "USER_SUSPENDED") {
         handleSuspendedUser();
       }
       throw error;
@@ -88,18 +62,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const register = async (email: string, password: string, fullName: string, role: string, dateOfBirth?: string) => {
+  const register = async (request: RegisterRequest) => {
     setIsLoading(true);
     try {
-      const response = await authApi.register(email, password, fullName, role, dateOfBirth);
+      const response = await authApi.register(request);
       setAccessToken(response.accessToken);
       setRefreshToken(response.refreshToken);
       setAccessTokenState(response.accessToken);
       await refreshCurrentUser();
     } catch (error) {
-      if (error instanceof ApiError && (error.code === "USER_SUSPENDED" || error.status === 403)) {
+      if (error instanceof ApiError && error.code === "USER_SUSPENDED") {
         handleSuspendedUser();
       }
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const completeOAuthLogin = async (code: string): Promise<CurrentUser> => {
+    setIsLoading(true);
+    try {
+      const response = await authApi.exchangeOAuthCode(code);
+      setAccessToken(response.accessToken);
+      setRefreshToken(response.refreshToken);
+      setAccessTokenState(response.accessToken);
+      const currentUser = await authApi.getCurrentUser();
+      setUser(currentUser);
+      setIsSuspended(false);
+      return currentUser;
+    } catch (error) {
+      clearSession();
       throw error;
     } finally {
       setIsLoading(false);
@@ -111,10 +104,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       await authApi.logout();
     } finally {
-      clearAllTokens();
-      setUser(null);
-      setAccessTokenState(null);
-      setIsSuspended(false);
+      clearSession();
       setIsLoading(false);
     }
   };
@@ -130,6 +120,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     initializeAuth();
   }, [refreshCurrentUser]);
 
+  useEffect(() => {
+    const handleLegalOnboardingRequired = () => { void refreshCurrentUser(); };
+    window.addEventListener("legal-onboarding-required", handleLegalOnboardingRequired);
+    return () => window.removeEventListener("legal-onboarding-required", handleLegalOnboardingRequired);
+  }, [refreshCurrentUser]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -138,14 +134,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isAuthenticated: !!user,
         isLoading,
         isSuspended,
-        hasConsented,
-        consentVersion,
-        consentStatus,
         login,
         register,
+        completeOAuthLogin,
         logout,
         refreshCurrentUser,
-        setHasConsented,
+        clearSession,
       }}
     >
       {children}
