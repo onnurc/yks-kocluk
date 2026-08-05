@@ -53,4 +53,22 @@ class LegalDocumentControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("LEGAL_DOCUMENT_NOT_FOUND"));
     }
+
+    @Test
+    void currentCheckoutDocuments_arePubliclyReadable() throws Exception {
+        LegalDocumentType[] types = {
+                LegalDocumentType.PRE_INFORMATION_FORM,
+                LegalDocumentType.DISTANCE_SALES_AGREEMENT,
+                LegalDocumentType.REFUND_CANCELLATION_POLICY
+        };
+        for (int i = 0; i < types.length; i++) {
+            LegalDocumentType type = types[i];
+            when(service.current(type)).thenReturn(new LegalDocumentResponse(
+                    6L + i, type, "1.0", type.name(), "placeholder", "a".repeat(64), Instant.now()));
+            mockMvc.perform(get("/api/v1/legal-documents/{type}/current", type))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.type").value(type.name()))
+                    .andExpect(jsonPath("$.version").value("1.0"));
+        }
+    }
 }

@@ -2,6 +2,7 @@ package com.ykskocluk.demo;
 
 import com.ykskocluk.demo.dto.SubscriptionCheckoutResponse;
 import com.ykskocluk.demo.dto.SubscriptionCreateRequest;
+import com.ykskocluk.demo.dto.SubscriptionCheckoutRequest;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Payment;
 import com.ykskocluk.demo.entity.University;
@@ -82,7 +83,8 @@ class RefundConcurrencyTest {
 
         // A SUCCESS charge to refund against.
         SubscriptionCheckoutResponse checkout = subscriptionService.checkout(
-                student.getId(), new SubscriptionCreateRequest(coach.getId(), packageId));
+                student.getId(), new SubscriptionCheckoutRequest(
+                        coach.getId(), packageId, 6L, 7L, 8L, true));
         subscriptionService.succeedPayment(checkout.paymentId(), student.getId());
 
         Long chargeId = checkout.paymentId();

@@ -35,4 +35,14 @@ public class LegalAcceptance extends BaseEntity {
     private Instant withdrawnAt;
     @Column(nullable = false, length = 50)
     private String source;
+
+    /** Checkout evidence linkage; null for registration/onboarding evidence. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subscription_id")
+    private Subscription subscription;
+
+    /** Exact charge attempt this evidence preceded; null for non-checkout evidence. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "payment_id")
+    private Payment payment;
 }

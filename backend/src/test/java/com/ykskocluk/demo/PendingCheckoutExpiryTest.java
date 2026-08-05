@@ -3,6 +3,7 @@ package com.ykskocluk.demo;
 import com.ykskocluk.demo.dto.IyzicoWebhookRequest;
 import com.ykskocluk.demo.dto.SubscriptionCheckoutResponse;
 import com.ykskocluk.demo.dto.SubscriptionCreateRequest;
+import com.ykskocluk.demo.dto.SubscriptionCheckoutRequest;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Payment;
 import com.ykskocluk.demo.entity.Subscription;
@@ -60,7 +61,7 @@ class PendingCheckoutExpiryTest {
         Fixture f = fixture();
 
         SubscriptionCheckoutResponse checkout = subscriptionService.checkout(
-                f.studentId, new SubscriptionCreateRequest(f.coachId, f.packageId));
+                f.studentId, checkoutRequest(f.coachId, f.packageId));
         assertThat(subscriptionRepository.findById(checkout.subscriptionId()).orElseThrow().getStatus())
                 .isEqualTo(SubscriptionStatus.PENDING_PAYMENT);
 
@@ -71,7 +72,7 @@ class PendingCheckoutExpiryTest {
 
         // While still PENDING_PAYMENT, the student is blocked from re-subscribing to this coach.
         ApiException blocked = catchThrowableOfType(ApiException.class, () ->
-                subscriptionService.checkout(f.studentId, new SubscriptionCreateRequest(f.coachId, f.packageId)));
+                subscriptionService.checkout(f.studentId, checkoutRequest(f.coachId, f.packageId)));
         assertThat(blocked.getErrorCode()).isEqualTo("ALREADY_SUBSCRIBED");
 
         // Past the timeout the stuck checkout is expired and its PENDING charge failed.
@@ -85,7 +86,7 @@ class PendingCheckoutExpiryTest {
 
         // The student can now check out with the same coach again — a brand-new subscription.
         SubscriptionCheckoutResponse retry = subscriptionService.checkout(
-                f.studentId, new SubscriptionCreateRequest(f.coachId, f.packageId));
+                f.studentId, checkoutRequest(f.coachId, f.packageId));
         assertThat(retry.subscriptionId()).isNotEqualTo(checkout.subscriptionId());
         assertThat(subscriptionRepository.findById(retry.subscriptionId()).orElseThrow().getStatus())
                 .isEqualTo(SubscriptionStatus.PENDING_PAYMENT);
@@ -96,7 +97,7 @@ class PendingCheckoutExpiryTest {
         Fixture f = fixture();
 
         SubscriptionCheckoutResponse checkout = subscriptionService.checkout(
-                f.studentId, new SubscriptionCreateRequest(f.coachId, f.packageId));
+                f.studentId, checkoutRequest(f.coachId, f.packageId));
 
         // A FAILURE webhook fails the payment but leaves the subscription PENDING_PAYMENT.
         subscriptionService.processWebhook(new IyzicoWebhookRequest(checkout.paymentId(), "FAILURE", "ref-fail"));
@@ -112,11 +113,15 @@ class PendingCheckoutExpiryTest {
                 .isEqualTo(SubscriptionStatus.EXPIRED);
 
         SubscriptionCheckoutResponse retry = subscriptionService.checkout(
-                f.studentId, new SubscriptionCreateRequest(f.coachId, f.packageId));
+                f.studentId, checkoutRequest(f.coachId, f.packageId));
         assertThat(retry.subscriptionId()).isNotEqualTo(checkout.subscriptionId());
     }
 
     private record Fixture(Long studentId, Long coachId, Long packageId) {
+    }
+
+    private SubscriptionCheckoutRequest checkoutRequest(Long coachId, Long packageId) {
+        return new SubscriptionCheckoutRequest(coachId, packageId, 6L, 7L, 8L, true);
     }
 
     private Fixture fixture() {

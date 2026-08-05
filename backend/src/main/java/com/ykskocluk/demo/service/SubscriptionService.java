@@ -4,6 +4,7 @@ import com.ykskocluk.demo.config.PaymentProperties;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import com.ykskocluk.demo.dto.SubscriptionCheckoutResponse;
+import com.ykskocluk.demo.dto.SubscriptionCheckoutRequest;
 import com.ykskocluk.demo.dto.SubscriptionCreateRequest;
 import com.ykskocluk.demo.dto.SubscriptionResponse;
 import com.ykskocluk.demo.dto.IyzicoWebhookRequest;
@@ -72,6 +73,7 @@ public class SubscriptionService {
     private final EntityManager entityManager;
     private final com.ykskocluk.demo.config.IyzicoProperties iyzicoProperties;
     private final ConsentService consentService;
+    private final LegalAcceptanceService legalAcceptanceService;
     private final TransactionTemplate tx;
 
     public SubscriptionService(SubscriptionRepository subscriptionRepository,
@@ -85,6 +87,7 @@ public class SubscriptionService {
                                EntityManager entityManager,
                                com.ykskocluk.demo.config.IyzicoProperties iyzicoProperties,
                                ConsentService consentService,
+                               LegalAcceptanceService legalAcceptanceService,
                                PlatformTransactionManager transactionManager) {
         this.subscriptionRepository = subscriptionRepository;
         this.packageRepository = packageRepository;
@@ -97,6 +100,7 @@ public class SubscriptionService {
         this.entityManager = entityManager;
         this.iyzicoProperties = iyzicoProperties;
         this.consentService = consentService;
+        this.legalAcceptanceService = legalAcceptanceService;
         this.tx = new TransactionTemplate(transactionManager);
     }
 
@@ -104,29 +108,34 @@ public class SubscriptionService {
     public SubscriptionResponse subscribe(Long studentUserId, SubscriptionCreateRequest request) {
         Subscription subscription = createPendingSubscription(studentUserId, request);
         return subscriptionMapper.toResponse(subscription);
-        }
+    }
 
-        /**
-         * Reserves the PENDING subscription+payment in one committed transaction, then calls
-         * iyzico with no transaction open (CLAUDE.md: no external calls inside a DB transaction).
-         */
-        public SubscriptionCheckoutResponse checkout(Long studentUserId, SubscriptionCreateRequest request) {
+    /**
+     * Reserves the PENDING subscription, payment, and checkout legal evidence in one committed
+     * transaction, then calls iyzico with no transaction open.
+     */
+    public SubscriptionCheckoutResponse checkout(Long studentUserId, SubscriptionCheckoutRequest request) {
         Payment payment = tx.execute(status -> {
-            Subscription subscription = createPendingSubscription(studentUserId, request);
-            return createPendingPayment(subscription);
+            Subscription subscription = preparePendingSubscription(studentUserId, request.subscriptionRequest());
+            LegalAcceptanceService.CheckoutDocuments documents = legalAcceptanceService.validateCheckout(request);
+            savePendingSubscription(subscription);
+            Payment pendingPayment = createPendingPayment(subscription);
+            legalAcceptanceService.recordCheckoutAcceptances(
+                    subscription.getStudent(), subscription, pendingPayment, documents);
+            return pendingPayment;
         });
 
         CheckoutResult checkoutResult = iyzicoClient.initializeCheckout(
-            payment.getSubscription().getId(), payment.getId(), payment.getAmount(), payment.getIdempotencyKey());
+                payment.getSubscription().getId(), payment.getId(), payment.getAmount(), payment.getIdempotencyKey());
 
         return new SubscriptionCheckoutResponse(
-            payment.getSubscription().getId(),
-            payment.getId(),
-            payment.getSubscription().getStatus(),
-            payment.getStatus(),
-            payment.getAmount(),
-            checkoutResult.checkoutToken(),
-            checkoutResult.checkoutUrl());
+                payment.getSubscription().getId(),
+                payment.getId(),
+                payment.getSubscription().getStatus(),
+                payment.getStatus(),
+                payment.getAmount(),
+                checkoutResult.checkoutToken(),
+                checkoutResult.checkoutUrl());
     }
 
     @Transactional(readOnly = true)
@@ -137,6 +146,10 @@ public class SubscriptionService {
     }
 
     private Subscription createPendingSubscription(Long studentUserId, SubscriptionCreateRequest request) {
+        return savePendingSubscription(preparePendingSubscription(studentUserId, request));
+    }
+
+    private Subscription preparePendingSubscription(Long studentUserId, SubscriptionCreateRequest request) {
         Package pkg = packageRepository.findById(request.packageId())
             .filter(pkgCandidate -> pkgCandidate.isActive())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PACKAGE_NOT_FOUND", "Paket bulunamadı"));
@@ -168,13 +181,16 @@ public class SubscriptionService {
         subscription.setAutoRenew(true);
         subscription.setSavedCardToken("stub-card-token-" + UUID.randomUUID());
 
+        return subscription;
+    }
+
+    private Subscription savePendingSubscription(Subscription subscription) {
         try {
-            subscriptionRepository.saveAndFlush(subscription);
+            return subscriptionRepository.saveAndFlush(subscription);
         } catch (DataIntegrityViolationException e) {
             throw new ApiException(HttpStatus.CONFLICT, "ALREADY_SUBSCRIBED",
                     "Bu koç ile zaten aktif aboneliğiniz var");
         }
-        return subscription;
     }
 
     private Payment createPendingPayment(Subscription subscription) {
