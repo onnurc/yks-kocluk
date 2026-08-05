@@ -41,6 +41,9 @@ class AuthControllerOAuth2ExchangeTest {
     private AuthService authService;
 
     @MockitoBean
+    private com.ykskocluk.demo.service.LegalAcceptanceService legalAcceptanceService;
+
+    @MockitoBean
     private AuthRateLimitService rateLimitService;
 
     @MockitoBean

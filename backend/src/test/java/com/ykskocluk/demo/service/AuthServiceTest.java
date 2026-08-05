@@ -9,6 +9,7 @@ import com.ykskocluk.demo.dto.RegisterRequest;
 import com.ykskocluk.demo.dto.UserResponse;
 import com.ykskocluk.demo.entity.RefreshToken;
 import com.ykskocluk.demo.entity.User;
+import com.ykskocluk.demo.entity.LegalDocument;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
@@ -36,6 +37,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
@@ -47,13 +49,14 @@ class AuthServiceTest {
     @Mock UserMapper userMapper;
     @Mock JwtProperties jwtProperties;
     @Mock OAuth2LoginCodeService oauth2LoginCodeService;
+    @Mock LegalAcceptanceService legalAcceptanceService;
 
     AuthService authService;
 
     @BeforeEach
     void setUp() {
         authService = new AuthService(userRepository, refreshTokenRepository,
-                passwordEncoder, jwtService, userMapper, jwtProperties, oauth2LoginCodeService);
+                passwordEncoder, jwtService, userMapper, jwtProperties, oauth2LoginCodeService, legalAcceptanceService);
         // Common stubs for the issueTokens() path; lenient so failure tests don't trip strict stubbing.
         lenient().when(jwtService.generateAccessToken(any())).thenReturn("access-token");
         lenient().when(jwtService.getAccessTtlSeconds()).thenReturn(900L);
@@ -92,6 +95,24 @@ class AuthServiceTest {
         assertThat(captor.getValue().getPasswordHash()).isEqualTo("hashed-pw");
         assertThat(captor.getValue().getStatus()).isEqualTo(UserStatus.ACTIVE);
         verify(refreshTokenRepository).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void register_acceptancePersistenceFailureDoesNotIssueTokens() {
+        LegalDocument terms = new LegalDocument();
+        LegalDocument explicit = new LegalDocument();
+        var documents = new LegalAcceptanceService.RequiredDocuments(terms, explicit);
+        when(legalAcceptanceService.validateRequired(3L, 2L)).thenReturn(documents);
+        when(userRepository.existsByEmail("atomic@example.com")).thenReturn(false);
+        when(passwordEncoder.encode("password123")).thenReturn("hashed");
+        doThrow(new RuntimeException("acceptance write failed")).when(legalAcceptanceService)
+                .recordRegistrationAcceptances(any(User.class), org.mockito.ArgumentMatchers.same(documents),
+                        org.mockito.ArgumentMatchers.eq(false), org.mockito.ArgumentMatchers.eq(false));
+
+        RegisterRequest request = new RegisterRequest("atomic@example.com", "password123", "Atomic User",
+                Role.STUDENT, java.time.LocalDate.of(2005, 1, 1), 3L, 2L, false, false);
+        assertThatThrownBy(() -> authService.register(request)).hasMessage("acceptance write failed");
+        verify(refreshTokenRepository, never()).save(any());
     }
 
     @Test
@@ -265,6 +286,7 @@ class AuthServiceTest {
         assertThat(captor.getValue().getRole()).isEqualTo(Role.STUDENT);
         assertThat(captor.getValue().getGoogleSub()).isEqualTo("sub-999");
         assertThat(captor.getValue().getStatus()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(captor.getValue().isLegalOnboardingCompleted()).isFalse();
     }
 
     @Test

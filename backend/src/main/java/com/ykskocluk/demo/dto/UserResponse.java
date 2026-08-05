@@ -9,9 +9,15 @@ public record UserResponse(
         String fullName,
         Role role,
         UserStatus status,
-        java.time.LocalDate dateOfBirth
+        java.time.LocalDate dateOfBirth,
+        boolean legalOnboardingCompleted
 ) {
     public UserResponse(Long id, String email, String fullName, Role role, UserStatus status) {
-        this(id, email, fullName, role, status, null);
+        this(id, email, fullName, role, status, null, false);
+    }
+
+    public UserResponse(Long id, String email, String fullName, Role role, UserStatus status,
+                        java.time.LocalDate dateOfBirth) {
+        this(id, email, fullName, role, status, dateOfBirth, false);
     }
 }

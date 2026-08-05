@@ -30,10 +30,13 @@ public class ConsentService {
 
     private final ConsentRecordRepository consentRecordRepository;
     private final UserRepository userRepository;
+    private final LegalAcceptanceService legalAcceptanceService;
 
-    public ConsentService(ConsentRecordRepository consentRecordRepository, UserRepository userRepository) {
+    public ConsentService(ConsentRecordRepository consentRecordRepository, UserRepository userRepository,
+                          LegalAcceptanceService legalAcceptanceService) {
         this.consentRecordRepository = consentRecordRepository;
         this.userRepository = userRepository;
+        this.legalAcceptanceService = legalAcceptanceService;
     }
 
     @Transactional(readOnly = true)
@@ -127,17 +130,10 @@ public class ConsentService {
         );
     }
 
+    /** @deprecated Retained for compatibility; age is no longer a separate product-action gate. */
+    @Deprecated
     public void checkConsentRequiredForAction(User user) {
-        if (user == null || user.getRole() != com.ykskocluk.demo.enums.Role.STUDENT) {
-            return;
-        }
-        if (isMinor(user.getDateOfBirth())) {
-            boolean consented = hasConsented(user.getId(), ConsentType.KVKK, CURRENT_KVKK_VERSION);
-            if (!consented) {
-                throw new ApiException(HttpStatus.FORBIDDEN, "MINOR_CONSENT_REQUIRED",
-                        "18 yaş altı öğrenciler için veli onayı gereklidir");
-            }
-        }
+        legalAcceptanceService.requireCompleted(user);
     }
 
     public boolean isMinor(java.time.LocalDate dateOfBirth) {

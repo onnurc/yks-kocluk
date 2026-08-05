@@ -34,7 +34,15 @@ Note that:
   - `GOOGLE_CLIENT_SECRET`
   - `OAUTH2_FRONTEND_REDIRECT_URI`
   - `OAUTH2_LOGIN_CODE_TTL_SECONDS` (default: 120)
-- **Date of Birth & Onboarding:** Newly provisioned STUDENT users via Google OAuth2 currently default to `dateOfBirth = null` (no fake data is created, and login is not blocked). This is an intentional design decision; the profile completion and onboarding flow is deferred and will be revisited in a future branch.
+- **Date of Birth & Legal Onboarding:** Newly provisioned STUDENT users via Google OAuth2 keep `dateOfBirth = null` and `legalOnboardingCompleted = false`. Tokens retain the existing exchange contract, but checkout, booking, conversation creation, and message sending remain unavailable until `POST /api/v1/auth/legal-onboarding` records current Terms and Explicit Consent acceptances. Documents are never silently auto-accepted.
+
+## Registration legal-document foundation
+
+- `legal_documents` stores versioned, hashed content with `DRAFT`, `PUBLISHED`, and `RETIRED` lifecycle states. Public reads resolve only current effective published rows.
+- KVKK Aydınlatma and Açık Rıza are separate. Registration requires current Terms plus current Explicit Consent; KVKK Notice itself has no acceptance checkbox.
+- Marketing email/SMS opt-ins are optional and stored as separate `MARKETING_OPT_IN` evidence sources when selected.
+- Legacy minor-consent APIs and records remain for backward compatibility and audit history. Age-based enforcement is deprecated and no longer separately blocks product actions; there is no guardian-verification flow.
+- Initial version `1.0` content is explicitly placeholder text pending the legal team's approved wording.
 
 ---
 
@@ -81,8 +89,8 @@ To align external request payloads with the database/schema constraints, this br
 ## PARENT Role Deferred State
 
 - **Current Status:** The `PARENT` role is not implemented in the backend `Role` enum or the database.
-- **Consent Implementation:** The current guardian/minor consent flow operates as a KVKK age gating checklist (`ConsentRecord`) and does not imply or configure a real parent login role.
-- **Future Phase:** The parent account and parent panel remain deferred to a future phase.
+- **Consent Implementation:** No guardian/minor verification flow is implemented. Historical `ConsentRecord` data remains available for audit only and does not form a separate product-action gate.
+- **Future Phase:** A parent account and parent panel are not part of the confirmed registration policy or this foundation.
 - **Changes Made:** This branch does not implement the `PARENT` role.
 
 ---

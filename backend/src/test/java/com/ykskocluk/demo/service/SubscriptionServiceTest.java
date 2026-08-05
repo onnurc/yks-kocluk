@@ -132,6 +132,19 @@ class SubscriptionServiceTest {
     }
 
     @Test
+    void subscribe_minorStudentWithoutLegacyConsent_isNotSeparatelyBlocked() {
+        User minor = new User();
+        minor.setDateOfBirth(java.time.LocalDate.now().minusYears(16));
+        when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(minor));
+        when(subscriptionRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SubscriptionResponse response = service.subscribe(STUDENT_ID, request());
+
+        assertThat(response.status()).isEqualTo(SubscriptionStatus.PENDING_PAYMENT);
+        verify(consentService).checkConsentRequiredForAction(minor);
+    }
+
+    @Test
     void subscribe_existingLiveSubscription_throwsConflict_noCapacityChange() {
         when(subscriptionRepository.findLiveSubscription(STUDENT_ID, COACH_ID))
                 .thenReturn(Optional.of(new Subscription()));
