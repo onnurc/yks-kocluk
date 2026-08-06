@@ -121,6 +121,32 @@ public class AuthRateLimitService {
         }
     }
 
+    public void checkForgotPassword(String email, HttpServletRequest request) {
+        checkIpAndIdentifier("forgot-password", email == null ? null : email.trim().toLowerCase(), properties.getForgotPassword(), request);
+    }
+
+    public void checkResetPassword(String token, HttpServletRequest request) {
+        checkIpAndIdentifier("reset-password", token, properties.getResetPassword(), request);
+    }
+
+    public void checkChangePassword(Long userId, HttpServletRequest request) {
+        checkIpAndIdentifier("change-password", String.valueOf(userId), properties.getChangePassword(), request);
+    }
+
+    private void checkIpAndIdentifier(String action, String identifier, RateLimitProperties.LimitRule rule,
+                                      HttpServletRequest request) {
+        if (!properties.isEnabled()) return;
+        String env = properties.getEnvironment();
+        String ipKey = String.format("yks:%s:rate-limit:auth:%s:ip:%s", env, action, sha256(ipResolver.resolveIp(request)));
+        RateLimitResult ipResult = rateLimitStore.consume(ipKey, rule.getIpLimit(), Duration.ofSeconds(rule.getWindowSeconds()));
+        if (!ipResult.allowed()) throw new RateLimitExceededException(ipResult.retryAfterSeconds());
+        if (identifier != null && !identifier.isBlank() && rule.getIdentifierLimit() > 0) {
+            String key = String.format("yks:%s:rate-limit:auth:%s:identifier:%s", env, action, sha256(identifier));
+            RateLimitResult result = rateLimitStore.consume(key, rule.getIdentifierLimit(), Duration.ofSeconds(rule.getWindowSeconds()));
+            if (!result.allowed()) throw new RateLimitExceededException(result.retryAfterSeconds());
+        }
+    }
+
     @Scheduled(fixedRate = 300000) // Every 5 minutes
     public void cleanExpiredEntries() {
         // Clean entries older than 10 minutes (600 seconds)

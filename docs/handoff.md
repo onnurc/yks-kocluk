@@ -468,3 +468,10 @@ decisions below were all honored; kept here as the rationale record.
   - Future Redis migration requires zero code changes to controllers or business services.
   - A developer simply needs to add the Spring Data Redis dependency, define `RedisRateLimitStore implements RateLimitStore`, and declare it as a `@Bean` to override the memory implementation.
   - Hashing rules, env-prefixes (`yks:{env}:rate-limit:...`), and window algorithms are already fully Redis-compatible (mapped directly to `INCR` + `EXPIRE` commands or custom Lua scripts).
+# Password recovery and security (V22)
+
+- Password-backed accounts can change their password at `/security`; changes are limited to once every 15 days.
+- Google-only accounts have no local password and neither see nor receive a local-password reset flow.
+- Forgot-password responses are intentionally generic. Eligible accounts receive a 30-minute, single-use link; only its SHA-256 hash is persisted and passwords are never emailed.
+- Successful change/reset revokes every refresh token and increments the JWT `passwordVersion`, so older access tokens are rejected. Change requires re-login; reset never auto-logs in.
+- Production requires `FRONTEND_BASE_URL`, `RESEND_API_KEY`, and `RESEND_FROM`. Reset mail is transactional and independent of marketing preferences.

@@ -10,14 +10,16 @@ public record UserResponse(
         Role role,
         UserStatus status,
         java.time.LocalDate dateOfBirth,
-        boolean legalOnboardingCompleted
+        boolean legalOnboardingCompleted,
+        boolean hasLocalPassword,
+        java.time.Instant passwordChangedAt
 ) {
     public UserResponse(Long id, String email, String fullName, Role role, UserStatus status) {
-        this(id, email, fullName, role, status, null, false);
+        this(id, email, fullName, role, status, null, false, false, null);
     }
 
     public UserResponse(Long id, String email, String fullName, Role role, UserStatus status,
                         java.time.LocalDate dateOfBirth) {
-        this(id, email, fullName, role, status, dateOfBirth, false);
+        this(id, email, fullName, role, status, dateOfBirth, false, false, null);
     }
 }

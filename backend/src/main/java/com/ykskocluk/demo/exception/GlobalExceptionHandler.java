@@ -48,6 +48,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
         pd.setProperty("errorCode", ex.getErrorCode());
         pd.setProperty("timestamp", Instant.now());
+        ex.getProperties().forEach(pd::setProperty);
         return pd;
     }
 

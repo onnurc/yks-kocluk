@@ -63,4 +63,9 @@ public class StubMailClient implements MailClient {
     public void sendUserSuspended(String toEmail) {
         log.info("[STUB MailClient] user-suspended mail to {}", toEmail);
     }
+
+    @Override
+    public void sendPasswordReset(String toEmail, String resetLink) {
+        log.info("[STUB MailClient] password-reset mail to {}", toEmail);
+    }
 }

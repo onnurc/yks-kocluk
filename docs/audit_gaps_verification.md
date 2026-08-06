@@ -232,3 +232,9 @@ Safety/moderation flows now include transactional email notifications via the be
   - Mail dispatch uses a try/catch double-backstop to ensure any mail delivery exception (e.g. timeout or provider outage) is logged and **never** rolls back the database write or breaks the API response.
   - No `@Async` or queuing/multithreading is introduced, maintaining simple, synchronous best-effort execution.
   - SMS notifications and unsuspend flows remain deferred/future-phase items.
+# Password recovery/security verification
+
+- `V22__password_recovery_and_security.sql` adds `users.password_changed_at` plus hashed, expiring, single-use reset tokens and cleanup indexes.
+- Public recovery endpoints use identical forgot-password responses, IP/identifier rate limits, and no raw-token logging or persistence.
+- Password change/reset revokes refresh tokens and invalidates outstanding reset links. Incremented `passwordVersion` rejects all older JWTs deterministically.
+- Manual deployment check: configure the production frontend base URL and transactional mail sender, then verify the delivered link opens `/reset-password` without storing the token in browser storage.

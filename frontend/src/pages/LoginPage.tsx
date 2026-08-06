@@ -59,6 +59,11 @@ export const LoginPage: React.FC = () => {
           Hesabınızla ilgili silme işlemi tamamlandı. Oturumunuz güvenli biçimde kapatıldı.
         </div>
       )}
+      {searchParams.get("passwordChanged") === "1" && (
+        <div role="status" style={{ padding: ".75rem", marginBottom: "1rem", background: "#ecfdf5", color: "#166534", borderRadius: "4px" }}>
+          Şifreniz değiştirildi ve tüm oturumlar kapatıldı. Yeni şifrenizle giriş yapın.
+        </div>
+      )}
 
       <FormError error={error} />
 
@@ -84,6 +89,9 @@ export const LoginPage: React.FC = () => {
             disabled={loading}
             style={{ width: "100%", padding: "0.5rem", boxSizing: "border-box", borderRadius: "4px", border: "1px solid #ccc" }}
           />
+        </div>
+        <div style={{ textAlign: "right", marginTop: "-.75rem", marginBottom: "1rem" }}>
+          <Link to="/forgot-password">Şifremi unuttum</Link>
         </div>
         <button
           type="submit"

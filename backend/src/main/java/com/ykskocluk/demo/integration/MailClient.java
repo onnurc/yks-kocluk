@@ -35,4 +35,6 @@ public interface MailClient {
 
     /** Notify the user that their account has been suspended. */
     void sendUserSuspended(String toEmail);
+
+    void sendPasswordReset(String toEmail, String resetLink);
 }

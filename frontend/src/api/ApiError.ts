@@ -9,13 +9,15 @@ export class ApiError extends Error {
   detail: string;
   code?: string;
   fieldErrors?: FieldError[];
+  nextAllowedAt?: string;
 
   constructor(
     status: number,
     title: string,
     detail: string,
     code?: string,
-    fieldErrors?: FieldError[]
+    fieldErrors?: FieldError[],
+    nextAllowedAt?: string
   ) {
     super(detail || title);
     this.name = "ApiError";
@@ -24,5 +26,6 @@ export class ApiError extends Error {
     this.detail = detail;
     this.code = code;
     this.fieldErrors = fieldErrors;
+    this.nextAllowedAt = nextAllowedAt;
   }
 }

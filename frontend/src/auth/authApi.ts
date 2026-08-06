@@ -1,5 +1,5 @@
 import { httpClient } from "../api/httpClient";
-import type { AuthResponse, CurrentUser, LegalOnboardingRequest, LegalOnboardingResponse, RegisterRequest } from "./authTypes";
+import type { AuthResponse, CurrentUser, LegalOnboardingRequest, LegalOnboardingResponse, RegisterRequest, PasswordActionResponse } from "./authTypes";
 import { getRefreshToken } from "./tokenStorage";
 
 export const authApi = {
@@ -30,4 +30,13 @@ export const authApi = {
       console.warn("Server-side logout could not be processed:", err);
     }
   },
+
+  forgotPassword: (email: string): Promise<PasswordActionResponse> =>
+    httpClient.post<PasswordActionResponse>("/api/v1/auth/forgot-password", { email }),
+
+  resetPassword: (token: string, newPassword: string): Promise<PasswordActionResponse> =>
+    httpClient.post<PasswordActionResponse>("/api/v1/auth/reset-password", { token, newPassword }),
+
+  changePassword: (currentPassword: string, newPassword: string): Promise<PasswordActionResponse> =>
+    httpClient.post<PasswordActionResponse>("/api/v1/auth/change-password", { currentPassword, newPassword }),
 };

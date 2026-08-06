@@ -15,6 +15,9 @@ public class RateLimitProperties {
     private LimitRule register = new LimitRule(20, 3, 3600);
     private RefreshLimitRule refresh = new RefreshLimitRule(30, 30, 60);
     private LimitRule oauth2Exchange = new LimitRule(30, 0, 60);
+    private LimitRule forgotPassword = new LimitRule(10, 3, 900);
+    private LimitRule resetPassword = new LimitRule(20, 5, 900);
+    private LimitRule changePassword = new LimitRule(10, 5, 900);
 
     @Getter
     @Setter

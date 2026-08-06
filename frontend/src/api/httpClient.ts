@@ -48,7 +48,8 @@ export const request = async <T>(
       window.dispatchEvent(new Event("legal-onboarding-required"));
     }
 
-    throw new ApiError(status, title, detail, code, fieldErrors);
+    const nextAllowedAt = typeof errorData.nextAllowedAt === "string" ? errorData.nextAllowedAt : undefined;
+    throw new ApiError(status, title, detail, code, fieldErrors, nextAllowedAt);
   }
 
   if (response.status === 204) {

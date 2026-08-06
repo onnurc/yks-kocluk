@@ -23,6 +23,8 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Map;
 import java.util.Optional;
+import java.time.Instant;
+import java.util.Date;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -130,5 +132,28 @@ class JwtAuthenticationFilterTest {
         verify(filterChain).doFilter(request, response);
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
         assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal()).isEqualTo(1L);
+    }
+
+    @Test
+    void doFilterInternal_tokenIssuedBeforePasswordChange_remainsUnauthenticated() throws Exception {
+        HttpServletRequest request = mock(HttpServletRequest.class); HttpServletResponse response = mock(HttpServletResponse.class);
+        FilterChain chain = mock(FilterChain.class); when(request.getHeader("Authorization")).thenReturn("Bearer old-token");
+        Claims claims = new DefaultClaims(Map.of("sub", "1", "role", "STUDENT", "iat", Date.from(Instant.parse("2026-01-01T00:00:00Z"))));
+        Jws jws = mock(Jws.class); when(jws.getPayload()).thenReturn(claims); when(jwtService.parse("old-token")).thenReturn(jws);
+        User user = new User(); user.setStatus(UserStatus.ACTIVE); user.setPasswordChangedAt(Instant.parse("2026-01-02T00:00:00Z"));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        jwtAuthenticationFilter.doFilterInternal(request, response, chain);
+        verify(chain).doFilter(request, response); assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
+    void doFilterInternal_passwordVersionMismatch_remainsUnauthenticated() throws Exception {
+        HttpServletRequest request = mock(HttpServletRequest.class); HttpServletResponse response = mock(HttpServletResponse.class);
+        FilterChain chain = mock(FilterChain.class); when(request.getHeader("Authorization")).thenReturn("Bearer stale-token");
+        Claims claims = new DefaultClaims(Map.of("sub", "1", "role", "STUDENT", "passwordVersion", 0));
+        Jws jws = mock(Jws.class); when(jws.getPayload()).thenReturn(claims); when(jwtService.parse("stale-token")).thenReturn(jws);
+        User user = new User(); user.setStatus(UserStatus.ACTIVE); user.setPasswordVersion(1); when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        jwtAuthenticationFilter.doFilterInternal(request, response, chain);
+        verify(chain).doFilter(request, response); assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     }
 }

@@ -154,6 +154,18 @@ public class ResendMailClient implements MailClient {
                 """);
     }
 
+    @Override
+    public void sendPasswordReset(String toEmail, String resetLink) {
+        send(toEmail, "Uniform Akademi şifre sıfırlama bağlantısı", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Şifrenizi sıfırlayın</h2><p>Merhaba,</p>
+                  <p><a href="%s">Yeni şifrenizi belirleyin</a></p>
+                  <p>Bu tek kullanımlık bağlantı 30 dakika sonra geçersiz olur.</p>
+                  <p>Bu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz.</p>
+                </div>
+                """.formatted(resetLink));
+    }
+
     /** Single best-effort POST to Resend — swallows-and-logs every error (timeouts included). */
     private void send(String toEmail, String subject, String html) {
         try {

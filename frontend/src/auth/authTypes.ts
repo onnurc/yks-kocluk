@@ -10,6 +10,13 @@ export interface CurrentUser {
   status: UserStatus;
   dateOfBirth?: string;
   legalOnboardingCompleted: boolean;
+  hasLocalPassword: boolean;
+  passwordChangedAt?: string;
+}
+
+export interface PasswordActionResponse {
+  message: string;
+  reloginRequired: boolean;
 }
 
 export interface AuthResponse {

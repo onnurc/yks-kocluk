@@ -10,6 +10,11 @@ import com.ykskocluk.demo.dto.UserResponse;
 import com.ykskocluk.demo.dto.LegalOnboardingRequest;
 import com.ykskocluk.demo.dto.LegalOnboardingResponse;
 import com.ykskocluk.demo.service.AuthService;
+import com.ykskocluk.demo.service.PasswordSecurityService;
+import com.ykskocluk.demo.dto.ChangePasswordRequest;
+import com.ykskocluk.demo.dto.ForgotPasswordRequest;
+import com.ykskocluk.demo.dto.ResetPasswordRequest;
+import com.ykskocluk.demo.dto.PasswordActionResponse;
 import com.ykskocluk.demo.service.LegalAcceptanceService;
 import com.ykskocluk.demo.security.ratelimit.AuthRateLimitService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,15 +38,38 @@ public class AuthController {
     private final AuthRateLimitService rateLimitService;
     private final HttpServletRequest httpServletRequest;
     private final LegalAcceptanceService legalAcceptanceService;
+    private final PasswordSecurityService passwordSecurityService;
 
     public AuthController(AuthService authService,
                           AuthRateLimitService rateLimitService,
                           HttpServletRequest httpServletRequest,
-                          LegalAcceptanceService legalAcceptanceService) {
+                          LegalAcceptanceService legalAcceptanceService,
+                          PasswordSecurityService passwordSecurityService) {
         this.authService = authService;
         this.rateLimitService = rateLimitService;
         this.httpServletRequest = httpServletRequest;
         this.legalAcceptanceService = legalAcceptanceService;
+        this.passwordSecurityService = passwordSecurityService;
+    }
+
+    @PostMapping("/forgot-password")
+    public PasswordActionResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        rateLimitService.checkForgotPassword(request.email(), httpServletRequest);
+        return passwordSecurityService.forgotPassword(request);
+    }
+
+    @PostMapping("/reset-password")
+    public PasswordActionResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        rateLimitService.checkResetPassword(request.token(), httpServletRequest);
+        return passwordSecurityService.resetPassword(request);
+    }
+
+    @PostMapping("/change-password")
+    @PreAuthorize("isAuthenticated()")
+    public PasswordActionResponse changePassword(@AuthenticationPrincipal Long userId,
+                                                   @Valid @RequestBody ChangePasswordRequest request) {
+        rateLimitService.checkChangePassword(userId, httpServletRequest);
+        return passwordSecurityService.changePassword(userId, request);
     }
 
     @PostMapping("/register")

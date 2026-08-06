@@ -20,6 +20,9 @@ import { ConversationPage } from "./pages/ConversationPage";
 import { OAuthCallbackPage } from "./pages/OAuthCallbackPage";
 import { LegalOnboardingPage } from "./pages/LegalOnboardingPage";
 import { PrivacySettingsPage } from "./pages/PrivacySettingsPage";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
+import { SecuritySettingsPage } from "./pages/SecuritySettingsPage";
 import { LegalOnboardingRoute } from "./routes/LegalOnboardingRoute";
 import "./App.css";
 
@@ -33,12 +36,15 @@ const App: React.FC = () => {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/suspended" element={<SuspendedPage />} />
           <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           {/* Protected Routes */}
           <Route element={<ProtectedRoute />}>
             <Route path="/legal-onboarding" element={<LegalOnboardingPage />} />
             <Route element={<AppLayout />}>
               <Route path="/privacy" element={<PrivacySettingsPage />} />
+              <Route path="/security" element={<SecuritySettingsPage />} />
               <Route element={<LegalOnboardingRoute />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
               
