@@ -4,6 +4,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { FormError } from "../components/FormError";
 import { getApiBaseUrl } from "../api/httpClient";
 import { ApiError } from "../api/ApiError";
+import { readinessPathForUser } from "../auth/authNavigation";
 
 export const LoginPage: React.FC = () => {
   const { login, isAuthenticated, user, isSuspended } = useAuth();
@@ -20,13 +21,7 @@ export const LoginPage: React.FC = () => {
     if (isSuspended) {
       navigate("/suspended");
     } else if (isAuthenticated && user) {
-      if (!user.legalOnboardingCompleted) {
-        navigate("/legal-onboarding");
-      } else if (user.role === "ADMIN") {
-        navigate("/admin");
-      } else {
-        navigate("/dashboard");
-      }
+      navigate(readinessPathForUser(user));
     }
   }, [isAuthenticated, user, isSuspended, navigate]);
 

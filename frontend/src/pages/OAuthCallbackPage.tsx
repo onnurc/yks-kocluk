@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
-import { homePathForUser } from "../auth/authNavigation";
+import { readinessPathForUser } from "../auth/authNavigation";
 import { FormError } from "../components/FormError";
 
 export const OAuthCallbackPage: React.FC = () => {
@@ -19,7 +19,7 @@ export const OAuthCallbackPage: React.FC = () => {
 
     void completeOAuthLogin(code)
       .then((user) => {
-        navigate(user.legalOnboardingCompleted ? homePathForUser(user) : "/legal-onboarding", { replace: true });
+        navigate(readinessPathForUser(user), { replace: true });
       })
       .catch((cause) => setError(cause instanceof Error ? cause : "Google ile giriş tamamlanamadı."));
   }, [code, completeOAuthLogin, navigate]);

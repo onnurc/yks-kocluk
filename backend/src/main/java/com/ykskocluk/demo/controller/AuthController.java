@@ -16,6 +16,9 @@ import com.ykskocluk.demo.dto.ForgotPasswordRequest;
 import com.ykskocluk.demo.dto.ResetPasswordRequest;
 import com.ykskocluk.demo.dto.PasswordActionResponse;
 import com.ykskocluk.demo.service.LegalAcceptanceService;
+import com.ykskocluk.demo.service.EmailVerificationService;
+import com.ykskocluk.demo.dto.EmailVerificationResponse;
+import com.ykskocluk.demo.dto.VerifyEmailRequest;
 import com.ykskocluk.demo.security.ratelimit.AuthRateLimitService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -39,17 +42,35 @@ public class AuthController {
     private final HttpServletRequest httpServletRequest;
     private final LegalAcceptanceService legalAcceptanceService;
     private final PasswordSecurityService passwordSecurityService;
+    private final EmailVerificationService emailVerificationService;
 
     public AuthController(AuthService authService,
                           AuthRateLimitService rateLimitService,
                           HttpServletRequest httpServletRequest,
                           LegalAcceptanceService legalAcceptanceService,
-                          PasswordSecurityService passwordSecurityService) {
+                          PasswordSecurityService passwordSecurityService,
+                          EmailVerificationService emailVerificationService) {
         this.authService = authService;
         this.rateLimitService = rateLimitService;
         this.httpServletRequest = httpServletRequest;
         this.legalAcceptanceService = legalAcceptanceService;
         this.passwordSecurityService = passwordSecurityService;
+        this.emailVerificationService = emailVerificationService;
+    }
+
+    @PostMapping("/verify-email")
+    @PreAuthorize("isAuthenticated()")
+    public EmailVerificationResponse verifyEmail(@AuthenticationPrincipal Long userId,
+                                                  @Valid @RequestBody VerifyEmailRequest request) {
+        rateLimitService.checkEmailVerification(userId, httpServletRequest);
+        return emailVerificationService.verify(userId, request.code());
+    }
+
+    @PostMapping("/resend-verification")
+    @PreAuthorize("isAuthenticated()")
+    public EmailVerificationResponse resendVerification(@AuthenticationPrincipal Long userId) {
+        rateLimitService.checkEmailVerificationResend(userId, httpServletRequest);
+        return emailVerificationService.resend(userId);
     }
 
     @PostMapping("/forgot-password")

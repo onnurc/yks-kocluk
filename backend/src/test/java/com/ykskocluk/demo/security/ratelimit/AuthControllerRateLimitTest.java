@@ -43,6 +43,12 @@ class AuthControllerRateLimitTest {
     private AuthRateLimitService rateLimitService;
 
     @MockitoBean
+    private com.ykskocluk.demo.service.PasswordSecurityService passwordSecurityService;
+
+    @MockitoBean
+    private com.ykskocluk.demo.service.EmailVerificationService emailVerificationService;
+
+    @MockitoBean
     private JwtService jwtService;
 
     @MockitoBean

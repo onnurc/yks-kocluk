@@ -392,7 +392,7 @@ Both standing credential-rotation action items are **DONE** (no longer open):
 
 ## Migrations (V1–V20)
 
-V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subscriptions · V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging · V10 payments_autorenew · V11 webhook_verifications · V12-V13 safety/admin · V14-V16 demo seed · V17 legacy minor-consent status · V18 OAuth login codes · V19 versioned legal documents and acceptances · V20 checkout legal documents and transaction-linked evidence · V21 privacy preferences and account deletion.
+V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subscriptions · V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging · V10 payments_autorenew · V11 webhook_verifications · V12-V13 safety/admin · V14-V16 demo seed · V17 legacy minor-consent status · V18 OAuth login codes · V19 versioned legal documents and acceptances · V20 checkout legal documents and transaction-linked evidence · V21 privacy preferences and account deletion · V22 password recovery/security · V23 email verification.
 
 ## Versioned registration legal acceptance
 
@@ -475,3 +475,12 @@ decisions below were all honored; kept here as the rationale record.
 - Forgot-password responses are intentionally generic. Eligible accounts receive a 30-minute, single-use link; only its SHA-256 hash is persisted and passwords are never emailed.
 - Successful change/reset revokes every refresh token and increments the JWT `passwordVersion`, so older access tokens are rejected. Change requires re-login; reset never auto-logs in.
 - Production requires `FRONTEND_BASE_URL`, `RESEND_API_KEY`, and `RESEND_FROM`. Reset mail is transactional and independent of marketing preferences.
+
+## Email ownership verification (V23)
+
+- Normal password registration creates an authenticated but limited account with `emailVerified=false`, issues a cryptographically random 6-digit code, stores only its BCrypt hash, and sends it after transaction commit. Codes are single-use and expire after 10 minutes.
+- `POST /api/v1/auth/verify-email` and `POST /api/v1/auth/resend-verification` resolve the authenticated user rather than accepting a user ID. Resend has a persisted 60-second cooldown plus per-user/IP hourly rate limits; a new code invalidates older codes.
+- Google sign-in trusts the actual Google `email_verified` claim. A verified Google email sets `emailVerified=true`, skips verification mail, and remains independently subject to legal onboarding.
+- Email verification and `legalOnboardingCompleted` are separate readiness flags. Checkout, booking/session creation, conversation creation, and message sending require both; failures remain distinct as `EMAIL_VERIFICATION_REQUIRED` and `LEGAL_ONBOARDING_REQUIRED`.
+- Frontend route priority is `/verify-email`, then `/legal-onboarding`, then the role home. `/privacy`, `/security`, verification, onboarding, and session-management auth calls remain reachable for limited accounts.
+- Verification mail uses the existing best-effort Resend/stub transport and ignores marketing opt-in state. Production `RESEND_API_KEY`, verified sender/domain, and deployment configuration remain external work.

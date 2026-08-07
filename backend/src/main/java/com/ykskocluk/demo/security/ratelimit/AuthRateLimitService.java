@@ -133,6 +133,15 @@ public class AuthRateLimitService {
         checkIpAndIdentifier("change-password", String.valueOf(userId), properties.getChangePassword(), request);
     }
 
+    public void checkEmailVerification(Long userId, HttpServletRequest request) {
+        checkIpAndIdentifier("email-verification", String.valueOf(userId), properties.getEmailVerification(), request);
+    }
+
+    public void checkEmailVerificationResend(Long userId, HttpServletRequest request) {
+        checkIpAndIdentifier("email-verification-resend", String.valueOf(userId),
+                properties.getEmailVerificationResend(), request);
+    }
+
     private void checkIpAndIdentifier(String action, String identifier, RateLimitProperties.LimitRule rule,
                                       HttpServletRequest request) {
         if (!properties.isEnabled()) return;
@@ -149,8 +158,8 @@ public class AuthRateLimitService {
 
     @Scheduled(fixedRate = 300000) // Every 5 minutes
     public void cleanExpiredEntries() {
-        // Clean entries older than 10 minutes (600 seconds)
-        rateLimitStore.cleanup(Duration.ofMinutes(10));
+        // Keep entries longer than the broadest configured auth window (verification resend: 1h).
+        rateLimitStore.cleanup(Duration.ofHours(2));
     }
 
     private String sha256(String value) {

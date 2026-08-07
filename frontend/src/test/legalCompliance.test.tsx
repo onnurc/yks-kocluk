@@ -11,7 +11,7 @@ import { ApiError } from "../api/ApiError";
 
 const mocks = vi.hoisted(() => ({
   auth: {
-    user: null as null | { id: number; email: string; fullName: string; role: "STUDENT" | "COACH" | "ADMIN"; status: "ACTIVE"; legalOnboardingCompleted: boolean },
+    user: null as null | { id: number; email: string; fullName: string; role: "STUDENT" | "COACH" | "ADMIN"; status: "ACTIVE"; emailVerified: boolean; legalOnboardingCompleted: boolean },
     isAuthenticated: false,
     isLoading: false,
     isSuspended: false,
@@ -153,7 +153,7 @@ describe("registration legal flow", () => {
 
 describe("OAuth and onboarding gates", () => {
   it("redirects an incomplete authenticated user away from protected product routes", () => {
-    Object.assign(mocks.auth, { user: { id: 9, email: "oauth@example.com", fullName: "OAuth User", role: "STUDENT", status: "ACTIVE", legalOnboardingCompleted: false }, isAuthenticated: true });
+    Object.assign(mocks.auth, { user: { id: 9, email: "oauth@example.com", fullName: "OAuth User", role: "STUDENT", status: "ACTIVE", emailVerified: true, legalOnboardingCompleted: false }, isAuthenticated: true });
     render(
       <MemoryRouter initialEntries={["/coaches"]}>
         <Routes>
@@ -167,7 +167,7 @@ describe("OAuth and onboarding gates", () => {
   });
 
   it("exchanges the OAuth code and redirects incomplete users to onboarding", async () => {
-    mocks.auth.completeOAuthLogin.mockResolvedValue({ id: 9, email: "oauth@example.com", fullName: "OAuth User", role: "STUDENT", status: "ACTIVE", legalOnboardingCompleted: false });
+    mocks.auth.completeOAuthLogin.mockResolvedValue({ id: 9, email: "oauth@example.com", fullName: "OAuth User", role: "STUDENT", status: "ACTIVE", emailVerified: true, legalOnboardingCompleted: false });
     render(
       <MemoryRouter initialEntries={["/oauth/callback?code=once"]}>
         <Routes>
@@ -181,7 +181,7 @@ describe("OAuth and onboarding gates", () => {
   });
 
   it("sends current Terms and Explicit Consent IDs during onboarding", async () => {
-    Object.assign(mocks.auth, { user: { id: 9, email: "oauth@example.com", fullName: "OAuth User", role: "STUDENT", status: "ACTIVE", legalOnboardingCompleted: false }, isAuthenticated: true });
+    Object.assign(mocks.auth, { user: { id: 9, email: "oauth@example.com", fullName: "OAuth User", role: "STUDENT", status: "ACTIVE", emailVerified: true, legalOnboardingCompleted: false }, isAuthenticated: true });
     mocks.completeOnboarding.mockResolvedValue({ legalOnboardingCompleted: true });
     mocks.getCurrentUser.mockResolvedValue({ ...mocks.auth.user, legalOnboardingCompleted: true });
     render(<MemoryRouter><LegalOnboardingPage /></MemoryRouter>);
@@ -195,7 +195,7 @@ describe("OAuth and onboarding gates", () => {
 
 describe("checkout legal flow", () => {
   it("requires one checkbox and sends all three current document IDs", async () => {
-    Object.assign(mocks.auth, { user: { id: 4, email: "student@example.com", fullName: "Student", role: "STUDENT", status: "ACTIVE", legalOnboardingCompleted: true }, isAuthenticated: true });
+    Object.assign(mocks.auth, { user: { id: 4, email: "student@example.com", fullName: "Student", role: "STUDENT", status: "ACTIVE", emailVerified: true, legalOnboardingCompleted: true }, isAuthenticated: true });
     mocks.checkout.mockResolvedValue({ checkoutUrl: "https://checkout.stub.local/session" });
     render(<MemoryRouter><CheckoutSection coachId={10} coachName="Koç" packageId={20} packageName="Paket" price={1000} dashboardData={null} /></MemoryRouter>);
     expect(screen.getByRole("button", { name: "Sözleşmeleri Kabul Edin" })).toBeDisabled();
@@ -212,7 +212,7 @@ describe("checkout legal flow", () => {
   });
 
   it("does not expose a payment redirect after legal validation failure", async () => {
-    Object.assign(mocks.auth, { user: { id: 4, email: "student@example.com", fullName: "Student", role: "STUDENT", status: "ACTIVE", legalOnboardingCompleted: true }, isAuthenticated: true });
+    Object.assign(mocks.auth, { user: { id: 4, email: "student@example.com", fullName: "Student", role: "STUDENT", status: "ACTIVE", emailVerified: true, legalOnboardingCompleted: true }, isAuthenticated: true });
     mocks.checkout.mockRejectedValue(new ApiError(409, "Stale", "Stale", "CHECKOUT_LEGAL_DOCUMENT_NOT_CURRENT"));
     render(<MemoryRouter><CheckoutSection coachId={10} coachName="Koç" packageId={20} packageName="Paket" price={1000} dashboardData={null} /></MemoryRouter>);
     fireEvent.click(screen.getByLabelText(/Ön Bilgilendirme Formu.*Zorunlu/));
@@ -224,7 +224,7 @@ describe("checkout legal flow", () => {
 
 describe("privacy settings", () => {
   beforeEach(() => {
-    Object.assign(mocks.auth, { user: { id: 4, email: "student@example.com", fullName: "Student", role: "STUDENT", status: "ACTIVE", legalOnboardingCompleted: true }, isAuthenticated: true });
+    Object.assign(mocks.auth, { user: { id: 4, email: "student@example.com", fullName: "Student", role: "STUDENT", status: "ACTIVE", emailVerified: true, legalOnboardingCompleted: true }, isAuthenticated: true });
   });
 
   it("loads independent marketing choices and saves cookies with the current policy ID", async () => {

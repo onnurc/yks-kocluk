@@ -6,6 +6,7 @@ import { ApiError } from "../api/ApiError";
 import { LegalDocumentViewer } from "../legal/LegalDocumentViewer";
 import { useLegalDocuments } from "../legal/useLegalDocuments";
 import { isStaleLegalDocumentError, legalErrorMessage } from "../legal/legalErrors";
+import { readinessPathForUser } from "../auth/authNavigation";
 
 const REGISTRATION_DOCUMENT_TYPES = ["TERMS_OF_USE", "EXPLICIT_CONSENT", "KVKK_NOTICE"] as const;
 
@@ -32,13 +33,7 @@ export const RegisterPage: React.FC = () => {
     if (isSuspended) {
       navigate("/suspended");
     } else if (isAuthenticated && user) {
-      if (!user.legalOnboardingCompleted) {
-        navigate("/legal-onboarding");
-      } else if (user.role === "ADMIN") {
-        navigate("/admin");
-      } else {
-        navigate("/dashboard");
-      }
+      navigate(readinessPathForUser(user));
     }
   }, [isAuthenticated, user, isSuspended, navigate]);
 

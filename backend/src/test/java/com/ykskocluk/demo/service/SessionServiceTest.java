@@ -56,7 +56,7 @@ class SessionServiceTest {
     @Mock CoachProfileRepository coachProfileRepository;
     @Mock SessionMapper sessionMapper;
     @Mock ApplicationEventPublisher eventPublisher;
-    @Mock com.ykskocluk.demo.service.ConsentService consentService;
+    @Mock AccountReadinessService accountReadinessService;
 
     SessionService service;
 
@@ -70,7 +70,7 @@ class SessionServiceTest {
     @BeforeEach
     void setUp() {
         service = new SessionService(sessionRepository, subscriptionRepository, availabilityRepository,
-                userRepository, coachProfileRepository, sessionMapper, eventPublisher, consentService);
+                userRepository, coachProfileRepository, sessionMapper, eventPublisher, accountReadinessService);
 
         CoachProfile coach = new CoachProfile();
         ReflectionTestUtils.setField(coach, "id", COACH_ID);
@@ -191,7 +191,7 @@ class SessionServiceTest {
     @Test
     void book_incompleteLegalOnboarding_throwsForbidden() {
         doThrow(new ApiException(HttpStatus.FORBIDDEN, "LEGAL_ONBOARDING_REQUIRED", "Hukuki kayıt onayı gerekli"))
-                .when(consentService).checkConsentRequiredForAction(any());
+                .when(accountReadinessService).requireReady(any());
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.book(STUDENT_ID, request()));
         assertThat(ex.getErrorCode()).isEqualTo("LEGAL_ONBOARDING_REQUIRED");
@@ -212,8 +212,8 @@ class SessionServiceTest {
     void book_consentGateOrdering() {
         service.book(STUDENT_ID, request());
 
-        InOrder inOrder = inOrder(consentService, sessionRepository, eventPublisher);
-        inOrder.verify(consentService).checkConsentRequiredForAction(any());
+        InOrder inOrder = inOrder(accountReadinessService, sessionRepository, eventPublisher);
+        inOrder.verify(accountReadinessService).requireReady(any());
         inOrder.verify(sessionRepository).saveAndFlush(any(Session.class));
         inOrder.verify(eventPublisher).publishEvent(any(Object.class));
     }

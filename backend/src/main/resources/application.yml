@@ -100,6 +100,14 @@ app:
       ip-limit: ${RATE_LIMIT_CHANGE_PASSWORD_IP_LIMIT:10}
       identifier-limit: ${RATE_LIMIT_CHANGE_PASSWORD_USER_LIMIT:5}
       window-seconds: ${RATE_LIMIT_CHANGE_PASSWORD_WINDOW_SECONDS:900}
+    email-verification:
+      ip-limit: ${RATE_LIMIT_EMAIL_VERIFICATION_IP_LIMIT:30}
+      identifier-limit: ${RATE_LIMIT_EMAIL_VERIFICATION_USER_LIMIT:10}
+      window-seconds: ${RATE_LIMIT_EMAIL_VERIFICATION_WINDOW_SECONDS:600}
+    email-verification-resend:
+      ip-limit: ${RATE_LIMIT_EMAIL_VERIFICATION_RESEND_IP_LIMIT:20}
+      identifier-limit: ${RATE_LIMIT_EMAIL_VERIFICATION_RESEND_USER_LIMIT:5}
+      window-seconds: ${RATE_LIMIT_EMAIL_VERIFICATION_RESEND_WINDOW_SECONDS:3600}
   demo-seed-enabled: ${DEMO_SEED_ENABLED:false}
   jwt:
     # HS256 signing key (>= 32 bytes). Supplied via JWT_SECRET (application-local.yml / env).
@@ -112,6 +120,12 @@ app:
     change-cooldown: 15d
     token-retention: 7d
     cleanup-cron: ${PASSWORD_RESET_CLEANUP_CRON:0 20 3 * * *}
+  email-verification:
+    code-ttl: 10m
+    resend-cooldown: 60s
+    retention: 7d
+    max-attempts: 5
+    cleanup-cron: ${EMAIL_VERIFICATION_CLEANUP_CRON:0 30 3 * * *}
   oauth2:
     frontend-redirect-uri: ${OAUTH2_FRONTEND_REDIRECT_URI:http://localhost:3000/oauth/callback}
     login-code-ttl-seconds: ${OAUTH2_LOGIN_CODE_TTL_SECONDS:120}

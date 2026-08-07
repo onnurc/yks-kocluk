@@ -117,4 +117,19 @@ class ResendMailClientTest {
         client.sendPasswordReset(TO, resetLink);
         server[0].verify();
     }
+
+    @Test
+    void emailVerificationContainsCodeAndTenMinuteExpiryButNoPassword() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.subject").value("Uniform Akademi e-posta doğrulama kodu"))
+                .andExpect(jsonPath("$.html", containsString("123456")))
+                .andExpect(jsonPath("$.html", containsString("10 dakika")))
+                .andExpect(jsonPath("$.html", org.hamcrest.Matchers.not(containsString("şifre"))))
+                .andRespond(withSuccess("{\"id\":\"msg_verify\"}", APPLICATION_JSON));
+        client.sendEmailVerification(TO, "123456");
+        server[0].verify();
+    }
 }

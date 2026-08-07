@@ -50,14 +50,14 @@ describe("password recovery and security pages", () => {
   });
 
   it("Google-only account does not see change-password form", () => {
-    mocks.auth.mockReturnValue({ ...baseAuth, user: { id: 1, email: "g@example.com", fullName: "G", role: "STUDENT", status: "ACTIVE", legalOnboardingCompleted: true, hasLocalPassword: false } });
+    mocks.auth.mockReturnValue({ ...baseAuth, user: { id: 1, email: "g@example.com", fullName: "G", role: "STUDENT", status: "ACTIVE", emailVerified: true, legalOnboardingCompleted: true, hasLocalPassword: false } });
     render(<MemoryRouter><SecuritySettingsPage /></MemoryRouter>);
     expect(screen.getByText(/yerel bir şifresi bulunmuyor/)).toBeInTheDocument(); expect(screen.queryByRole("button", { name: "Şifreyi değiştir" })).not.toBeInTheDocument();
   });
 
   it("password user change clears local auth and redirects", async () => {
     mocks.changePassword.mockResolvedValue({ message: "ok", reloginRequired: true });
-    mocks.auth.mockReturnValue({ ...baseAuth, user: { id: 1, email: "u@example.com", fullName: "U", role: "STUDENT", status: "ACTIVE", legalOnboardingCompleted: true, hasLocalPassword: true } });
+    mocks.auth.mockReturnValue({ ...baseAuth, user: { id: 1, email: "u@example.com", fullName: "U", role: "STUDENT", status: "ACTIVE", emailVerified: true, legalOnboardingCompleted: true, hasLocalPassword: true } });
     render(<MemoryRouter><SecuritySettingsPage /></MemoryRouter>);
     fireEvent.change(screen.getByLabelText("Mevcut şifre"), { target: { value: "old-password" } });
     fireEvent.change(screen.getByLabelText("Yeni şifre"), { target: { value: "new-password" } });

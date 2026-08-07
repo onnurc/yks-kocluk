@@ -166,6 +166,19 @@ public class ResendMailClient implements MailClient {
                 """.formatted(resetLink));
     }
 
+    @Override
+    public void sendEmailVerification(String toEmail, String code) {
+        send(toEmail, "Uniform Akademi e-posta doğrulama kodu", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>E-posta adresinizi doğrulayın</h2>
+                  <p>Uniform Akademi hesabınızın e-posta adresini doğrulamak için aşağıdaki kodu kullanın:</p>
+                  <p style="font-size:28px;font-weight:700;letter-spacing:6px">%s</p>
+                  <p>Bu kod 10 dakika geçerlidir ve yalnızca bir kez kullanılabilir.</p>
+                  <p>Bu kaydı siz yapmadıysanız bu e-postayı yok sayabilirsiniz.</p>
+                </div>
+                """.formatted(code));
+    }
+
     /** Single best-effort POST to Resend — swallows-and-logs every error (timeouts included). */
     private void send(String toEmail, String subject, String html) {
         try {

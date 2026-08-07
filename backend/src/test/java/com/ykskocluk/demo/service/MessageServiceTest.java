@@ -44,7 +44,7 @@ class MessageServiceTest {
     @Mock UserRepository userRepository;
     @Mock ConversationMapper conversationMapper;
     @Mock MessageMapper messageMapper;
-    @Mock com.ykskocluk.demo.service.ConsentService consentService;
+    @Mock AccountReadinessService accountReadinessService;
 
     MessageService service;
 
@@ -60,7 +60,7 @@ class MessageServiceTest {
     @BeforeEach
     void setUp() {
         service = new MessageService(conversationRepository, messageRepository, subscriptionRepository,
-                coachProfileRepository, userRepository, conversationMapper, messageMapper, consentService);
+                coachProfileRepository, userRepository, conversationMapper, messageMapper, accountReadinessService);
 
         User coachUser = new User();
         ReflectionTestUtils.setField(coachUser, "id", COACH_USER_ID);
@@ -71,6 +71,9 @@ class MessageServiceTest {
         User studentUser = new User();
         ReflectionTestUtils.setField(studentUser, "id", STUDENT_ID);
         lenient().when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(studentUser));
+        User stranger = new User();
+        ReflectionTestUtils.setField(stranger, "id", STRANGER_ID);
+        lenient().when(userRepository.findById(STRANGER_ID)).thenReturn(Optional.of(stranger));
 
         conversation = new Conversation();
         ReflectionTestUtils.setField(conversation, "id", CONVERSATION_ID);
@@ -155,7 +158,7 @@ class MessageServiceTest {
         service.openConversation(STUDENT_ID, COACH_PROFILE_ID);
 
         verify(conversationRepository).save(any(Conversation.class));
-        verify(consentService).checkConsentRequiredForAction(student);
+        verify(accountReadinessService).requireReady(student);
     }
 
     @Test

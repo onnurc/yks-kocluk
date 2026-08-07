@@ -77,6 +77,12 @@ class AuthRateLimitServiceTest {
         properties.getChangePassword().setIpLimit(10);
         properties.getChangePassword().setIdentifierLimit(1);
         properties.getChangePassword().setWindowSeconds(60);
+        properties.getEmailVerification().setIpLimit(10);
+        properties.getEmailVerification().setIdentifierLimit(2);
+        properties.getEmailVerification().setWindowSeconds(600);
+        properties.getEmailVerificationResend().setIpLimit(10);
+        properties.getEmailVerificationResend().setIdentifierLimit(1);
+        properties.getEmailVerificationResend().setWindowSeconds(3600);
 
         ipResolver = new ClientIpResolver(properties);
         rateLimitService = new AuthRateLimitService(store, properties, ipResolver);
@@ -217,6 +223,20 @@ class AuthRateLimitServiceTest {
         rateLimitService.checkRegister("student@example.com", request);
         rateLimitService.checkRegister("student@example.com", request);
         rateLimitService.checkRegister("other@example.com", request);
+    }
+
+    @Test
+    void verificationResend_hasIndependentHourlyUserLimit() {
+        MockHttpServletRequest firstIp = new MockHttpServletRequest();
+        firstIp.setRemoteAddr("192.168.10.1");
+        MockHttpServletRequest secondIp = new MockHttpServletRequest();
+        secondIp.setRemoteAddr("192.168.10.2");
+
+        rateLimitService.checkEmailVerificationResend(42L, firstIp);
+        assertThatThrownBy(() -> rateLimitService.checkEmailVerificationResend(42L, secondIp))
+                .isInstanceOf(RateLimitExceededException.class)
+                .satisfies(error -> assertThat(((RateLimitExceededException) error).getRetryAfterSeconds())
+                        .isEqualTo(3600L));
     }
 
     @Test

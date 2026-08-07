@@ -52,6 +52,7 @@ class AuthServiceTest {
     @Mock OAuth2LoginCodeService oauth2LoginCodeService;
     @Mock LegalAcceptanceService legalAcceptanceService;
     @Mock AccountDeletionRequestRepository accountDeletionRequestRepository;
+    @Mock EmailVerificationService emailVerificationService;
 
     AuthService authService;
 
@@ -59,7 +60,7 @@ class AuthServiceTest {
     void setUp() {
         authService = new AuthService(userRepository, refreshTokenRepository,
                 passwordEncoder, jwtService, userMapper, jwtProperties, oauth2LoginCodeService,
-                legalAcceptanceService, accountDeletionRequestRepository);
+                legalAcceptanceService, accountDeletionRequestRepository, emailVerificationService);
         // Common stubs for the issueTokens() path; lenient so failure tests don't trip strict stubbing.
         lenient().when(jwtService.generateAccessToken(any())).thenReturn("access-token");
         lenient().when(jwtService.getAccessTtlSeconds()).thenReturn(900L);
@@ -109,6 +110,8 @@ class AuthServiceTest {
         verify(userRepository).save(captor.capture());
         assertThat(captor.getValue().getPasswordHash()).isEqualTo("hashed-pw");
         assertThat(captor.getValue().getStatus()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(captor.getValue().isEmailVerified()).isFalse();
+        verify(emailVerificationService).issueForRegistration(captor.getValue());
         verify(refreshTokenRepository).save(any(RefreshToken.class));
     }
 
@@ -301,7 +304,9 @@ class AuthServiceTest {
         assertThat(captor.getValue().getRole()).isEqualTo(Role.STUDENT);
         assertThat(captor.getValue().getGoogleSub()).isEqualTo("sub-999");
         assertThat(captor.getValue().getStatus()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(captor.getValue().isEmailVerified()).isTrue();
         assertThat(captor.getValue().isLegalOnboardingCompleted()).isFalse();
+        verify(emailVerificationService, never()).issueForRegistration(any());
     }
 
     @Test

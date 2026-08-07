@@ -9,6 +9,7 @@ export interface CurrentUser {
   role: UserRole;
   status: UserStatus;
   dateOfBirth?: string;
+  emailVerified: boolean;
   legalOnboardingCompleted: boolean;
   hasLocalPassword: boolean;
   passwordChangedAt?: string;
@@ -45,4 +46,9 @@ export interface LegalOnboardingRequest {
 
 export interface LegalOnboardingResponse {
   legalOnboardingCompleted: boolean;
+}
+
+export interface EmailVerificationResponse {
+  emailVerified: boolean;
+  nextResendAt?: string;
 }

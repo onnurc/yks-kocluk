@@ -37,4 +37,7 @@ public interface MailClient {
     void sendUserSuspended(String toEmail);
 
     void sendPasswordReset(String toEmail, String resetLink);
+
+    /** Transactional ownership-verification code; independent of marketing preferences. */
+    void sendEmailVerification(String toEmail, String code);
 }

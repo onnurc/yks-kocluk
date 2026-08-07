@@ -1,5 +1,5 @@
 import { httpClient } from "../api/httpClient";
-import type { AuthResponse, CurrentUser, LegalOnboardingRequest, LegalOnboardingResponse, RegisterRequest, PasswordActionResponse } from "./authTypes";
+import type { AuthResponse, CurrentUser, LegalOnboardingRequest, LegalOnboardingResponse, RegisterRequest, PasswordActionResponse, EmailVerificationResponse } from "./authTypes";
 import { getRefreshToken } from "./tokenStorage";
 
 export const authApi = {
@@ -39,4 +39,10 @@ export const authApi = {
 
   changePassword: (currentPassword: string, newPassword: string): Promise<PasswordActionResponse> =>
     httpClient.post<PasswordActionResponse>("/api/v1/auth/change-password", { currentPassword, newPassword }),
+
+  verifyEmail: (code: string): Promise<EmailVerificationResponse> =>
+    httpClient.post<EmailVerificationResponse>("/api/v1/auth/verify-email", { code }),
+
+  resendVerification: (): Promise<EmailVerificationResponse> =>
+    httpClient.post<EmailVerificationResponse>("/api/v1/auth/resend-verification"),
 };

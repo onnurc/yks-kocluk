@@ -12,7 +12,7 @@ export interface AuthContextType {
   register: (request: RegisterRequest) => Promise<void>;
   completeOAuthLogin: (code: string) => Promise<CurrentUser>;
   logout: () => Promise<void>;
-  refreshCurrentUser: () => Promise<void>;
+  refreshCurrentUser: () => Promise<CurrentUser | null>;
   clearSession: () => void;
 }
 

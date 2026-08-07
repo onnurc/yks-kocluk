@@ -26,7 +26,8 @@ import java.util.List;
  */
 @Configuration
 @EnableMethodSecurity
-@EnableConfigurationProperties({JwtProperties.class, com.ykskocluk.demo.config.PasswordSecurityProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, com.ykskocluk.demo.config.PasswordSecurityProperties.class,
+        com.ykskocluk.demo.config.EmailVerificationProperties.class})
 public class SecurityConfig {
 
     @Bean
