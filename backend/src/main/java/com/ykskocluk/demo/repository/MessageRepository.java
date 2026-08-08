@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface MessageRepository extends JpaRepository<Message, Long> {
 
@@ -37,6 +38,15 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     /** Unread messages addressed to the reader (i.e. NOT sent by them). */
     long countByConversationIdAndSenderIdNotAndReadAtIsNull(Long conversationId, Long readerId);
+
+    @Query("""
+            select count(m) from Message m
+             where m.conversation.coachProfile.user.id = :coachUserId
+               and m.sender.id <> :coachUserId and m.readAt is null
+            """)
+    long countUnreadForCoach(@Param("coachUserId") Long coachUserId);
+
+    Optional<Message> findFirstByConversationIdOrderByCreatedAtDesc(Long conversationId);
 
     /**
      * Marks the OTHER party's unread messages as read. The {@code sender.id <> :readerId}

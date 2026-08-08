@@ -1,5 +1,14 @@
 # Audit Gaps Verification
 
+## Coach Dashboard and trial-consultation verification
+
+- All `/api/v1/coach/**` self-dashboard endpoints are method-secured for `COACH` and derive ownership from the authenticated principal; no client-provided coach ID is accepted.
+- Existing coach approval/discovery, account readiness, availability overlap, paid booking/quota, profile moderation, and messaging membership/read-receipt rules remain the source of truth.
+- Trial consultations use `V24` persistence separate from paid sessions. Request requires a ready `STUDENT`, an active/approved coach, and a future slot owned by that coach. It creates no payment/subscription and grants no messaging access.
+- Paid/trial double booking is prevented by pessimistically locking the shared availability row and honoring `is_booked`; entity-specific unique availability constraints provide a second deterministic guard. The partial unique trial index permits a new trial only after cancellation.
+- Dashboard active-student totals count distinct `ACTIVE`/`PAST_DUE` relationships. Monthly completion and upcoming counts use UTC instants with Europe/Istanbul calendar boundaries where a calendar boundary is required.
+- Package pricing is read-only for coaches. `grossSales` means successful attributable charge volume, not payout or earnings; payout remains unimplemented.
+
 ## Scope
 
 This document records the verification and audit findings of areas previously marked as "needs verification" or "deferred" in the YKS Coaching Platform codebase:

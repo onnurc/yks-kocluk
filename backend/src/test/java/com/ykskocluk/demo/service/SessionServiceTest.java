@@ -94,7 +94,7 @@ class SessionServiceTest {
         sub.setStatus(SubscriptionStatus.ACTIVE);
         sub.setPkg(pkg);
 
-        lenient().when(availabilityRepository.findById(SLOT_ID)).thenReturn(Optional.of(slot));
+        lenient().when(availabilityRepository.findByIdForUpdate(SLOT_ID)).thenReturn(Optional.of(slot));
         lenient().when(subscriptionRepository.findLiveSubscription(
                 STUDENT_ID, COACH_ID)).thenReturn(Optional.of(sub));
         lenient().when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(new User()));
@@ -123,7 +123,7 @@ class SessionServiceTest {
 
     @Test
     void book_slotNotFound_throwsNotFound() {
-        when(availabilityRepository.findById(SLOT_ID)).thenReturn(Optional.empty());
+        when(availabilityRepository.findByIdForUpdate(SLOT_ID)).thenReturn(Optional.empty());
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.book(STUDENT_ID, request()));
         assertThat(ex.getErrorCode()).isEqualTo("SLOT_NOT_FOUND");
     }

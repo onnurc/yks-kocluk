@@ -23,6 +23,8 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
             """)
     List<Conversation> findForUser(@Param("userId") Long userId);
 
+    List<Conversation> findByCoachProfileIdOrderByLastMessageAtDesc(Long coachProfileId);
+
     /**
      * Admin oversight list (Phase 5c) — every conversation, independent of subscription/user
      * status (admin sees everything, incl. soft-deleted participants). The entity graph fetches

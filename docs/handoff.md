@@ -1,5 +1,16 @@
 # Handoff — YKS Coaching Platform (Backend)
 
+## Coach Dashboard backend foundation (V24)
+
+- Authentication remains one shared login system. The authenticated `role` drives frontend routing to the student, coach, or admin dashboard; there is no separate coach login.
+- Coach-self endpoints resolve the coach from the JWT principal and are `COACH`-only: dashboard summary, paginated students, filtered calendar reads, conversation summaries, package/activity summaries, own availability, own profile, and trial-consultation management.
+- An active student is a distinct student with an `ACTIVE` or `PAST_DUE` subscription to the coach. The student list separates `ACTIVE`, `HISTORICAL`, and `ALL`; weekly usage follows the existing Europe/Istanbul quota calculation and existing quota-consuming session statuses.
+- Paid sessions still require a live subscription and weekly quota. Trial consultations are separate persisted records and never create a subscription/payment, consume quota, or unlock messaging.
+- Public trial availability reuses the coach's explicit future, unbooked availability slots. A pessimistic lock on the availability row serializes paid and trial reservation; cancellation unlinks and reopens the slot.
+- MVP trial rule: at most one non-cancelled trial per student/coach. The lifecycle is `REQUESTED -> CONFIRMED -> COMPLETED|NO_SHOW`, with `REQUESTED|CONFIRMED -> CANCELLED`.
+- Coach package prices remain platform-controlled. Package summaries report current subscriptions and attributable successful-charge `grossSales`; no payout/earnings capability is implemented.
+- `V24__trial_consultations.sql` adds the trial table, status check, ownership/time indexes, optimistic version, unique slot reference, and partial unique index enforcing the MVP student/coach rule.
+
 Single-file resume point for a fresh session. **Factual, based on the code as it exists now**
 (not the v4 plan). For binding rules see `CLAUDE.md`; for phase intent see `PHASES.md`.
 
@@ -390,7 +401,7 @@ Both standing credential-rotation action items are **DONE** (no longer open):
 
 ---
 
-## Migrations (V1–V20)
+## Migrations (V1–V24)
 
 V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subscriptions · V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging · V10 payments_autorenew · V11 webhook_verifications · V12-V13 safety/admin · V14-V16 demo seed · V17 legacy minor-consent status · V18 OAuth login codes · V19 versioned legal documents and acceptances · V20 checkout legal documents and transaction-linked evidence · V21 privacy preferences and account deletion · V22 password recovery/security · V23 email verification.
 
