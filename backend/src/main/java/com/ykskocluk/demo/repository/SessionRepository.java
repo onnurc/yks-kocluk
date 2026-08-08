@@ -10,6 +10,8 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface SessionRepository extends JpaRepository<Session, Long> {
 
@@ -49,4 +51,41 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
                              @Param("statuses") Collection<SessionStatus> statuses,
                              @Param("weekStart") Instant weekStart,
                              @Param("weekEnd") Instant weekEnd);
+
+    long countByCoachProfileIdAndStatusAndStartTimeGreaterThanEqualAndStartTimeLessThan(
+            Long coachId, SessionStatus status, Instant from, Instant to);
+
+    long countByCoachProfileIdAndStatusAndStartTimeAfter(Long coachId, SessionStatus status, Instant now);
+
+    Optional<Session> findFirstByCoachProfileIdAndStatusAndStartTimeAfterOrderByStartTimeAsc(
+            Long coachId, SessionStatus status, Instant now);
+
+    Optional<Session> findFirstByCoachProfileIdAndStudentIdAndStatusAndStartTimeAfterOrderByStartTimeAsc(
+            Long coachId, Long studentId, SessionStatus status, Instant now);
+
+    @Query("""
+            select count(s) > 0 from Session s
+             where s.coachProfile.id = :coachId
+               and s.status in :statuses
+               and s.startTime < :endTime and s.endTime > :startTime
+            """)
+    boolean existsOverlap(@Param("coachId") Long coachId,
+                          @Param("statuses") Collection<SessionStatus> statuses,
+                          @Param("startTime") Instant startTime,
+                          @Param("endTime") Instant endTime);
+
+    @Query("""
+            select s from Session s
+             where s.coachProfile.id = :coachId
+               and (:from is null or s.startTime >= :from)
+               and (:to is null or s.startTime < :to)
+               and (:status is null or s.status = :status)
+               and (:studentId is null or s.student.id = :studentId)
+            """)
+    Page<Session> findCoachCalendar(@Param("coachId") Long coachId,
+                                    @Param("from") Instant from,
+                                    @Param("to") Instant to,
+                                    @Param("status") SessionStatus status,
+                                    @Param("studentId") Long studentId,
+                                    Pageable pageable);
 }

@@ -3,6 +3,8 @@ package com.ykskocluk.demo.repository;
 import com.ykskocluk.demo.entity.CoachAvailability;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
@@ -18,8 +20,14 @@ public interface CoachAvailabilityRepository extends JpaRepository<CoachAvailabi
     List<CoachAvailability> findByCoachProfileIdAndBookedFalseAndStartTimeAfterOrderByStartTimeAsc(
             Long coachProfileId, Instant after);
 
+    boolean existsByCoachProfileIdAndBookedFalseAndStartTimeAfter(Long coachProfileId, Instant after);
+
     /** Ownership-scoped lookup for delete — only matches the coach's own slot. */
     Optional<CoachAvailability> findByIdAndCoachProfileId(Long id, Long coachProfileId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from CoachAvailability a where a.id = :id")
+    Optional<CoachAvailability> findByIdForUpdate(@Param("id") Long id);
 
     /**
      * Returns true if any existing slot for the coach overlaps the given [startTime, endTime) range.

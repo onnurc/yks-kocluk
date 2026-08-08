@@ -6,9 +6,12 @@ import com.ykskocluk.demo.enums.SubscriptionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Collection;
 import java.util.Optional;
 
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
@@ -93,4 +96,30 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
               from Subscription s where s.id = :id
             """)
     SubscriptionEmailView findEmailViewById(@Param("id") Long id);
+
+    @Query("""
+            select s from Subscription s
+             where s.coachProfile.id = :coachId
+               and s.status in :statuses
+               and s.createdAt = (select max(s2.createdAt) from Subscription s2
+                    where s2.coachProfile.id = :coachId and s2.student.id = s.student.id
+                      and s2.status in :statuses)
+            """)
+    Page<Subscription> findLatestStudents(@Param("coachId") Long coachId,
+                                          @Param("statuses") Collection<SubscriptionStatus> statuses,
+                                          Pageable pageable);
+
+    @Query("""
+            select s from Subscription s
+             where s.coachProfile.id = :coachId and s.status in :statuses
+            """)
+    List<Subscription> findByCoachAndStatuses(@Param("coachId") Long coachId,
+                                              @Param("statuses") Collection<SubscriptionStatus> statuses);
+
+    @Query("""
+            select count(distinct s.student.id) from Subscription s
+             where s.coachProfile.id = :coachId and s.status in :statuses
+            """)
+    long countDistinctStudents(@Param("coachId") Long coachId,
+                               @Param("statuses") Collection<SubscriptionStatus> statuses);
 }

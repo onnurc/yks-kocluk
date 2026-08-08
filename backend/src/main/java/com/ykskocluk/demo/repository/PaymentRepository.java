@@ -11,6 +11,7 @@ import jakarta.persistence.LockModeType;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.math.BigDecimal;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
@@ -36,4 +37,14 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Payment p where p.id = :id")
     Optional<Payment> findByIdForUpdate(@Param("id") Long id);
+
+    @Query("""
+            select coalesce(sum(p.amount), 0) from Payment p
+             where p.subscription.coachProfile.id = :coachId
+               and p.subscription.pkg.id = :packageId
+               and p.status = com.ykskocluk.demo.enums.PaymentStatus.SUCCESS
+               and p.type = com.ykskocluk.demo.enums.PaymentType.CHARGE
+            """)
+    BigDecimal grossSalesForPackage(@Param("coachId") Long coachId,
+                                    @Param("packageId") Long packageId);
 }

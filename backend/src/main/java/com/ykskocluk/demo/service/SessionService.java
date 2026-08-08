@@ -87,8 +87,12 @@ public class SessionService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
         accountReadinessService.requireReady(student);
 
-        CoachAvailability slot = availabilityRepository.findById(request.availabilityId())
+        CoachAvailability slot = availabilityRepository.findByIdForUpdate(request.availabilityId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SLOT_NOT_FOUND", "Uygunluk bulunamadı"));
+
+        if (slot.isBooked()) {
+            throw new ApiException(HttpStatus.CONFLICT, "SLOT_TAKEN", "Bu slot az önce rezerve edildi");
+        }
 
         if (!slot.getStartTime().isAfter(Instant.now())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "SLOT_IN_PAST",
