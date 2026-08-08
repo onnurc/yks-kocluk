@@ -8,6 +8,7 @@ import com.ykskocluk.demo.entity.University;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.Track;
+import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.mapper.CoachProfileMapper;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
@@ -124,6 +125,9 @@ class CoachProfileServiceTest {
     @Test
     void approve_pendingProfile_becomesApproved() {
         CoachProfile profile = new CoachProfile();
+        User user = new User();
+        user.setStatus(UserStatus.ACTIVE);
+        profile.setUser(user);
         profile.setStatus(CoachProfileStatus.PENDING);
         profile.setRejectionReason("old reason");
         when(coachProfileRepository.findById(10L)).thenReturn(Optional.of(profile));
@@ -137,11 +141,29 @@ class CoachProfileServiceTest {
     @Test
     void approve_nonPending_throwsConflict() {
         CoachProfile profile = new CoachProfile();
+        User user = new User();
+        user.setStatus(UserStatus.ACTIVE);
+        profile.setUser(user);
         profile.setStatus(CoachProfileStatus.APPROVED);
         when(coachProfileRepository.findById(10L)).thenReturn(Optional.of(profile));
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.approve(10L));
         assertThat(ex.getErrorCode()).isEqualTo("INVALID_STATUS_TRANSITION");
+    }
+
+    @Test
+    void approve_deletedCoach_isRejected() {
+        CoachProfile profile = new CoachProfile();
+        User user = new User();
+        user.setStatus(UserStatus.DELETED);
+        profile.setUser(user);
+        profile.setStatus(CoachProfileStatus.PENDING);
+        when(coachProfileRepository.findById(10L)).thenReturn(Optional.of(profile));
+
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.approve(10L));
+
+        assertThat(ex.getErrorCode()).isEqualTo("COACH_ACCOUNT_NOT_ACTIVE");
+        assertThat(profile.getStatus()).isEqualTo(CoachProfileStatus.PENDING);
     }
 
     @Test

@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import java.util.Collection;
 
 /**
  * Repository for {@link Report}.
@@ -26,4 +27,6 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     boolean existsOpenReport(@Param("reporterId") Long reporterId,
                              @Param("targetType") ReportTargetType targetType,
                              @Param("targetId") Long targetId);
+
+    long countByStatusIn(Collection<ReportStatus> statuses);
 }

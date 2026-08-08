@@ -2,6 +2,12 @@ package com.ykskocluk.demo.repository;
 
 import com.ykskocluk.demo.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import com.ykskocluk.demo.enums.Role;
+import com.ykskocluk.demo.enums.UserStatus;
 
 import java.util.Optional;
 
@@ -14,4 +20,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByGoogleSub(String googleSub);
 
     boolean existsByEmail(String email);
+
+    long countByRoleAndStatusNot(Role role, UserStatus status);
+
+    @Query("""
+            select u from User u
+             where (:role is null or u.role = :role)
+               and (:status is null or u.status = :status)
+               and (:search is null or lower(u.fullName) like lower(concat('%', cast(:search as string), '%'))
+                    or lower(u.email) like lower(concat('%', cast(:search as string), '%')))
+            """)
+    Page<User> searchAdmin(@Param("role") Role role, @Param("status") UserStatus status,
+                           @Param("search") String search, Pageable pageable);
 }

@@ -96,4 +96,48 @@ class UserServiceTest {
 
         verify(userRepository, never()).saveAndFlush(any());
     }
+
+    @Test
+    void unsuspendUser_restoresActiveAndClearsReason() {
+        User user = new User();
+        user.setRole(com.ykskocluk.demo.enums.Role.COACH);
+        user.setStatus(UserStatus.SUSPENDED);
+        user.setSuspensionReason("review");
+        user.setEmail("coach@example.com");
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+
+        SuspendResponse response = userService.unsuspendUser(2L);
+
+        assertThat(response.status()).isEqualTo("ACTIVE");
+        assertThat(user.getSuspensionReason()).isNull();
+        verify(userRepository).saveAndFlush(user);
+    }
+
+    @Test
+    void unsuspendUser_neverReactivatesDeletedIdentity() {
+        User user = new User();
+        user.setRole(com.ykskocluk.demo.enums.Role.COACH);
+        user.setStatus(UserStatus.DELETED);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> userService.unsuspendUser(2L));
+
+        assertThat(ex.getErrorCode()).isEqualTo("DELETED_USER_CANNOT_BE_REACTIVATED");
+        verify(userRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void suspendUser_neverChangesDeletedIdentity() {
+        User user = new User();
+        user.setRole(com.ykskocluk.demo.enums.Role.STUDENT);
+        user.setStatus(UserStatus.DELETED);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> userService.suspendUser(1L, 2L, "reason"));
+
+        assertThat(ex.getErrorCode()).isEqualTo("DELETED_USER_CANNOT_BE_SUSPENDED");
+        assertThat(user.getStatus()).isEqualTo(UserStatus.DELETED);
+        verify(userRepository, never()).saveAndFlush(any());
+    }
 }

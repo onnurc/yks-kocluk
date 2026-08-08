@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 
 import java.time.Instant;
 import java.util.List;
@@ -122,4 +123,24 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
             """)
     long countDistinctStudents(@Param("coachId") Long coachId,
                                @Param("statuses") Collection<SubscriptionStatus> statuses);
+
+    long countByStatusIn(Collection<SubscriptionStatus> statuses);
+
+    @EntityGraph(attributePaths = {"student", "coachProfile.user", "pkg"})
+    @Query("""
+            select s from Subscription s
+             where (:status is null or s.status = :status)
+               and (:studentId is null or s.student.id = :studentId)
+               and (:coachId is null or s.coachProfile.id = :coachId)
+               and (:packageId is null or s.pkg.id = :packageId)
+               and (:from is null or s.createdAt >= :from)
+               and (:to is null or s.createdAt < :to)
+            """)
+    Page<Subscription> searchAdmin(@Param("status") SubscriptionStatus status,
+                                   @Param("studentId") Long studentId,
+                                   @Param("coachId") Long coachId,
+                                   @Param("packageId") Long packageId,
+                                   @Param("from") Instant from,
+                                   @Param("to") Instant to,
+                                   Pageable pageable);
 }

@@ -12,6 +12,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.math.BigDecimal;
+import java.time.Instant;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import com.ykskocluk.demo.enums.PaymentType;
+import org.springframework.data.jpa.repository.EntityGraph;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
@@ -47,4 +52,43 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             """)
     BigDecimal grossSalesForPackage(@Param("coachId") Long coachId,
                                     @Param("packageId") Long packageId);
+
+    @EntityGraph(attributePaths = {"subscription.student", "subscription.coachProfile.user",
+            "subscription.pkg", "sourcePayment"})
+    @Query("""
+            select p from Payment p
+             where (:type is null or p.type = :type)
+               and (:status is null or p.status = :status)
+               and (:studentId is null or p.subscription.student.id = :studentId)
+               and (:coachId is null or p.subscription.coachProfile.id = :coachId)
+               and (:packageId is null or p.subscription.pkg.id = :packageId)
+               and (:from is null or p.createdAt >= :from)
+               and (:to is null or p.createdAt < :to)
+            """)
+    Page<Payment> searchAdmin(@Param("type") PaymentType type,
+                              @Param("status") PaymentStatus status,
+                              @Param("studentId") Long studentId,
+                              @Param("coachId") Long coachId,
+                              @Param("packageId") Long packageId,
+                              @Param("from") Instant from,
+                              @Param("to") Instant to,
+                              Pageable pageable);
+
+    @Query("""
+            select count(p) from Payment p
+             where p.type = :type and p.status = :status
+               and (:from is null or p.createdAt >= :from)
+               and (:to is null or p.createdAt < :to)
+            """)
+    long countForPeriod(@Param("type") PaymentType type, @Param("status") PaymentStatus status,
+                        @Param("from") Instant from, @Param("to") Instant to);
+
+    @Query("""
+            select coalesce(sum(p.amount), 0) from Payment p
+             where p.type = :type and p.status = :status
+               and (:from is null or p.createdAt >= :from)
+               and (:to is null or p.createdAt < :to)
+            """)
+    BigDecimal sumForPeriod(@Param("type") PaymentType type, @Param("status") PaymentStatus status,
+                            @Param("from") Instant from, @Param("to") Instant to);
 }

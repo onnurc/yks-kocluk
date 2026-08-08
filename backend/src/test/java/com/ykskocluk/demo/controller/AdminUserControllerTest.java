@@ -132,4 +132,22 @@ class AdminUserControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void admin_canUnsuspendUser() throws Exception {
+        when(userService.unsuspendUser(5L))
+                .thenReturn(new SuspendResponse(5L, "ACTIVE", null, "user@example.com"));
+
+        mockMvc.perform(post("/api/v1/admin/users/5/unsuspend").with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+    }
+
+    @Test
+    @WithMockUser(roles = "STUDENT")
+    void student_cannotUnsuspendUser() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/users/5/unsuspend").with(csrf()))
+                .andExpect(status().isForbidden());
+    }
 }

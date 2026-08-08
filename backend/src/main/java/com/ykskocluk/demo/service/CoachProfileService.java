@@ -121,6 +121,10 @@ public class CoachProfileService {
     public CoachProfileResponse approve(Long profileId) {
         CoachProfile profile = requireProfile(profileId);
         requirePending(profile);
+        if (profile.getUser().getStatus() != com.ykskocluk.demo.enums.UserStatus.ACTIVE) {
+            throw new ApiException(HttpStatus.CONFLICT, "COACH_ACCOUNT_NOT_ACTIVE",
+                    "Askıya alınmış veya silinmiş koç onaylanamaz");
+        }
         profile.setStatus(CoachProfileStatus.APPROVED);
         profile.setRejectionReason(null);
         return coachProfileMapper.toResponse(profile, loadTracks(profile.getId()));

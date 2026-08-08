@@ -15,6 +15,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
+import com.ykskocluk.demo.enums.SubscriptionStatus;
+import java.time.Instant;
 
 /**
  * Admin controls for subscriptions (Phase 9). ADMIN role restricted.
@@ -32,8 +35,17 @@ public class AdminSubscriptionController {
 
     @GetMapping
     public PageResponse<AdminSubscriptionResponse> listSubscriptions(
+            @RequestParam(required = false) SubscriptionStatus status,
+            @RequestParam(required = false) Long studentId,
+            @RequestParam(required = false) Long coachId,
+            @RequestParam(required = false) Long packageId,
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return subscriptionService.listSubscriptions(pageable);
+        if (status == null && studentId == null && coachId == null && packageId == null && from == null && to == null) {
+            return subscriptionService.listSubscriptions(pageable);
+        }
+        return subscriptionService.listSubscriptions(status, studentId, coachId, packageId, from, to, pageable);
     }
 
     @PostMapping("/{id}/terminate")

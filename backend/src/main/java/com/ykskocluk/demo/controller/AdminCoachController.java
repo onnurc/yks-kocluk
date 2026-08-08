@@ -5,8 +5,12 @@ import com.ykskocluk.demo.dto.PageResponse;
 import com.ykskocluk.demo.dto.RejectRequest;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.service.CoachProfileService;
+import com.ykskocluk.demo.service.AdminDashboardService;
+import com.ykskocluk.demo.dto.AdminCoachDirectoryResponse;
+import com.ykskocluk.demo.enums.AdminCoachFilter;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,16 +27,25 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminCoachController {
 
     private final CoachProfileService coachProfileService;
+    private final AdminDashboardService adminDashboardService;
 
-    public AdminCoachController(CoachProfileService coachProfileService) {
+    public AdminCoachController(CoachProfileService coachProfileService,
+                                AdminDashboardService adminDashboardService) {
         this.coachProfileService = coachProfileService;
+        this.adminDashboardService = adminDashboardService;
     }
 
     @GetMapping
-    public PageResponse<CoachProfileResponse> list(
-            @RequestParam(defaultValue = "PENDING") CoachProfileStatus status,
-            @PageableDefault(size = 20) Pageable pageable) {
-        return coachProfileService.listByStatus(status, pageable);
+    public PageResponse<AdminCoachDirectoryResponse> list(
+            @RequestParam(defaultValue = "PENDING") AdminCoachFilter status,
+            @RequestParam(required = false) String search,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return adminDashboardService.coaches(status, search, pageable);
+    }
+
+    @GetMapping("/{id}")
+    public AdminCoachDirectoryResponse detail(@PathVariable Long id) {
+        return adminDashboardService.coach(id);
     }
 
     @PostMapping("/{id}/approve")

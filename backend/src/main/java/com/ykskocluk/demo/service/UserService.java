@@ -33,6 +33,10 @@ public class UserService {
         if (user.getRole() == com.ykskocluk.demo.enums.Role.ADMIN) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "CANNOT_SUSPEND_ADMIN", "Yöneticileri askıya alamazsınız");
         }
+        if (user.getStatus() == UserStatus.DELETED) {
+            throw new ApiException(HttpStatus.CONFLICT, "DELETED_USER_CANNOT_BE_SUSPENDED",
+                    "Silinmiş kullanıcı durumu değiştirilemez");
+        }
 
         user.setStatus(UserStatus.SUSPENDED);
         user.setSuspensionReason(reason);
@@ -44,5 +48,26 @@ public class UserService {
                 user.getSuspensionReason(),
                 user.getEmail()
         );
+    }
+
+    @Transactional
+    public SuspendResponse unsuspendUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
+        if (user.getStatus() == UserStatus.DELETED) {
+            throw new ApiException(HttpStatus.CONFLICT, "DELETED_USER_CANNOT_BE_REACTIVATED",
+                    "Silinmiş kullanıcı yeniden etkinleştirilemez");
+        }
+        if (user.getRole() == com.ykskocluk.demo.enums.Role.ADMIN) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "CANNOT_UNSUSPEND_ADMIN",
+                    "Yönetici durumu bu endpoint üzerinden değiştirilemez");
+        }
+        if (user.getStatus() != UserStatus.SUSPENDED) {
+            throw new ApiException(HttpStatus.CONFLICT, "USER_NOT_SUSPENDED", "Kullanıcı askıya alınmış değil");
+        }
+        user.setStatus(UserStatus.ACTIVE);
+        user.setSuspensionReason(null);
+        userRepository.saveAndFlush(user);
+        return new SuspendResponse(user.getId(), user.getStatus().name(), null, user.getEmail());
     }
 }

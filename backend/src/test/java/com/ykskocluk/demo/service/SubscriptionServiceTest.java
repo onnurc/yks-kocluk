@@ -810,7 +810,8 @@ class SubscriptionServiceTest {
         payment.setCommissionAmount(new BigDecimal("30.00"));
         payment.setCoachPayoutAmount(new BigDecimal("120.00"));
 
-        when(paymentRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(payment)));
+        when(paymentRepository.searchAdmin(null, null, null, null, null, null, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(payment)));
         when(paymentRepository.findBySourcePaymentIdInAndStatus(List.of(100L), PaymentStatus.SUCCESS)).thenReturn(List.of());
 
         var res = service.listPayments(pageable);
@@ -844,7 +845,8 @@ class SubscriptionServiceTest {
         sub.setStartAt(Instant.now());
         sub.setEndAt(Instant.now());
 
-        when(subscriptionRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(sub)));
+        when(subscriptionRepository.searchAdmin(null, null, null, null, null, null, pageable))
+                .thenReturn(new PageImpl<>(List.of(sub)));
 
         var res = service.listSubscriptions(pageable);
         assertThat(res).isNotNull();

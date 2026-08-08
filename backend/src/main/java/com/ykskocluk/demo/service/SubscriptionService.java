@@ -513,8 +513,17 @@ public class SubscriptionService {
 
     @Transactional(readOnly = true)
     public PageResponse<AdminPaymentResponse> listPayments(Pageable pageable) {
+        return listPayments(null, null, null, null, null, null, null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<AdminPaymentResponse> listPayments(PaymentType type, PaymentStatus status,
+            Long studentId, Long coachId, Long packageId, Instant from, Instant to, Pageable pageable) {
         validateSort(pageable, PAYMENT_SORTABLE_FIELDS);
-        Page<Payment> page = paymentRepository.findAll(pageable);
+        if (from != null && to != null && !to.isAfter(from)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE", "Bitiş başlangıçtan sonra olmalı");
+        }
+        Page<Payment> page = paymentRepository.searchAdmin(type, status, studentId, coachId, packageId, from, to, pageable);
 
         // Batch-load refunds for every CHARGE row on this page in one query (avoids N+1).
         List<Long> chargeIds = page.getContent().stream()
@@ -532,14 +541,20 @@ public class SubscriptionService {
             BigDecimal totalRefunded = payment.getType() == PaymentType.CHARGE
                     ? refundedByChargeId.getOrDefault(payment.getId(), BigDecimal.ZERO)
                     : BigDecimal.ZERO;
-            BigDecimal remainingRefundable = payment.getAmount().subtract(totalRefunded);
+            BigDecimal remainingRefundable = payment.getType() == PaymentType.CHARGE
+                    ? payment.getAmount().subtract(totalRefunded)
+                    : BigDecimal.ZERO;
 
             return new AdminPaymentResponse(
                     payment.getId(),
                     payment.getSubscription().getId(),
+                    payment.getSourcePayment() == null ? null : payment.getSourcePayment().getId(),
+                    payment.getSubscription().getStudent().getId(),
                     payment.getSubscription().getStudent().getEmail(),
                     payment.getSubscription().getStudent().getFullName(),
+                    payment.getSubscription().getCoachProfile().getId(),
                     payment.getSubscription().getCoachProfile().getUser().getFullName(),
+                    payment.getSubscription().getPkg().getId(),
                     payment.getSubscription().getPkg().getName(),
                     payment.getType().name(),
                     payment.getAmount(),
@@ -555,13 +570,25 @@ public class SubscriptionService {
 
     @Transactional(readOnly = true)
     public PageResponse<AdminSubscriptionResponse> listSubscriptions(Pageable pageable) {
+        return listSubscriptions(null, null, null, null, null, null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<AdminSubscriptionResponse> listSubscriptions(SubscriptionStatus status,
+            Long studentId, Long coachId, Long packageId, Instant from, Instant to, Pageable pageable) {
         validateSort(pageable, SUBSCRIPTION_SORTABLE_FIELDS);
-        Page<Subscription> page = subscriptionRepository.findAll(pageable);
+        if (from != null && to != null && !to.isAfter(from)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE", "Bitiş başlangıçtan sonra olmalı");
+        }
+        Page<Subscription> page = subscriptionRepository.searchAdmin(status, studentId, coachId, packageId, from, to, pageable);
         Page<AdminSubscriptionResponse> mapped = page.map(sub -> new AdminSubscriptionResponse(
                 sub.getId(),
+                sub.getStudent().getId(),
                 sub.getStudent().getEmail(),
                 sub.getStudent().getFullName(),
+                sub.getCoachProfile().getId(),
                 sub.getCoachProfile().getUser().getFullName(),
+                sub.getPkg().getId(),
                 sub.getPkg().getName(),
                 sub.getStatus().name(),
                 sub.getStartAt(),
