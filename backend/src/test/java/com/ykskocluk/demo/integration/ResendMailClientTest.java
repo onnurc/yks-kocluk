@@ -101,4 +101,35 @@ class ResendMailClientTest {
 
         server[0].verify();
     }
+
+    @Test
+    void passwordReset_containsSingleUseLinkAndExpiryButNoPassword() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+        String resetLink = "https://app.example.com/reset-password?token=secret-token";
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.subject").value("Uniform Akademi şifre sıfırlama bağlantısı"))
+                .andExpect(jsonPath("$.html", containsString(resetLink)))
+                .andExpect(jsonPath("$.html", containsString("30 dakika")))
+                .andExpect(jsonPath("$.html", containsString("tek kullanımlık")))
+                .andRespond(withSuccess("{\"id\":\"msg_reset\"}", APPLICATION_JSON));
+        client.sendPasswordReset(TO, resetLink);
+        server[0].verify();
+    }
+
+    @Test
+    void emailVerificationContainsCodeAndTenMinuteExpiryButNoPassword() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.subject").value("Uniform Akademi e-posta doğrulama kodu"))
+                .andExpect(jsonPath("$.html", containsString("123456")))
+                .andExpect(jsonPath("$.html", containsString("10 dakika")))
+                .andExpect(jsonPath("$.html", org.hamcrest.Matchers.not(containsString("şifre"))))
+                .andRespond(withSuccess("{\"id\":\"msg_verify\"}", APPLICATION_JSON));
+        client.sendEmailVerification(TO, "123456");
+        server[0].verify();
+    }
 }

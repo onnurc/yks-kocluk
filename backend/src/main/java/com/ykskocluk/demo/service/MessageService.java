@@ -44,7 +44,7 @@ public class MessageService {
     private final UserRepository userRepository;
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
-    private final ConsentService consentService;
+    private final AccountReadinessService accountReadinessService;
 
     public MessageService(ConversationRepository conversationRepository,
                           MessageRepository messageRepository,
@@ -53,7 +53,7 @@ public class MessageService {
                           UserRepository userRepository,
                           ConversationMapper conversationMapper,
                           MessageMapper messageMapper,
-                          ConsentService consentService) {
+                          AccountReadinessService accountReadinessService) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.subscriptionRepository = subscriptionRepository;
@@ -61,18 +61,18 @@ public class MessageService {
         this.userRepository = userRepository;
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
-        this.consentService = consentService;
+        this.accountReadinessService = accountReadinessService;
     }
 
     /** Student opens (or re-fetches) the conversation with a coach. Gate enforced here. */
     @Transactional
     public ConversationResponse openConversation(Long studentUserId, Long coachProfileId) {
-        CoachProfile coach = coachProfileRepository.findById(coachProfileId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "COACH_NOT_FOUND", "Koç bulunamadı"));
-
         User student = userRepository.findById(studentUserId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
-        consentService.checkConsentRequiredForAction(student);
+        accountReadinessService.requireReady(student);
+
+        CoachProfile coach = coachProfileRepository.findById(coachProfileId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "COACH_NOT_FOUND", "Koç bulunamadı"));
 
         // The gate: must have history access with this coach.
         if (!subscriptionRepository.existsHistoryAccessSubscription(studentUserId, coachProfileId)) {
@@ -95,6 +95,10 @@ public class MessageService {
     /** Sends a message. Sender must be a participant. Bumps last_message_at in the same tx. */
     @Transactional
     public MessageResponse sendMessage(Long senderUserId, Long conversationId, String content) {
+        User sender = userRepository.findById(senderUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
+        accountReadinessService.requireReady(sender);
+
         Conversation conversation = requireParticipant(conversationId, senderUserId);
 
         // If the sender is the student, verify they still have an ACTIVE subscription
@@ -104,11 +108,6 @@ public class MessageService {
                         "Mesaj göndermek için aktif bir aboneliğiniz olmalıdır");
             }
         }
-
-        User sender = userRepository.findById(senderUserId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
-
-        consentService.checkConsentRequiredForAction(sender);
 
         Message message = new Message();
         message.setConversation(conversation);

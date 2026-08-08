@@ -63,4 +63,15 @@ public class StubMailClient implements MailClient {
     public void sendUserSuspended(String toEmail) {
         log.info("[STUB MailClient] user-suspended mail to {}", toEmail);
     }
+
+    @Override
+    public void sendPasswordReset(String toEmail, String resetLink) {
+        log.info("[STUB MailClient] password-reset mail to {}", toEmail);
+    }
+
+    @Override
+    public void sendEmailVerification(String toEmail, String code) {
+        // The code is intentionally never logged, even by the local/test stub.
+        log.info("[STUB MailClient] email-verification mail to {}", toEmail);
+    }
 }

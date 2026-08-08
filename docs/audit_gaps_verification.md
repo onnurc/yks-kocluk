@@ -232,3 +232,19 @@ Safety/moderation flows now include transactional email notifications via the be
   - Mail dispatch uses a try/catch double-backstop to ensure any mail delivery exception (e.g. timeout or provider outage) is logged and **never** rolls back the database write or breaks the API response.
   - No `@Async` or queuing/multithreading is introduced, maintaining simple, synchronous best-effort execution.
   - SMS notifications and unsuspend flows remain deferred/future-phase items.
+# Password recovery/security verification
+
+- `V22__password_recovery_and_security.sql` adds `users.password_changed_at` plus hashed, expiring, single-use reset tokens and cleanup indexes.
+- Public recovery endpoints use identical forgot-password responses, IP/identifier rate limits, and no raw-token logging or persistence.
+- Password change/reset revokes refresh tokens and invalidates outstanding reset links. Incremented `passwordVersion` rejects all older JWTs deterministically.
+- Manual deployment check: configure the production frontend base URL and transactional mail sender, then verify the delivered link opens `/reset-password` without storing the token in browser storage.
+
+# Email ownership verification
+
+- `V23__email_verification.sql` adds hashed, expiring, single-use verification evidence with user/expiry/active indexes, attempt counts, optimistic locking, and scheduled retired-code cleanup.
+- Password registration remains legally atomic, leaves `emailVerified=false`, and publishes the transactional verification email only after commit. The raw 6-digit code is never persisted or logged; marketing opt-out does not suppress the mail.
+- Verification expires after 10 minutes, invalidates all outstanding codes on success, and is idempotent after the account is verified. Resend replaces older active codes, enforces a 60-second database-backed cooldown, and also uses the shared per-IP/per-user limiter.
+- Verified Google claims skip the code flow. Google-created users still have independent `legalOnboardingCompleted=false` until they accept the required documents.
+- The centralized account-readiness service checks email first and then the existing legal gate for checkout, booking, conversation creation, and message sending. Privacy/security, current-user, legal onboarding, verify/resend, refresh, and logout remain outside this product-action gate.
+- Frontend `/verify-email` keeps the code in component memory only, validates exactly six digits, maps invalid/expired errors, refreshes current-user state after success, and honors server resend timing. Route priority prevents an unverified user from bypassing protected product pages without conflating legal onboarding.
+- Production delivery still requires a valid Resend API key and verified sender/domain. A manual deployed smoke should confirm delivery, ten-minute copy, cooldown behavior, and the verify → legal-onboarding/dashboard redirects.

@@ -70,7 +70,7 @@ class SubscriptionServiceTest {
     @Mock IyzicoClient iyzicoClient;
     @Mock SubscriptionMapper subscriptionMapper;
     @Mock EntityManager entityManager;
-    @Mock com.ykskocluk.demo.service.ConsentService consentService;
+    @Mock AccountReadinessService accountReadinessService;
     @Mock LegalAcceptanceService legalAcceptanceService;
     @Mock org.springframework.transaction.PlatformTransactionManager transactionManager;
 
@@ -88,7 +88,7 @@ class SubscriptionServiceTest {
             coachProfileRepository, userRepository, paymentRepository, paymentProperties,
             iyzicoClient, subscriptionMapper, entityManager,
             new com.ykskocluk.demo.config.IyzicoProperties(false, "sandbox", "dummy", "dummy", "dummy", "dummy"),
-            consentService, legalAcceptanceService, transactionManager);
+            accountReadinessService, legalAcceptanceService, transactionManager);
 
         Package pkg = new Package();
         ReflectionTestUtils.setField(pkg, "id", PKG_ID);
@@ -150,7 +150,7 @@ class SubscriptionServiceTest {
         SubscriptionResponse response = service.subscribe(STUDENT_ID, request());
 
         assertThat(response.status()).isEqualTo(SubscriptionStatus.PENDING_PAYMENT);
-        verify(consentService).checkConsentRequiredForAction(minor);
+        verify(accountReadinessService).requireReady(minor);
     }
 
     @Test
@@ -254,7 +254,7 @@ class SubscriptionServiceTest {
     @Test
     void checkout_incompleteRegistrationLegalOnboarding_remainsBlocked() {
         doThrow(new ApiException(HttpStatus.FORBIDDEN, "LEGAL_ONBOARDING_REQUIRED", "Onboarding gerekli"))
-                .when(consentService).checkConsentRequiredForAction(any());
+                .when(accountReadinessService).requireReady(any());
 
         ApiException ex = catchThrowableOfType(ApiException.class,
                 () -> service.checkout(STUDENT_ID, checkoutRequest()));

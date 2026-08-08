@@ -59,7 +59,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 Optional<User> userOpt = userRepository.findById(userId);
                 if (userOpt.isPresent()) {
-                    UserStatus status = userOpt.get().getStatus();
+                    User user = userOpt.get();
+                    UserStatus status = user.getStatus();
                     if (status == UserStatus.SUSPENDED || status == UserStatus.DELETED) {
                         response.setStatus(HttpStatus.FORBIDDEN.value());
                         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
@@ -70,6 +71,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                 {"type":"about:blank","title":"Forbidden","status":403,\
                                 "detail":"%s","errorCode":"%s","timestamp":"%s"}\
                                 """.formatted(detail, errorCode, Instant.now()));
+                        return;
+                    }
+                    if (user.getPasswordChangedAt() != null && claims.getIssuedAt() != null
+                            && claims.getIssuedAt().toInstant().isBefore(user.getPasswordChangedAt())) {
+                        SecurityContextHolder.clearContext();
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
+                    Integer tokenPasswordVersion = claims.get("passwordVersion", Integer.class);
+                    if ((tokenPasswordVersion == null ? 0 : tokenPasswordVersion) != user.getPasswordVersion()) {
+                        SecurityContextHolder.clearContext();
+                        filterChain.doFilter(request, response);
                         return;
                     }
                 }

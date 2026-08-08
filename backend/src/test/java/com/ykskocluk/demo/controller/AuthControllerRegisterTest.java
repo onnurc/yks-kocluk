@@ -21,10 +21,14 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
+import java.util.List;
+import com.ykskocluk.demo.dto.EmailVerificationResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -45,6 +49,12 @@ class AuthControllerRegisterTest {
     private AuthRateLimitService rateLimitService;
 
     @MockitoBean
+    private com.ykskocluk.demo.service.EmailVerificationService emailVerificationService;
+
+    @MockitoBean
+    private com.ykskocluk.demo.service.PasswordSecurityService passwordSecurityService;
+
+    @MockitoBean
     private JwtService jwtService;
 
     @MockitoBean
@@ -52,6 +62,27 @@ class AuthControllerRegisterTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+
+    @Test
+    void verifyEmail_authenticatedUserUsesPrincipalAndReturnsState() throws Exception {
+        when(emailVerificationService.verify(7L, "123456"))
+                .thenReturn(new EmailVerificationResponse(true, null));
+        var auth = new UsernamePasswordAuthenticationToken(7L, null, List.of());
+
+        mockMvc.perform(post("/api/v1/auth/verify-email").with(csrf()).with(authentication(auth))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"123456\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.emailVerified").value(true));
+    }
+
+    @Test
+    void verifyEmail_rejectsAnythingOtherThanSixDigits() throws Exception {
+        var auth = new UsernamePasswordAuthenticationToken(7L, null, List.of());
+        mockMvc.perform(post("/api/v1/auth/verify-email").with(csrf()).with(authentication(auth))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"12a45\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
 
     @Test
     @WithMockUser

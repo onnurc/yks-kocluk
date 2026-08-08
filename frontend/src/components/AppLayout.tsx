@@ -25,6 +25,7 @@ export const AppLayout: React.FC = () => {
             <nav style={{ display: "flex", gap: "1rem" }}>
               <Link to="/dashboard" style={{ color: "#ccc", textDecoration: "none" }}>Anasayfa</Link>
               <Link to="/privacy" style={{ color: "#ccc", textDecoration: "none" }}>Gizlilik</Link>
+              <Link to="/security" style={{ color: "#ccc", textDecoration: "none" }}>Güvenlik</Link>
               {user?.role === "STUDENT" && (
                 <>
                   <Link to="/coaches" style={{ color: "#ccc", textDecoration: "none" }}>Koç Keşfet</Link>

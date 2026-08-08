@@ -46,6 +46,7 @@ public class AuthService {
     private final OAuth2LoginCodeService oauth2LoginCodeService;
     private final LegalAcceptanceService legalAcceptanceService;
     private final AccountDeletionRequestRepository accountDeletionRequestRepository;
+    private final EmailVerificationService emailVerificationService;
 
     public AuthService(UserRepository userRepository,
                        RefreshTokenRepository refreshTokenRepository,
@@ -55,7 +56,8 @@ public class AuthService {
                        JwtProperties jwtProperties,
                        OAuth2LoginCodeService oauth2LoginCodeService,
                        LegalAcceptanceService legalAcceptanceService,
-                       AccountDeletionRequestRepository accountDeletionRequestRepository) {
+                       AccountDeletionRequestRepository accountDeletionRequestRepository,
+                       EmailVerificationService emailVerificationService) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
@@ -65,6 +67,7 @@ public class AuthService {
         this.oauth2LoginCodeService = oauth2LoginCodeService;
         this.legalAcceptanceService = legalAcceptanceService;
         this.accountDeletionRequestRepository = accountDeletionRequestRepository;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @Transactional
@@ -104,6 +107,7 @@ public class AuthService {
         userRepository.save(user);
         legalAcceptanceService.recordRegistrationAcceptances(user, requiredDocuments,
                 Boolean.TRUE.equals(request.marketingEmailOptIn()), Boolean.TRUE.equals(request.marketingSmsOptIn()));
+        emailVerificationService.issueForRegistration(user);
         return issueTokens(user);
     }
 
@@ -166,6 +170,10 @@ public class AuthService {
         User user;
         if (bySub.isPresent()) {
             user = bySub.get();
+            if (!user.isEmailVerified()) {
+                user.setEmailVerified(true);
+                emailVerificationService.invalidateOutstanding(user);
+            }
         } else {
             Optional<User> byEmail = userRepository.findByEmail(email);
             if (byEmail.isPresent()) {
@@ -175,7 +183,10 @@ public class AuthService {
                             "E-posta veya şifre hatalı");
                 }
                 user.setGoogleSub(googleSub);
-                user.setEmailVerified(true);
+                if (!user.isEmailVerified()) {
+                    user.setEmailVerified(true);
+                    emailVerificationService.invalidateOutstanding(user);
+                }
             } else {
                 user = new User();
                 user.setEmail(email);

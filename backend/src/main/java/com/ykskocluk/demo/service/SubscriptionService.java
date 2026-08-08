@@ -72,7 +72,7 @@ public class SubscriptionService {
     private final SubscriptionMapper subscriptionMapper;
     private final EntityManager entityManager;
     private final com.ykskocluk.demo.config.IyzicoProperties iyzicoProperties;
-    private final ConsentService consentService;
+    private final AccountReadinessService accountReadinessService;
     private final LegalAcceptanceService legalAcceptanceService;
     private final TransactionTemplate tx;
 
@@ -86,7 +86,7 @@ public class SubscriptionService {
                                SubscriptionMapper subscriptionMapper,
                                EntityManager entityManager,
                                com.ykskocluk.demo.config.IyzicoProperties iyzicoProperties,
-                               ConsentService consentService,
+                               AccountReadinessService accountReadinessService,
                                LegalAcceptanceService legalAcceptanceService,
                                PlatformTransactionManager transactionManager) {
         this.subscriptionRepository = subscriptionRepository;
@@ -99,7 +99,7 @@ public class SubscriptionService {
         this.subscriptionMapper = subscriptionMapper;
         this.entityManager = entityManager;
         this.iyzicoProperties = iyzicoProperties;
-        this.consentService = consentService;
+        this.accountReadinessService = accountReadinessService;
         this.legalAcceptanceService = legalAcceptanceService;
         this.tx = new TransactionTemplate(transactionManager);
     }
@@ -168,7 +168,7 @@ public class SubscriptionService {
         User student = userRepository.findById(studentUserId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
 
-        consentService.checkConsentRequiredForAction(student);
+        accountReadinessService.requireReady(student);
 
         Instant now = Instant.now();
         Subscription subscription = new Subscription();

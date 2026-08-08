@@ -10,6 +10,7 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import java.time.Instant;
 
 /**
  * Platform identity. One row per email (email is unique). A user may authenticate
@@ -29,6 +30,12 @@ public class User extends BaseEntity {
     /** BCrypt hash; null for Google-only accounts. */
     @Column(name = "password_hash")
     private String passwordHash;
+
+    @Column(name = "password_changed_at")
+    private Instant passwordChangedAt;
+
+    @Column(name = "password_version", nullable = false)
+    private int passwordVersion;
 
     @Column(name = "full_name", nullable = false)
     private String fullName;

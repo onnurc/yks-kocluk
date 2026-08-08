@@ -26,7 +26,8 @@ import java.util.List;
  */
 @Configuration
 @EnableMethodSecurity
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, com.ykskocluk.demo.config.PasswordSecurityProperties.class,
+        com.ykskocluk.demo.config.EmailVerificationProperties.class})
 public class SecurityConfig {
 
     @Bean
@@ -44,6 +45,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/register",
                                 "/api/v1/auth/login",
                                 "/api/v1/auth/refresh",
+                                "/api/v1/auth/forgot-password",
+                                "/api/v1/auth/reset-password",
                                 "/api/v1/auth/oauth2/exchange",
                                 "/api/v1/legal-documents/**",
                                 "/api/v1/payments/iyzico/webhook")

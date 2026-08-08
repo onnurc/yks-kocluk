@@ -47,8 +47,12 @@ export const request = async <T>(
     if (code === "LEGAL_ONBOARDING_REQUIRED") {
       window.dispatchEvent(new Event("legal-onboarding-required"));
     }
+    if (code === "EMAIL_VERIFICATION_REQUIRED") {
+      window.dispatchEvent(new Event("email-verification-required"));
+    }
 
-    throw new ApiError(status, title, detail, code, fieldErrors);
+    const nextAllowedAt = typeof errorData.nextAllowedAt === "string" ? errorData.nextAllowedAt : undefined;
+    throw new ApiError(status, title, detail, code, fieldErrors, nextAllowedAt);
   }
 
   if (response.status === 204) {

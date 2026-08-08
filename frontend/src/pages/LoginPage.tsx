@@ -4,6 +4,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { FormError } from "../components/FormError";
 import { getApiBaseUrl } from "../api/httpClient";
 import { ApiError } from "../api/ApiError";
+import { readinessPathForUser } from "../auth/authNavigation";
 
 export const LoginPage: React.FC = () => {
   const { login, isAuthenticated, user, isSuspended } = useAuth();
@@ -20,13 +21,7 @@ export const LoginPage: React.FC = () => {
     if (isSuspended) {
       navigate("/suspended");
     } else if (isAuthenticated && user) {
-      if (!user.legalOnboardingCompleted) {
-        navigate("/legal-onboarding");
-      } else if (user.role === "ADMIN") {
-        navigate("/admin");
-      } else {
-        navigate("/dashboard");
-      }
+      navigate(readinessPathForUser(user));
     }
   }, [isAuthenticated, user, isSuspended, navigate]);
 
@@ -59,6 +54,11 @@ export const LoginPage: React.FC = () => {
           Hesabınızla ilgili silme işlemi tamamlandı. Oturumunuz güvenli biçimde kapatıldı.
         </div>
       )}
+      {searchParams.get("passwordChanged") === "1" && (
+        <div role="status" style={{ padding: ".75rem", marginBottom: "1rem", background: "#ecfdf5", color: "#166534", borderRadius: "4px" }}>
+          Şifreniz değiştirildi ve tüm oturumlar kapatıldı. Yeni şifrenizle giriş yapın.
+        </div>
+      )}
 
       <FormError error={error} />
 
@@ -84,6 +84,9 @@ export const LoginPage: React.FC = () => {
             disabled={loading}
             style={{ width: "100%", padding: "0.5rem", boxSizing: "border-box", borderRadius: "4px", border: "1px solid #ccc" }}
           />
+        </div>
+        <div style={{ textAlign: "right", marginTop: "-.75rem", marginBottom: "1rem" }}>
+          <Link to="/forgot-password">Şifremi unuttum</Link>
         </div>
         <button
           type="submit"

@@ -35,4 +35,9 @@ public interface MailClient {
 
     /** Notify the user that their account has been suspended. */
     void sendUserSuspended(String toEmail);
+
+    void sendPasswordReset(String toEmail, String resetLink);
+
+    /** Transactional ownership-verification code; independent of marketing preferences. */
+    void sendEmailVerification(String toEmail, String code);
 }

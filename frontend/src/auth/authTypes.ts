@@ -9,7 +9,15 @@ export interface CurrentUser {
   role: UserRole;
   status: UserStatus;
   dateOfBirth?: string;
+  emailVerified: boolean;
   legalOnboardingCompleted: boolean;
+  hasLocalPassword: boolean;
+  passwordChangedAt?: string;
+}
+
+export interface PasswordActionResponse {
+  message: string;
+  reloginRequired: boolean;
 }
 
 export interface AuthResponse {
@@ -38,4 +46,9 @@ export interface LegalOnboardingRequest {
 
 export interface LegalOnboardingResponse {
   legalOnboardingCompleted: boolean;
+}
+
+export interface EmailVerificationResponse {
+  emailVerified: boolean;
+  nextResendAt?: string;
 }

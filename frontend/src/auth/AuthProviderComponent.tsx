@@ -31,16 +31,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const currentUser = await authApi.getCurrentUser();
       if (currentUser.status === "SUSPENDED") {
         handleSuspendedUser();
-        return;
+        return null;
       }
       setUser(currentUser);
       setIsSuspended(false);
+      return currentUser;
     } catch (error) {
       if (error instanceof ApiError && error.code === "USER_SUSPENDED") {
         handleSuspendedUser();
       } else {
         clearSession();
       }
+      return null;
     }
   }, [clearSession, handleSuspendedUser]);
 
@@ -122,8 +124,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     const handleLegalOnboardingRequired = () => { void refreshCurrentUser(); };
+    const handleEmailVerificationRequired = () => { void refreshCurrentUser(); };
     window.addEventListener("legal-onboarding-required", handleLegalOnboardingRequired);
-    return () => window.removeEventListener("legal-onboarding-required", handleLegalOnboardingRequired);
+    window.addEventListener("email-verification-required", handleEmailVerificationRequired);
+    return () => {
+      window.removeEventListener("legal-onboarding-required", handleLegalOnboardingRequired);
+      window.removeEventListener("email-verification-required", handleEmailVerificationRequired);
+    };
   }, [refreshCurrentUser]);
 
   return (

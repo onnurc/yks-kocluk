@@ -68,6 +68,21 @@ class AuthRateLimitServiceTest {
         properties.getRefresh().setIpLimit(2);
         properties.getRefresh().setTokenLimit(1);
         properties.getRefresh().setWindowSeconds(60);
+        properties.getForgotPassword().setIpLimit(10);
+        properties.getForgotPassword().setIdentifierLimit(1);
+        properties.getForgotPassword().setWindowSeconds(60);
+        properties.getResetPassword().setIpLimit(10);
+        properties.getResetPassword().setIdentifierLimit(1);
+        properties.getResetPassword().setWindowSeconds(60);
+        properties.getChangePassword().setIpLimit(10);
+        properties.getChangePassword().setIdentifierLimit(1);
+        properties.getChangePassword().setWindowSeconds(60);
+        properties.getEmailVerification().setIpLimit(10);
+        properties.getEmailVerification().setIdentifierLimit(2);
+        properties.getEmailVerification().setWindowSeconds(600);
+        properties.getEmailVerificationResend().setIpLimit(10);
+        properties.getEmailVerificationResend().setIdentifierLimit(1);
+        properties.getEmailVerificationResend().setWindowSeconds(3600);
 
         ipResolver = new ClientIpResolver(properties);
         rateLimitService = new AuthRateLimitService(store, properties, ipResolver);
@@ -208,5 +223,38 @@ class AuthRateLimitServiceTest {
         rateLimitService.checkRegister("student@example.com", request);
         rateLimitService.checkRegister("student@example.com", request);
         rateLimitService.checkRegister("other@example.com", request);
+    }
+
+    @Test
+    void verificationResend_hasIndependentHourlyUserLimit() {
+        MockHttpServletRequest firstIp = new MockHttpServletRequest();
+        firstIp.setRemoteAddr("192.168.10.1");
+        MockHttpServletRequest secondIp = new MockHttpServletRequest();
+        secondIp.setRemoteAddr("192.168.10.2");
+
+        rateLimitService.checkEmailVerificationResend(42L, firstIp);
+        assertThatThrownBy(() -> rateLimitService.checkEmailVerificationResend(42L, secondIp))
+                .isInstanceOf(RateLimitExceededException.class)
+                .satisfies(error -> assertThat(((RateLimitExceededException) error).getRetryAfterSeconds())
+                        .isEqualTo(3600L));
+    }
+
+    @Test
+    void forgotPassword_normalizedEmailLimitDoesNotDependOnAccountExistence() {
+        MockHttpServletRequest first = new MockHttpServletRequest(); first.setRemoteAddr("192.168.1.1");
+        MockHttpServletRequest second = new MockHttpServletRequest(); second.setRemoteAddr("192.168.1.2");
+        rateLimitService.checkForgotPassword(" USER@example.com ", first);
+        assertThatThrownBy(() -> rateLimitService.checkForgotPassword("user@example.com", second))
+                .isInstanceOf(RateLimitExceededException.class);
+    }
+
+    @Test
+    void resetAndChangePassword_haveIndependentAttemptLimits() {
+        MockHttpServletRequest first = new MockHttpServletRequest(); first.setRemoteAddr("192.168.1.1");
+        MockHttpServletRequest second = new MockHttpServletRequest(); second.setRemoteAddr("192.168.1.2");
+        rateLimitService.checkResetPassword("token", first);
+        assertThatThrownBy(() -> rateLimitService.checkResetPassword("token", second)).isInstanceOf(RateLimitExceededException.class);
+        rateLimitService.checkChangePassword(42L, first);
+        assertThatThrownBy(() -> rateLimitService.checkChangePassword(42L, second)).isInstanceOf(RateLimitExceededException.class);
     }
 }
