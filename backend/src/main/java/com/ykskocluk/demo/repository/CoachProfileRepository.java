@@ -11,6 +11,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import com.ykskocluk.demo.enums.UserStatus;
+import org.springframework.data.jpa.repository.EntityGraph;
 
 public interface CoachProfileRepository extends JpaRepository<CoachProfile, Long> {
 
@@ -21,6 +23,27 @@ public interface CoachProfileRepository extends JpaRepository<CoachProfile, Long
     Page<CoachProfile> findByStatus(CoachProfileStatus status, Pageable pageable);
 
     Optional<CoachProfile> findByIdAndStatus(Long id, CoachProfileStatus status);
+
+    @Query("""
+            select count(c) from CoachProfile c
+             where c.status = :profileStatus and c.user.status = :userStatus
+            """)
+    long countOperational(@Param("profileStatus") CoachProfileStatus profileStatus,
+                          @Param("userStatus") UserStatus userStatus);
+
+    long countByStatus(CoachProfileStatus status);
+
+    @EntityGraph(attributePaths = {"user", "university"})
+    @Query("""
+            select c from CoachProfile c
+             where (:profileStatus is null or c.status = :profileStatus)
+               and (:userStatus is null or c.user.status = :userStatus)
+               and (:search is null or lower(c.user.fullName) like lower(concat('%', cast(:search as string), '%'))
+                    or lower(c.user.email) like lower(concat('%', cast(:search as string), '%')))
+            """)
+    Page<CoachProfile> searchAdmin(@Param("profileStatus") CoachProfileStatus profileStatus,
+                                   @Param("userStatus") UserStatus userStatus,
+                                   @Param("search") String search, Pageable pageable);
 
     /**
      * Atomic capacity guard for the capacity race: increments only if there's room.

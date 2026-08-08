@@ -7,9 +7,12 @@ import java.time.Instant;
  */
 public record AdminSubscriptionResponse(
         Long id,
+        Long studentId,
         String studentEmail,
         String studentFullName,
+        Long coachProfileId,
         String coachFullName,
+        Long packageId,
         String packageName,
         String status,
         Instant startAt,

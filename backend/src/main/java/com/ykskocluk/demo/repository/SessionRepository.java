@@ -88,4 +88,62 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
                                     @Param("status") SessionStatus status,
                                     @Param("studentId") Long studentId,
                                     Pageable pageable);
+
+    long countByStatusAndStartTimeAfter(SessionStatus status, Instant now);
+
+    long countByStatusAndStartTimeGreaterThanEqualAndStartTimeLessThan(
+            SessionStatus status, Instant from, Instant to);
+
+    @Query(value = """
+            select * from (
+                select s.id as id, 'PAID' as type, s.coach_profile_id as "coachProfileId",
+                       cp.user_id as "coachUserId", cu.full_name as "coachName",
+                       s.student_user_id as "studentId", su.full_name as "studentName",
+                       s.start_time as "startsAt", s.end_time as "endsAt", s.status as status,
+                       s.subscription_id as "subscriptionId", s.created_at as "createdAt"
+                  from sessions s
+                  join coach_profiles cp on cp.id = s.coach_profile_id
+                  join users cu on cu.id = cp.user_id
+                  join users su on su.id = s.student_user_id
+                 where (:type = 'ALL' or :type = 'PAID')
+                union all
+                select t.id as id, 'TRIAL' as type, t.coach_profile_id as "coachProfileId",
+                       cp.user_id as "coachUserId", cu.full_name as "coachName",
+                       t.student_user_id as "studentId", su.full_name as "studentName",
+                       t.start_time as "startsAt", t.end_time as "endsAt", t.status as status,
+                       cast(null as bigint) as "subscriptionId", t.created_at as "createdAt"
+                  from trial_consultations t
+                  join coach_profiles cp on cp.id = t.coach_profile_id
+                  join users cu on cu.id = cp.user_id
+                  join users su on su.id = t.student_user_id
+                 where (:type = 'ALL' or :type = 'TRIAL')
+            ) x
+            where (:status is null or x.status = :status)
+              and (:coachId is null or x."coachProfileId" = :coachId)
+              and (:studentId is null or x."studentId" = :studentId)
+              and (:from is null or x."startsAt" >= :from)
+              and (:to is null or x."startsAt" < :to)
+            order by x."createdAt" desc, x.id desc
+            """,
+            countQuery = """
+            select count(*) from (
+                select s.id, s.coach_profile_id, s.student_user_id, s.start_time, s.status
+                  from sessions s where (:type = 'ALL' or :type = 'PAID')
+                union all
+                select t.id, t.coach_profile_id, t.student_user_id, t.start_time, t.status
+                  from trial_consultations t where (:type = 'ALL' or :type = 'TRIAL')
+            ) x
+            where (:status is null or x.status = :status)
+              and (:coachId is null or x.coach_profile_id = :coachId)
+              and (:studentId is null or x.student_user_id = :studentId)
+              and (:from is null or x.start_time >= :from)
+              and (:to is null or x.start_time < :to)
+            """, nativeQuery = true)
+    Page<AdminSessionView> searchAdminOperations(@Param("type") String type,
+                                                 @Param("status") String status,
+                                                 @Param("coachId") Long coachId,
+                                                 @Param("studentId") Long studentId,
+                                                 @Param("from") Instant from,
+                                                 @Param("to") Instant to,
+                                                 Pageable pageable);
 }

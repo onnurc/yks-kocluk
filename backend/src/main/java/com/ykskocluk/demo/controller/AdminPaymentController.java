@@ -16,6 +16,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
+import com.ykskocluk.demo.enums.PaymentStatus;
+import com.ykskocluk.demo.enums.PaymentType;
+import java.time.Instant;
 
 /**
  * Controller for payment administrative actions, restricted to ADMIN users.
@@ -33,8 +37,19 @@ public class AdminPaymentController {
 
     @GetMapping
     public PageResponse<AdminPaymentResponse> listPayments(
+            @RequestParam(required = false) PaymentType type,
+            @RequestParam(required = false) PaymentStatus status,
+            @RequestParam(required = false) Long studentId,
+            @RequestParam(required = false) Long coachId,
+            @RequestParam(required = false) Long packageId,
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return subscriptionService.listPayments(pageable);
+        if (type == null && status == null && studentId == null && coachId == null && packageId == null
+                && from == null && to == null) {
+            return subscriptionService.listPayments(pageable);
+        }
+        return subscriptionService.listPayments(type, status, studentId, coachId, packageId, from, to, pageable);
     }
 
     @PostMapping("/{paymentId}/refund")

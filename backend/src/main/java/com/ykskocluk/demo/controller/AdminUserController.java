@@ -47,4 +47,9 @@ public class AdminUserController {
         }
         return response;
     }
+
+    @PostMapping("/{id}/unsuspend")
+    public SuspendResponse unsuspendUser(@PathVariable Long id) {
+        return userService.unsuspendUser(id);
+    }
 }

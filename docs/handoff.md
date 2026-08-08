@@ -1,5 +1,18 @@
 # Handoff — YKS Coaching Platform (Backend)
 
+## Admin Dashboard backend foundation
+
+- Admin uses the same shared login system and the authenticated `ADMIN` role; admin registration remains unavailable. Frontend role routing is not a separate authentication system.
+- `GET /api/v1/admin/dashboard/summary` exposes repository-backed KPIs. Student count excludes `DELETED`; active coaches are `APPROVED` profiles whose user is `ACTIVE`; active subscriptions are `ACTIVE` or `PAST_DUE`; open reports are `OPEN` or `REVIEWED`.
+- Monthly sales/revenue/refund/completed-session metrics use Europe/Istanbul calendar boundaries. Gross revenue is successful `CHARGE` ledger volume; refunds are successful `REFUND` rows; neither is profit. `netCollectedAmount` is gross successful charges minus successful refunds.
+- Coach directory supports `PENDING`, `APPROVED`, `REJECTED`, `SUSPENDED`, and `ALL`, repository-side search and pagination. Approval now rejects suspended/deleted identities. User directory supports role/status/search filters without password, token, verification-hash, reset evidence, or legal-document content.
+- Admin suspend behavior and notification remain unchanged. `POST /api/v1/admin/users/{id}/unsuspend` restores only `SUSPENDED` non-admin users; deleted identities cannot be restored.
+- Existing subscription/payment read models now support status, relationship, package, date, and pagination filters. Finance summaries use ledger rows only; no coach payout, commission settlement, or profit calculation is exposed.
+- Existing immediate provider refund endpoint remains the source of truth. `GET /api/v1/admin/refunds` lists refund ledger attempts/completions. No request-approval domain was invented because service-commencement eligibility remains a product/legal decision and the current refund action calls the configured provider directly.
+- Existing report moderation and best-effort safety emails are reused. Admin message access was not broadened; the existing reason/audit-gated conversation oversight remains unchanged.
+- `GET /api/v1/admin/sessions` provides a paginated read-only union of paid sessions and trial consultations. Admin receives no scheduling mutation endpoint.
+- No migration was added; this slice is query/read-model functionality over migrations through V24.
+
 ## Coach Dashboard backend foundation (V24)
 
 - Authentication remains one shared login system. The authenticated `role` drives frontend routing to the student, coach, or admin dashboard; there is no separate coach login.

@@ -9,9 +9,13 @@ import java.time.Instant;
 public record AdminPaymentResponse(
         Long id,
         Long subscriptionId,
+        Long sourcePaymentId,
+        Long studentId,
         String studentEmail,
         String studentFullName,
+        Long coachProfileId,
         String coachFullName,
+        Long packageId,
         String packageName,
         String type,
         BigDecimal amount,
@@ -20,4 +24,4 @@ public record AdminPaymentResponse(
         Instant createdAt,
         BigDecimal refundedAmount,
         BigDecimal remainingRefundableAmount
-) {}
+    ) {}

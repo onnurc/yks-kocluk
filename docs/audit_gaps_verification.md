@@ -1,5 +1,15 @@
 # Audit Gaps Verification
 
+## Admin Dashboard verification
+
+- Every new admin endpoint is class-level `ADMIN` method-secured and derives authorization from the authenticated principal. No client-provided admin identity or role is trusted.
+- KPI counts and finance totals are database aggregates rather than entity-list counts. Coach directory fetches user/university in the page query; payment refunds remain batch-loaded. Major directories are bounded by Spring pagination and whitelisted sorting.
+- User responses deliberately omit password hashes/version, OAuth identifiers, refresh/reset/verification tokens, legal evidence, and payment credentials. Deleted users are indicated only by the existing `DELETED` status/anonymized flag and cannot be unsuspended.
+- Refund reporting reflects persisted `REFUND` ledger rows and provider success/failure. The backend does not invent an automated “service commenced” rule, a refund-request approval workflow, provider success, payout, commission settlement, or profit metric.
+- Open-report KPI semantics exactly match the existing actionable set (`OPEN`, `REVIEWED`). Report moderation transitions and safety-notification behavior were not replaced.
+- Paid/trial operational visibility is read-only. Existing message-content access remains separately reason/audit-gated; no unrestricted message-reading endpoint was added.
+- No Flyway migration is required after V24.
+
 ## Coach Dashboard and trial-consultation verification
 
 - All `/api/v1/coach/**` self-dashboard endpoints are method-secured for `COACH` and derive ownership from the authenticated principal; no client-provided coach ID is accepted.
