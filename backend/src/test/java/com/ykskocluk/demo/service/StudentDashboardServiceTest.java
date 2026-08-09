@@ -6,6 +6,7 @@ import com.ykskocluk.demo.enums.*;
 import com.ykskocluk.demo.repository.PaymentRepository;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
 import com.ykskocluk.demo.repository.UserRepository;
+import com.ykskocluk.demo.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -14,7 +15,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.Collections;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,6 +32,9 @@ class StudentDashboardServiceTest {
     @Mock
     PaymentRepository paymentRepository;
 
+    @Mock
+    UserMapper userMapper;
+
     @InjectMocks
     StudentDashboardService studentDashboardService;
 
@@ -42,6 +45,8 @@ class StudentDashboardServiceTest {
         student.setFullName("Demo Active Student");
         student.setRole(Role.STUDENT);
         student.setStatus(UserStatus.ACTIVE);
+        student.setEmailVerified(true);
+        student.setLegalOnboardingCompleted(true);
 
         User coachUser = new User();
         coachUser.setFullName("Demo Coach");
@@ -64,13 +69,19 @@ class StudentDashboardServiceTest {
         payment.setAmount(new BigDecimal("2500.00"));
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(student));
-        when(subscriptionRepository.findByStudentIdOrderByCreatedAtDesc(1L)).thenReturn(Collections.singletonList(sub));
-        when(paymentRepository.findBySubscriptionIdOrderByCreatedAtDesc(sub.getId())).thenReturn(Collections.singletonList(payment));
+        when(userMapper.toResponse(student)).thenReturn(new com.ykskocluk.demo.dto.UserResponse(
+                1L, student.getEmail(), student.getFullName(), student.getRole(), student.getStatus(),
+                null, true, true, true, null));
+        when(subscriptionRepository.findFirstByStudentIdOrderByCreatedAtDesc(1L)).thenReturn(Optional.of(sub));
+        when(paymentRepository.findFirstBySubscriptionIdOrderByCreatedAtDesc(sub.getId())).thenReturn(Optional.of(payment));
 
         StudentDashboardResponse response = studentDashboardService.getDashboardData(1L);
 
         assertThat(response).isNotNull();
         assertThat(response.user().email()).isEqualTo("student.active.demo@example.com");
+        assertThat(response.user().emailVerified()).isTrue();
+        assertThat(response.user().legalOnboardingCompleted()).isTrue();
+        assertThat(response.user().hasLocalPassword()).isTrue();
         assertThat(response.subscription().status()).isEqualTo(SubscriptionStatus.ACTIVE);
         assertThat(response.payment().status()).isEqualTo(PaymentStatus.SUCCESS);
     }

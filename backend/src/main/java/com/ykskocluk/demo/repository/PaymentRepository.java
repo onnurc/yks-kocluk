@@ -24,6 +24,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     List<Payment> findBySubscriptionIdOrderByCreatedAtDesc(Long subscriptionId);
 
+    Optional<Payment> findFirstBySubscriptionIdOrderByCreatedAtDesc(Long subscriptionId);
+
     /** Crash-recovery: an unreconciled in-flight attempt to resume (re-charge with the same key). */
     Optional<Payment> findFirstBySubscriptionIdAndStatus(Long subscriptionId, PaymentStatus status);
 
@@ -52,6 +54,16 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             """)
     BigDecimal grossSalesForPackage(@Param("coachId") Long coachId,
                                     @Param("packageId") Long packageId);
+
+    @Query("""
+            select p.subscription.pkg.id as packageId, coalesce(sum(p.amount), 0) as grossSales
+              from Payment p
+             where p.subscription.coachProfile.id = :coachId
+               and p.status = com.ykskocluk.demo.enums.PaymentStatus.SUCCESS
+               and p.type = com.ykskocluk.demo.enums.PaymentType.CHARGE
+             group by p.subscription.pkg.id
+            """)
+    List<PackageGrossSales> grossSalesByPackage(@Param("coachId") Long coachId);
 
     @EntityGraph(attributePaths = {"subscription.student", "subscription.coachProfile.user",
             "subscription.pkg", "sourcePayment"})

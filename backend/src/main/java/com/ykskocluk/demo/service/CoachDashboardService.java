@@ -88,9 +88,27 @@ public class CoachDashboardService {
                     SubscriptionStatus.EXPIRED, SubscriptionStatus.CANCELLED);
         };
         Page<Subscription> page = subscriptions.findLatestStudents(coach.getId(), statuses, pageable);
+        if (page.isEmpty()) {
+            return PageResponse.from(page.map(s -> studentResponse(s, null, 0, null)));
+        }
+        Instant now = Instant.now();
+        LocalDate monday = now.atZone(ISTANBUL).toLocalDate()
+                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        Instant weekStart = monday.atStartOfDay(ISTANBUL).toInstant();
+        Instant weekEnd = monday.plusWeeks(1).atStartOfDay(ISTANBUL).toInstant();
+        List<Long> subscriptionIds = page.getContent().stream().map(Subscription::getId).toList();
+        List<Long> studentIds = page.getContent().stream().map(s -> s.getStudent().getId()).distinct().toList();
+        Map<Long, Long> usedBySubscription = sessions
+                .countQuotaConsumingBySubscription(subscriptionIds, QUOTA, weekStart, weekEnd).stream()
+                .collect(Collectors.toMap(SubscriptionSessionCount::getSubscriptionId,
+                        SubscriptionSessionCount::getSessionCount));
+        Map<Long, Session> nextByStudent = new LinkedHashMap<>();
+        sessions.findNextForCoachStudents(coach.getId(), studentIds, SessionStatus.PLANNED, now)
+                .forEach(session -> nextByStudent.putIfAbsent(session.getStudent().getId(), session));
         Map<Long, Long> conversationIds = conversations.findByCoachProfileIdOrderByLastMessageAtDesc(coach.getId())
                 .stream().collect(Collectors.toMap(c -> c.getStudent().getId(), Conversation::getId));
-        return PageResponse.from(page.map(s -> studentResponse(coach, s, conversationIds.get(s.getStudent().getId()))));
+        return PageResponse.from(page.map(s -> studentResponse(s, conversationIds.get(s.getStudent().getId()),
+                usedBySubscription.getOrDefault(s.getId(), 0L), nextByStudent.get(s.getStudent().getId()))));
     }
 
     @Transactional(readOnly = true)
@@ -108,13 +126,24 @@ public class CoachDashboardService {
     @Transactional(readOnly = true)
     public List<CoachConversationSummaryResponse> conversationSummaries(Long coachUserId) {
         CoachProfile coach = ownCoach(coachUserId);
-        return conversations.findByCoachProfileIdOrderByLastMessageAtDesc(coach.getId()).stream().map(c -> {
-            Message last = messages.findFirstByConversationIdOrderByCreatedAtDesc(c.getId()).orElse(null);
+        List<Conversation> coachConversations = conversations.findByCoachProfileIdOrderByLastMessageAtDesc(coach.getId());
+        if (coachConversations.isEmpty()) return List.of();
+        List<Long> conversationIds = coachConversations.stream().map(Conversation::getId).toList();
+        Map<Long, Message> latestByConversation = new LinkedHashMap<>();
+        messages.findLatestByConversationIds(conversationIds)
+                .forEach(message -> latestByConversation.putIfAbsent(message.getConversation().getId(), message));
+        Map<Long, Long> unreadByConversation = messages.countUnreadByConversationIds(conversationIds, coachUserId)
+                .stream().collect(Collectors.toMap(ConversationUnreadCount::getConversationId,
+                        ConversationUnreadCount::getUnreadCount));
+        List<Long> studentIds = coachConversations.stream().map(c -> c.getStudent().getId()).distinct().toList();
+        Set<Long> liveStudentIds = new HashSet<>(subscriptions.findLiveStudentIds(coach.getId(), studentIds));
+        return coachConversations.stream().map(c -> {
+            Message last = latestByConversation.get(c.getId());
             String preview = last == null ? null : last.getContent().substring(0, Math.min(120, last.getContent().length()));
             return new CoachConversationSummaryResponse(c.getId(), c.getStudent().getId(), c.getStudent().getFullName(),
                     preview, c.getLastMessageAt(),
-                    messages.countByConversationIdAndSenderIdNotAndReadAtIsNull(c.getId(), coachUserId),
-                    subscriptions.existsLiveSubscription(c.getStudent().getId(), coach.getId()));
+                    unreadByConversation.getOrDefault(c.getId(), 0L),
+                    liveStudentIds.contains(c.getStudent().getId()));
         }).toList();
     }
 
@@ -123,25 +152,21 @@ public class CoachDashboardService {
         CoachProfile coach = ownCoach(coachUserId);
         Map<Long, List<Subscription>> byPackage = subscriptions.findByCoachAndStatuses(coach.getId(), LIVE).stream()
                 .collect(Collectors.groupingBy(s -> s.getPkg().getId()));
+        Map<Long, java.math.BigDecimal> grossByPackage = payments.grossSalesByPackage(coach.getId()).stream()
+                .collect(Collectors.toMap(PackageGrossSales::getPackageId, PackageGrossSales::getGrossSales));
         return packageRepository.findByActiveTrueOrderByPriceAsc().stream()
                 .map(pkg -> {
                     List<Subscription> current = byPackage.getOrDefault(pkg.getId(), List.of());
                     return new CoachPackageSummaryResponse(pkg.getId(), pkg.getName(),
                             current.stream().map(s -> s.getStudent().getId()).distinct().count(),
-                            current.size(), payments.grossSalesForPackage(coach.getId(), pkg.getId()));
+                            current.size(), grossByPackage.getOrDefault(pkg.getId(), java.math.BigDecimal.ZERO));
                 })
                 .toList();
     }
 
-    private CoachStudentResponse studentResponse(CoachProfile coach, Subscription subscription, Long conversationId) {
-        Instant now = Instant.now();
-        LocalDate monday = now.atZone(ISTANBUL).toLocalDate().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        Instant weekStart = monday.atStartOfDay(ISTANBUL).toInstant();
-        Instant weekEnd = monday.plusWeeks(1).atStartOfDay(ISTANBUL).toInstant();
-        long used = sessions.countQuotaConsuming(subscription.getId(), QUOTA, weekStart, weekEnd);
+    private CoachStudentResponse studentResponse(Subscription subscription, Long conversationId,
+                                                 long used, Session next) {
         long remaining = Math.max(0, subscription.getPkg().getWeeklySessions() - used);
-        Session next = sessions.findFirstByCoachProfileIdAndStudentIdAndStatusAndStartTimeAfterOrderByStartTimeAsc(
-                coach.getId(), subscription.getStudent().getId(), SessionStatus.PLANNED, now).orElse(null);
         return new CoachStudentResponse(subscription.getStudent().getId(), subscription.getStudent().getFullName(),
                 subscription.getPkg().getId(), subscription.getPkg().getName(), subscription.getStatus(),
                 subscription.getStartAt(), subscription.getEndAt(), used, remaining, conversationId,
