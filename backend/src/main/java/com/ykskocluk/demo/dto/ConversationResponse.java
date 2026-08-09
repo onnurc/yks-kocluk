@@ -8,6 +8,7 @@ public record ConversationResponse(
         String coachName,
         String studentName,
         Instant lastMessageAt,
-        long unreadCount
+        long unreadCount,
+        ConversationObserverResponse observer
 ) {
 }

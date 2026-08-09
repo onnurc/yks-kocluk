@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.mapper;
 
 import com.ykskocluk.demo.dto.ConversationResponse;
+import com.ykskocluk.demo.dto.ConversationObserverResponse;
 import com.ykskocluk.demo.entity.Conversation;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -14,5 +15,10 @@ public interface ConversationMapper {
     @Mapping(target = "studentName", source = "conversation.student.fullName")
     @Mapping(target = "lastMessageAt", source = "conversation.lastMessageAt")
     @Mapping(target = "unreadCount", source = "unreadCount")
+    @Mapping(target = "observer", expression = "java(platformAdminObserver())")
     ConversationResponse toResponse(Conversation conversation, long unreadCount);
+
+    default ConversationObserverResponse platformAdminObserver() {
+        return ConversationObserverResponse.platformAdmin();
+    }
 }

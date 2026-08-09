@@ -19,6 +19,8 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
 
     List<Session> findByCoachProfileIdOrderByStartTimeDesc(Long coachProfileId);
 
+    List<Session> findBySubscriptionIdOrderByStartTimeAsc(Long subscriptionId);
+
     Optional<Session> findByIdAndStudentId(Long id, Long studentId);
 
     Optional<Session> findByIdAndCoachProfileId(Long id, Long coachProfileId);

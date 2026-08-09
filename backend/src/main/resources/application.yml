@@ -128,7 +128,6 @@ app:
   password-security:
     frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
     reset-token-ttl: 30m
-    change-cooldown: 15d
     token-retention: 7d
     cleanup-cron: ${PASSWORD_RESET_CLEANUP_CRON:0 20 3 * * *}
   email-verification:

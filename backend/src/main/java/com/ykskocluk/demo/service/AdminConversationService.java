@@ -5,6 +5,9 @@ import com.ykskocluk.demo.dto.ConversationSummaryResponse.CoachRef;
 import com.ykskocluk.demo.dto.ConversationSummaryResponse.StudentRef;
 import com.ykskocluk.demo.dto.MessageResponse;
 import com.ykskocluk.demo.dto.PageResponse;
+import com.ykskocluk.demo.dto.AdminConversationCoachResponse;
+import com.ykskocluk.demo.dto.AdminConversationStudentResponse;
+import com.ykskocluk.demo.dto.ConversationObserverResponse;
 import com.ykskocluk.demo.entity.Conversation;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.mapper.MessageMapper;
@@ -40,6 +43,8 @@ public class AdminConversationService {
 
     private static final Set<String> CONVERSATION_SORT_FIELDS = Set.of("lastMessageAt", "createdAt");
     private static final Set<String> MESSAGE_SORT_FIELDS = Set.of("createdAt");
+    private static final Set<String> COACH_SORT_FIELDS = Set.of("coachProfile.id", "coachProfile.user.fullName");
+    private static final Set<String> STUDENT_SORT_FIELDS = Set.of("lastMessageAt", "createdAt");
 
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
@@ -77,6 +82,27 @@ public class AdminConversationService {
         return PageResponse.from(page.map(c -> toSummary(c, counts.getOrDefault(c.getId(), 0L))));
     }
 
+    @Transactional(readOnly = true)
+    public PageResponse<AdminConversationCoachResponse> listCoaches(Pageable pageable) {
+        validateSort(pageable, COACH_SORT_FIELDS);
+        return PageResponse.from(conversationRepository.findCoachDirectory(pageable));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<AdminConversationStudentResponse> listStudents(Long coachId, Pageable pageable) {
+        validateSort(pageable, STUDENT_SORT_FIELDS);
+        return PageResponse.from(conversationRepository.findByCoachProfileId(coachId, pageable)
+                .map(c -> new AdminConversationStudentResponse(c.getStudent().getId(),
+                        c.getStudent().getFullName(), c.getId(), c.getLastMessageAt(),
+                        ConversationObserverResponse.platformAdmin())));
+    }
+
+    /** Read-only STOMP observer authorization: ADMIN role is checked by the channel interceptor. */
+    @Transactional(readOnly = true)
+    public boolean canObserve(Long conversationId) {
+        return conversationRepository.existsById(conversationId);
+    }
+
     /**
      * A single conversation's messages (admin). 404 if the conversation does not exist —
      * a not-found shape with no participant leakage. Ordering = the caller's whitelisted Pageable
@@ -112,7 +138,8 @@ public class AdminConversationService {
                         c.getCoachProfile().getUser().getFullName(),
                         c.getCoachProfile().getUniversity().getName()),
                 c.getLastMessageAt(),
-                messageCount);
+                messageCount,
+                com.ykskocluk.demo.dto.ConversationObserverResponse.platformAdmin());
     }
 
     private void validateSort(Pageable pageable, Set<String> allowed) {

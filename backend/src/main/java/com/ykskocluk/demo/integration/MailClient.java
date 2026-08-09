@@ -13,6 +13,10 @@ import java.time.Instant;
  */
 public interface MailClient {
 
+    void sendPurchaseConfirmed(String toEmail, String studentName, String packageName,
+                               String coachName, BigDecimal amount, String currency,
+                               Instant purchasedAt, Instant periodEndAt);
+
     void sendSessionBooked(String toEmail, String coachName, Instant startTime, String meetLink);
 
     /** Renewal charged successfully — informational (next billing date + amount). */

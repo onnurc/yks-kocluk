@@ -71,7 +71,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/coach/**").hasRole("COACH")
                         .requestMatchers("/api/v1/student/**", "/api/v1/students/**",
-                                "/api/v1/trial-consultations/**").hasRole("STUDENT")
+                                "/api/v1/trial-consultations/**", "/api/v1/refund-requests/**")
+                        .hasRole("STUDENT")
                         .anyRequest().authenticated())
                 .oauth2Login(oauth -> oauth.successHandler(oauth2LoginSuccessHandler))
                 .exceptionHandling(ex -> ex

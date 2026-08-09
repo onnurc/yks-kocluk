@@ -39,6 +39,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -75,6 +76,7 @@ public class SubscriptionService {
     private final AccountReadinessService accountReadinessService;
     private final LegalAcceptanceService legalAcceptanceService;
     private final TransactionTemplate tx;
+    private final ApplicationEventPublisher events;
 
     public SubscriptionService(SubscriptionRepository subscriptionRepository,
                                PackageRepository packageRepository,
@@ -88,7 +90,8 @@ public class SubscriptionService {
                                com.ykskocluk.demo.config.IyzicoProperties iyzicoProperties,
                                AccountReadinessService accountReadinessService,
                                LegalAcceptanceService legalAcceptanceService,
-                               PlatformTransactionManager transactionManager) {
+                               PlatformTransactionManager transactionManager,
+                               ApplicationEventPublisher events) {
         this.subscriptionRepository = subscriptionRepository;
         this.packageRepository = packageRepository;
         this.coachProfileRepository = coachProfileRepository;
@@ -102,6 +105,7 @@ public class SubscriptionService {
         this.accountReadinessService = accountReadinessService;
         this.legalAcceptanceService = legalAcceptanceService;
         this.tx = new TransactionTemplate(transactionManager);
+        this.events = events;
     }
 
     @Transactional
@@ -244,15 +248,20 @@ public class SubscriptionService {
             throw new ApiException(HttpStatus.CONFLICT, "COACH_FULL", "Koçun kontenjanı dolu");
         }
 
+        Instant now = Instant.now();
         payment.setStatus(PaymentStatus.SUCCESS);
         payment.setProviderReference(providerReference);
+        payment.setSucceededAt(now);
         paymentRepository.saveAndFlush(payment);
 
-        Instant now = Instant.now();
         subscription.setStatus(SubscriptionStatus.ACTIVE);
         subscription.setStartAt(now);
         subscription.setEndAt(now.plus(subscription.getPkg().getDurationDays(), ChronoUnit.DAYS));
         subscriptionRepository.saveAndFlush(subscription);
+        events.publishEvent(new PurchaseConfirmedEvent(payment.getId(),
+                subscription.getStudent().getEmail(), subscription.getStudent().getFullName(),
+                subscription.getPkg().getName(), subscription.getCoachProfile().getUser().getFullName(),
+                payment.getAmount(), "TRY", now, subscription.getEndAt()));
     }
 
     /**
@@ -407,7 +416,7 @@ public class SubscriptionService {
         }
 
         // Deterministic idempotency key to prevent duplicate refunds
-        int refundIndex = existingRefunds.size() + 1;
+        int refundIndex = Math.toIntExact(paymentRepository.countBySourcePaymentId(paymentId) + 1);
         String refundKey = "refund:" + paymentId + ":" + refundIndex;
 
         // Reserve a PENDING refund row now, while still holding the row lock, so a concurrent

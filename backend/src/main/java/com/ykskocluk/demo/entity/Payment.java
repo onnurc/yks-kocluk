@@ -15,6 +15,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 /**
  * One charge attempt against a {@link Subscription} (Phase 8). A row is reserved {@code PENDING}
@@ -55,6 +56,9 @@ public class Payment extends BaseEntity {
     // The provider's payment reference (stub ref in Stage 1; real iyzico ref in Stage 2). Null while PENDING.
     @Column(name = "provider_reference", length = 255)
     private String providerReference;
+
+    @Column(name = "succeeded_at")
+    private Instant succeededAt;
 
     // Commission snapshot at transaction time (CLAUDE.md). Rate is a fraction, e.g. 0.2000.
     @Column(name = "commission_rate", nullable = false, precision = 5, scale = 4)

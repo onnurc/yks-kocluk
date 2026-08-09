@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.repository;
 
 import com.ykskocluk.demo.entity.Conversation;
+import com.ykskocluk.demo.dto.AdminConversationCoachResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -35,4 +36,16 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     @EntityGraph(attributePaths = {"student", "coachProfile.user", "coachProfile.university"})
     @Query("select c from Conversation c")
     Page<Conversation> findAllForAdmin(Pageable pageable);
+
+    @Query(value = """
+            select new com.ykskocluk.demo.dto.AdminConversationCoachResponse(
+                c.coachProfile.id, c.coachProfile.user.fullName, null, count(c))
+              from Conversation c
+             group by c.coachProfile.id, c.coachProfile.user.fullName
+            """,
+            countQuery = "select count(distinct c.coachProfile.id) from Conversation c")
+    Page<AdminConversationCoachResponse> findCoachDirectory(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"student"})
+    Page<Conversation> findByCoachProfileId(Long coachProfileId, Pageable pageable);
 }

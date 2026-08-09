@@ -10,6 +10,11 @@ export interface ConversationResponse {
   coachName: string;
   lastMessageAt: string;
   unreadCount: number;
+  observer: {
+    type: "ADMIN";
+    displayName: string;
+    readOnly: true;
+  };
 }
 
 export interface MessageSendRequest {
