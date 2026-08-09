@@ -23,6 +23,7 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
             """)
     List<Conversation> findForUser(@Param("userId") Long userId);
 
+    @EntityGraph(attributePaths = {"student"})
     List<Conversation> findByCoachProfileIdOrderByLastMessageAtDesc(Long coachProfileId);
 
     /**

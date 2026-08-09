@@ -52,6 +52,38 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
                              @Param("weekStart") Instant weekStart,
                              @Param("weekEnd") Instant weekEnd);
 
+    @Query("""
+            select s.subscription.id as subscriptionId, count(s) as sessionCount
+              from Session s
+             where s.subscription.id in :subscriptionIds
+               and s.status in :statuses
+               and s.startTime >= :weekStart and s.startTime < :weekEnd
+             group by s.subscription.id
+            """)
+    List<SubscriptionSessionCount> countQuotaConsumingBySubscription(
+            @Param("subscriptionIds") Collection<Long> subscriptionIds,
+            @Param("statuses") Collection<SessionStatus> statuses,
+            @Param("weekStart") Instant weekStart,
+            @Param("weekEnd") Instant weekEnd);
+
+    @Query("""
+            select s from Session s
+             where s.coachProfile.id = :coachId
+               and s.student.id in :studentIds
+               and s.status = :status
+               and s.startTime > :now
+               and s.startTime = (select min(s2.startTime) from Session s2
+                    where s2.coachProfile.id = :coachId
+                      and s2.student.id = s.student.id
+                      and s2.status = :status
+                      and s2.startTime > :now)
+             order by s.student.id, s.id
+            """)
+    List<Session> findNextForCoachStudents(@Param("coachId") Long coachId,
+                                           @Param("studentIds") Collection<Long> studentIds,
+                                           @Param("status") SessionStatus status,
+                                           @Param("now") Instant now);
+
     long countByCoachProfileIdAndStatusAndStartTimeGreaterThanEqualAndStartTimeLessThan(
             Long coachId, SessionStatus status, Instant from, Instant to);
 

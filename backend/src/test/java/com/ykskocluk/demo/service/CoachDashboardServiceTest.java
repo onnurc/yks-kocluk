@@ -1,6 +1,8 @@
 package com.ykskocluk.demo.service;
 
 import com.ykskocluk.demo.entity.CoachProfile;
+import com.ykskocluk.demo.entity.Conversation;
+import com.ykskocluk.demo.entity.Message;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.*;
 import com.ykskocluk.demo.mapper.SessionMapper;
@@ -13,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -61,5 +64,49 @@ class CoachDashboardServiceTest {
                 () -> assertEquals(6, summary.unreadMessageCount()),
                 () -> assertTrue(summary.availabilityConfigured()),
                 () -> assertEquals(1, summary.pendingTrialConsultationCount()));
+    }
+
+    @Test
+    void conversationSummaryBatchLoadsPerConversationState() {
+        User coachUser = new User(); ReflectionTestUtils.setField(coachUser, "id", 7L);
+        CoachProfile coach = new CoachProfile(); ReflectionTestUtils.setField(coach, "id", 8L); coach.setUser(coachUser);
+        User firstStudent = student(11L, "First Student");
+        User secondStudent = student(12L, "Second Student");
+        Conversation first = conversation(21L, coach, firstStudent);
+        Conversation second = conversation(22L, coach, secondStudent);
+        Message latest = new Message(); ReflectionTestUtils.setField(latest, "id", 31L);
+        latest.setConversation(first); latest.setContent("latest message");
+        ConversationUnreadCount unread = mock(ConversationUnreadCount.class);
+
+        when(coaches.findByUserId(7L)).thenReturn(Optional.of(coach));
+        when(conversations.findByCoachProfileIdOrderByLastMessageAtDesc(8L)).thenReturn(List.of(first, second));
+        when(messages.findLatestByConversationIds(List.of(21L, 22L))).thenReturn(List.of(latest));
+        when(messages.countUnreadByConversationIds(List.of(21L, 22L), 7L)).thenReturn(List.of(unread));
+        when(unread.getConversationId()).thenReturn(21L);
+        when(unread.getUnreadCount()).thenReturn(3L);
+        when(subscriptions.findLiveStudentIds(8L, List.of(11L, 12L))).thenReturn(List.of(11L));
+
+        var result = service.conversationSummaries(7L);
+
+        assertAll(
+                () -> assertEquals(2, result.size()),
+                () -> assertEquals("latest message", result.get(0).lastMessagePreview()),
+                () -> assertEquals(3, result.get(0).unreadCount()),
+                () -> assertTrue(result.get(0).currentAccess()),
+                () -> assertNull(result.get(1).lastMessagePreview()),
+                () -> assertFalse(result.get(1).currentAccess()));
+        verify(messages, never()).findFirstByConversationIdOrderByCreatedAtDesc(anyLong());
+        verify(messages, never()).countByConversationIdAndSenderIdNotAndReadAtIsNull(anyLong(), anyLong());
+        verify(subscriptions, never()).existsLiveSubscription(anyLong(), anyLong());
+    }
+
+    private User student(long id, String name) {
+        User user = new User(); ReflectionTestUtils.setField(user, "id", id); user.setFullName(name); return user;
+    }
+
+    private Conversation conversation(long id, CoachProfile coach, User student) {
+        Conversation conversation = new Conversation(); ReflectionTestUtils.setField(conversation, "id", id);
+        conversation.setCoachProfile(coach); conversation.setStudent(student); conversation.setLastMessageAt(Instant.now());
+        return conversation;
     }
 }

@@ -1,5 +1,100 @@
 # Handoff — YKS Coaching Platform (Backend)
 
+## Dashboard Frontend API Contract (final hardening pass, 2026-08-09)
+
+### Shared authentication, routing, and readiness
+
+There is one login flow. After login (and on application reload), call `GET /api/v1/auth/me` and route only from `UserResponse.role`: `STUDENT` -> student dashboard, `COACH` -> coach dashboard, `ADMIN` -> admin dashboard. `UserResponse` contains `id`, `role`, `status`, `emailVerified`, `legalOnboardingCompleted`, `hasLocalPassword`, and `passwordChangedAt`; it intentionally contains no dashboard aggregates. A coach obtains approval/profile readiness from `GET /api/v1/coach/profile/me` (`CoachProfileResponse.status`). Student subscription state comes from dashboard/subscription data, never auth identity.
+
+`emailVerified` proves email ownership; `legalOnboardingCompleted` proves current required onboarding acceptances. They are independent. Checkout, paid booking, trial creation, conversation creation, and message send apply both gates and return distinct `EMAIL_VERIFICATION_REQUIRED` or `LEGAL_ONBOARDING_REQUIRED` errors. Read-only dashboard/history endpoints remain available to an authenticated active account. The JWT filter blocks `SUSPENDED` and `DELETED` accounts with `USER_SUSPENDED` and `USER_DELETED` before controller execution.
+
+All timestamps are ISO-8601 UTC `Instant` values. Calendar-month/week calculations use `Europe/Istanbul`; range filters are half-open `[from,to)`. Money is a JSON decimal backed by `BigDecimal`, in TRY. Paginated responses use `PageResponse<T>`: `{content,page,size,totalElements,totalPages,last}`; page size is capped at 100. Invalid ranges/sorts return `INVALID_DATE_RANGE`/`INVALID_SORT_FIELD`.
+
+### Authorization matrix
+
+| Surface | STUDENT | COACH | ADMIN |
+| --- | --- | --- | --- |
+| `/api/v1/students/**`, `/sessions/**`, `/subscriptions/**`, `/trial-consultations/**` | self only | denied | denied |
+| `/api/v1/coaches/**` discovery | approved public coach data | denied | read-only discovery allowed |
+| `/api/v1/coach/**` | denied | principal-derived self resources only | denied |
+| `/api/v1/conversations/**` | membership + relationship gates | membership + relationship gates | denied; uses separately audited admin surface |
+| `/api/v1/admin/**` | denied | denied | allowed; operational management, never impersonation |
+
+No self endpoint accepts a role or owner ID from the client. A coach/student resource ID is always checked against the authenticated principal. Cross-owner lookups deliberately use not-found responses where appropriate to avoid leaking resource existence.
+
+### Student endpoints
+
+| Method and path | Role | Query/body | Response | Important errors |
+| --- | --- | --- | --- | --- |
+| `GET /api/v1/students/me/dashboard` | STUDENT | — | `StudentDashboardResponse` (`user`, latest `DashboardSubscription|null`, latest `DashboardPayment|null`) | `USER_NOT_FOUND` |
+| `GET /api/v1/subscriptions/me` | STUDENT | — | `List<SubscriptionResponse>` | — |
+| `POST /api/v1/subscriptions/checkout` | STUDENT | `SubscriptionCheckoutRequest` | `SubscriptionCheckoutResponse` | readiness errors, `COACH_NOT_APPROVED`, `ALREADY_SUBSCRIBED`, checkout legal errors |
+| `POST /api/v1/subscriptions/{id}/cancel` | STUDENT/self | path ID | `SubscriptionResponse` | `SUBSCRIPTION_NOT_FOUND`, invalid state |
+| `GET /api/v1/sessions/me` | STUDENT | — | `List<SessionResponse>`; newest start first | — |
+| `POST /api/v1/sessions` | STUDENT | `availabilityId` | `SessionResponse` | readiness errors, `COACH_NOT_APPROVED`, `NO_ACTIVE_SUBSCRIPTION`, `QUOTA_EXCEEDED`, `SLOT_TAKEN`, `SLOT_IN_PAST` |
+| `POST /api/v1/sessions/{id}/cancel` | STUDENT/self | path ID | `SessionResponse` | `SESSION_NOT_FOUND`, invalid state |
+| `GET /api/v1/coaches` | STUDENT/ADMIN | `track`, `universityId`, `q`, pageable; default newest | `PageResponse<CoachSummaryResponse>` | `INVALID_SORT_FIELD` |
+| `GET /api/v1/coaches/{id}` | STUDENT/ADMIN | coach profile ID | `CoachDetailResponse` | `COACH_NOT_FOUND` |
+| `GET /api/v1/coaches/{id}/availability` | STUDENT/ADMIN | coach profile ID | future open `List<AvailabilityResponse>` | `COACH_NOT_FOUND` |
+| `POST /api/v1/trial-consultations` | STUDENT | `availabilityId` | `TrialConsultationResponse` | readiness errors, `COACH_NOT_AVAILABLE`, `TRIAL_ALREADY_EXISTS`, `SLOT_TAKEN`, `SLOT_IN_PAST` |
+| `GET /api/v1/trial-consultations/me` | STUDENT | — | `List<TrialConsultationResponse>`; newest start first | — |
+| `POST /api/v1/trial-consultations/{id}/cancel` | STUDENT/self | path ID | `TrialConsultationResponse` | `TRIAL_NOT_FOUND`, `INVALID_TRIAL_STATE` |
+| `POST /api/v1/conversations` | STUDENT | `coachId` | `ConversationResponse` | readiness errors, relationship/access errors |
+| `GET /api/v1/conversations` | STUDENT/COACH | — | `List<ConversationResponse>`; latest activity first | membership/access errors |
+| `GET /api/v1/conversations/{id}/messages` | STUDENT/COACH/member | pageable, default size 30 | `PageResponse<MessageResponse>` | membership/access errors |
+| `POST /api/v1/conversations/{id}/messages` | STUDENT/COACH/member | `content` | `MessageResponse` | readiness errors, active-message relationship errors |
+
+The nullable dashboard subscription/payment pair is the stable no-subscription state. Detailed sessions and conversations stay in their dedicated endpoints. `ACTIVE` and `PAST_DUE` are live booking/subscription relationships under the existing grace rule; `EXPIRED` and `CANCELLED` retain messaging history but cannot send or book.
+
+### Coach endpoints
+
+| Method and path | Role | Query/body | Response | Important errors |
+| --- | --- | --- | --- | --- |
+| `GET /api/v1/coach/dashboard/summary` | COACH/self | — | `CoachDashboardSummaryResponse` | `PROFILE_NOT_FOUND` |
+| `GET /api/v1/coach/students` | COACH/self | `status=ACTIVE|HISTORICAL|ALL`, pageable; default newest + ID tie-break | `PageResponse<CoachStudentResponse>` | `INVALID_SORT_FIELD` |
+| `GET /api/v1/coach/calendar/sessions` | COACH/self | `from`, `to`, `status`, `studentId`, pageable; default nearest + ID tie-break | `PageResponse<SessionResponse>` | `INVALID_DATE_RANGE`, `INVALID_SORT_FIELD` |
+| `GET /api/v1/coach/conversations/summary` | COACH/self | — | `List<CoachConversationSummaryResponse>` | `PROFILE_NOT_FOUND` |
+| `GET /api/v1/coach/dashboard/packages` | COACH/self | — | `List<CoachPackageSummaryResponse>` | `PROFILE_NOT_FOUND` |
+| `GET /api/v1/coach/sessions` | COACH/self | — | `List<SessionResponse>` | `PROFILE_NOT_FOUND` |
+| `POST /api/v1/coach/sessions/{id}/complete` / `no-show` | COACH/owner | path ID | `SessionResponse` | `SESSION_NOT_FOUND`, invalid state |
+| `GET /api/v1/coach/trial-consultations` | COACH/self | — | `List<TrialConsultationResponse>` | `PROFILE_NOT_FOUND` |
+| `POST /api/v1/coach/trial-consultations/{id}/{confirm|cancel|complete|no-show}` | COACH/owner | path ID | `TrialConsultationResponse` | `TRIAL_NOT_FOUND`, `INVALID_TRIAL_STATE`, `TRIAL_NOT_STARTED` |
+| `GET /api/v1/coach/availability` | COACH/self | — | `List<AvailabilityResponse>`; earliest first | `PROFILE_NOT_FOUND` |
+| `POST /api/v1/coach/availability` | COACH/self | `AvailabilityCreateRequest` | `AvailabilityResponse` | `COACH_NOT_APPROVED`, `SLOT_OVERLAP`, `SLOT_DUPLICATE`, range errors |
+| `DELETE /api/v1/coach/availability/{id}` | COACH/owner | path ID | 204 | `SLOT_NOT_FOUND`, `SLOT_BOOKED` |
+| `GET /api/v1/coach/profile/me` | COACH/self | — | `CoachProfileResponse`, including approval `status` | `PROFILE_NOT_FOUND` |
+| `POST /api/v1/coach/profile`, `PUT /api/v1/coach/profile/me` | COACH/self | profile request DTO | `CoachProfileResponse` | validation/ownership errors |
+
+Summary definitions: active students are distinct students on `ACTIVE|PAST_DUE`; completed-this-month uses Istanbul month boundaries; upcoming sessions are future `PLANNED` paid sessions; unread count is messages addressed to the coach with null `readAt`; availability configured means at least one future unbooked slot; pending trials are `REQUESTED`. `grossSales` is lifetime successful `CHARGE` volume attributable to the coach/package, not payout, earnings, or profit. Coaches cannot mutate package prices.
+
+### Admin endpoints
+
+| Method and path | Role | Query/body | Response | Important errors |
+| --- | --- | --- | --- | --- |
+| `GET /api/v1/admin/dashboard/summary` | ADMIN | — | `AdminDashboardSummaryResponse` | `ACCESS_DENIED` for non-admin |
+| `GET /api/v1/admin/users` | ADMIN | `role`, `status`, `search`, pageable | `PageResponse<AdminUserDirectoryResponse>` | `INVALID_SORT_FIELD` |
+| `POST /api/v1/admin/users/{id}/suspend|unsuspend` | ADMIN | optional reason | `SuspendResponse` | deleted/admin protections, invalid state |
+| `GET /api/v1/admin/coaches` | ADMIN | `status=PENDING|APPROVED|REJECTED|SUSPENDED|ALL`, `search`, pageable | `PageResponse<AdminCoachDirectoryResponse>` | `INVALID_SORT_FIELD` |
+| `GET /api/v1/admin/coaches/{id}` | ADMIN | profile ID | `AdminCoachDirectoryResponse` | `PROFILE_NOT_FOUND` |
+| `POST /api/v1/admin/coaches/{id}/approve|reject` | ADMIN | reject reason where required | `CoachProfileResponse` | deleted/suspended protections, invalid state |
+| `GET /api/v1/admin/subscriptions` | ADMIN | `status`, `studentId`, `coachId`, `packageId`, `from`, `to`, pageable | `PageResponse<AdminSubscriptionResponse>` | range/sort errors |
+| `POST /api/v1/admin/subscriptions/{id}/terminate` | ADMIN | optional reason | `AdminSubscriptionTerminateResponse` | not found/invalid state |
+| `GET /api/v1/admin/payments` | ADMIN | `type`, `status`, relationship/package/date filters, pageable | `PageResponse<AdminPaymentResponse>` | range/sort errors |
+| `GET /api/v1/admin/finance/summary` | ADMIN | optional `from`, `to` | `AdminFinanceSummaryResponse` | `INVALID_DATE_RANGE` |
+| `POST /api/v1/admin/payments/{paymentId}/refund` | ADMIN | amount, reason | `RefundResponse` | provider/stub and refundable-headroom errors |
+| `GET /api/v1/admin/refunds` | ADMIN | status/relationship/package/date filters, pageable | refund `PageResponse<AdminPaymentResponse>` | range/sort errors |
+| `GET /api/v1/admin/reports` | ADMIN | `status`, pageable | `PageResponse<ReportResponse>` | `INVALID_SORT_FIELD` |
+| `PATCH /api/v1/admin/reports/{id}/status` | ADMIN | target status | `ReportResponse` | not found/invalid transition |
+| `GET /api/v1/admin/sessions` | ADMIN | `type=ALL|PAID|TRIAL`, `status`, IDs, `from`, `to`, pageable | `PageResponse<AdminOperationalSessionResponse>` | `INVALID_SESSION_STATUS`, range/sort errors |
+
+KPI definitions: students exclude `DELETED`; active coaches are `APPROVED` profiles with `ACTIVE` users; pending approvals are `PENDING` profiles; active subscriptions are `ACTIVE|PAST_DUE`; monthly sales/revenue are successful `CHARGE` ledger rows; monthly refunds are successful `REFUND` rows; open reports are `OPEN|REVIEWED`; scheduled sessions are future `PLANNED` paid sessions; completed-this-month counts paid `COMPLETED` sessions. The operational paid/trial union is read-only. Admin conversation content remains on the separate reason/audit-gated `/api/v1/admin/conversations` surface.
+
+### Paid sessions, trials, and known limits
+
+Paid sessions require a live subscription and consume weekly quota in `PLANNED|COMPLETED|LATE_CANCELLED|NO_SHOW`; early `CANCELLED` does not consume quota. Trials require no subscription/payment, consume no quota, and do not create a paid messaging relationship. Both reserve the same concrete availability under a pessimistic lock; availability ranges cannot overlap per coach, and cancellation reopens an eligible slot. No Flyway migration was added in this pass; schema remains V1-V24.
+
+Remaining bounded-list risks: student/coach trial histories, legacy `/sessions/me` and `/coach/sessions`, conversation inboxes, and own availability are unpaginated compatibility contracts. Migrate them only with an explicit frontend versioning plan. The refund service-commencement eligibility rule remains unresolved; the current admin refund endpoint invokes the configured real/stub provider behavior and writes refund ledger rows without inventing that legal rule.
+
 ## Admin Dashboard backend foundation
 
 - Admin uses the same shared login system and the authenticated `ADMIN` role; admin registration remains unavailable. Frontend role routing is not a separate authentication system.

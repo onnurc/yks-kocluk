@@ -48,6 +48,27 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     Optional<Message> findFirstByConversationIdOrderByCreatedAtDesc(Long conversationId);
 
+    @Query("""
+            select m from Message m
+             where m.conversation.id in :conversationIds
+               and m.createdAt = (select max(m2.createdAt) from Message m2
+                    where m2.conversation.id = m.conversation.id)
+             order by m.conversation.id, m.id desc
+            """)
+    List<Message> findLatestByConversationIds(@Param("conversationIds") Collection<Long> conversationIds);
+
+    @Query("""
+            select m.conversation.id as conversationId, count(m) as unreadCount
+              from Message m
+             where m.conversation.id in :conversationIds
+               and m.sender.id <> :readerId
+               and m.readAt is null
+             group by m.conversation.id
+            """)
+    List<ConversationUnreadCount> countUnreadByConversationIds(
+            @Param("conversationIds") Collection<Long> conversationIds,
+            @Param("readerId") Long readerId);
+
     /**
      * Marks the OTHER party's unread messages as read. The {@code sender.id <> :readerId}
      * clause guarantees a reader can never flip the read receipt on their own messages.

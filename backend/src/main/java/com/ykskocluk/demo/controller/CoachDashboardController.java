@@ -4,6 +4,7 @@ import com.ykskocluk.demo.dto.*;
 import com.ykskocluk.demo.enums.*;
 import com.ykskocluk.demo.service.CoachDashboardService;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,7 +25,7 @@ public class CoachDashboardController {
     @GetMapping("/students")
     public PageResponse<CoachStudentResponse> students(@AuthenticationPrincipal Long userId,
             @RequestParam(defaultValue = "ACTIVE") CoachStudentFilter status,
-            @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
+            @PageableDefault(size = 20, sort = {"createdAt", "id"}, direction = Sort.Direction.DESC) Pageable pageable) {
         return service.students(userId, status, pageable);
     }
 
@@ -32,7 +33,7 @@ public class CoachDashboardController {
     public PageResponse<SessionResponse> sessions(@AuthenticationPrincipal Long userId,
             @RequestParam(required = false) Instant from, @RequestParam(required = false) Instant to,
             @RequestParam(required = false) SessionStatus status, @RequestParam(required = false) Long studentId,
-            @PageableDefault(size = 30, sort = "startTime") Pageable pageable) {
+            @PageableDefault(size = 30, sort = {"startTime", "id"}) Pageable pageable) {
         return service.sessions(userId, from, to, status, studentId, pageable);
     }
 

@@ -19,6 +19,9 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
 
     List<Subscription> findByStudentIdOrderByCreatedAtDesc(Long studentId);
 
+    @EntityGraph(attributePaths = {"coachProfile.user", "pkg"})
+    Optional<Subscription> findFirstByStudentIdOrderByCreatedAtDesc(Long studentId);
+
     boolean existsByStudentIdAndCoachProfileIdAndStatus(Long studentId, Long coachProfileId, SubscriptionStatus status);
 
     /** The active subscription that authorizes booking. */
@@ -48,6 +51,16 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
             """)
     boolean existsLiveSubscription(@Param("studentId") Long studentId,
                                    @Param("coachProfileId") Long coachProfileId);
+
+    @Query("""
+            select distinct s.student.id from Subscription s
+             where s.coachProfile.id = :coachProfileId
+               and s.student.id in :studentIds
+               and s.status in (com.ykskocluk.demo.enums.SubscriptionStatus.ACTIVE,
+                                com.ykskocluk.demo.enums.SubscriptionStatus.PAST_DUE)
+            """)
+    List<Long> findLiveStudentIds(@Param("coachProfileId") Long coachProfileId,
+                                  @Param("studentIds") Collection<Long> studentIds);
 
     /**
      * History/read/subscription membership access gate (Phase 5 messaging):
@@ -98,6 +111,7 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
             """)
     SubscriptionEmailView findEmailViewById(@Param("id") Long id);
 
+    @EntityGraph(attributePaths = {"student", "coachProfile.user", "pkg"})
     @Query("""
             select s from Subscription s
              where s.coachProfile.id = :coachId
@@ -110,6 +124,7 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
                                           @Param("statuses") Collection<SubscriptionStatus> statuses,
                                           Pageable pageable);
 
+    @EntityGraph(attributePaths = {"student", "pkg"})
     @Query("""
             select s from Subscription s
              where s.coachProfile.id = :coachId and s.status in :statuses
