@@ -75,18 +75,26 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             Claims claims = jws.getPayload();
             Long userId = Long.valueOf(claims.getSubject());
 
-            User user = userRepository.findById(userId).orElse(null);
-            if (user != null) {
-                if (user.getStatus() == UserStatus.SUSPENDED) {
-                    throw new MessagingException("Hesabınız askıya alınmıştır");
-                } else if (user.getStatus() == UserStatus.DELETED) {
-                    throw new MessagingException("Hesap artık kullanılamaz");
-                }
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new MessagingException("Kullanıcı artık mevcut değil"));
+            if (user.getStatus() == UserStatus.SUSPENDED) {
+                throw new MessagingException("Hesabınız askıya alınmıştır");
+            } else if (user.getStatus() == UserStatus.DELETED) {
+                throw new MessagingException("Hesap artık kullanılamaz");
             }
 
-            String role = claims.get("role", String.class);
+            if (user.getPasswordChangedAt() != null
+                    && (claims.getIssuedAt() == null
+                    || claims.getIssuedAt().toInstant().isBefore(user.getPasswordChangedAt()))) {
+                throw new MessagingException("Belirteç parola değişikliğinden önce oluşturulmuş");
+            }
+            Integer tokenPasswordVersion = claims.get("passwordVersion", Integer.class);
+            if ((tokenPasswordVersion == null ? 0 : tokenPasswordVersion) != user.getPasswordVersion()) {
+                throw new MessagingException("Belirteç artık geçerli değil");
+            }
+
             return new UsernamePasswordAuthenticationToken(
-                    userId, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+                    userId, null, List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())));
         } catch (MessagingException e) {
             throw e;
         } catch (Exception e) {

@@ -5,6 +5,7 @@ import com.ykskocluk.demo.service.AuthService;
 import com.ykskocluk.demo.service.OAuth2LoginCodeService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -92,5 +93,23 @@ class OAuth2LoginSuccessHandlerTest {
         handlerWithQueryParams.onAuthenticationSuccess(request, response, authentication);
 
         verify(response).sendRedirect("http://localhost:5173/oauth/callback?foo=bar&code=raw-exchange-code-123&provider=google");
+    }
+
+    @Test
+    void onAuthenticationSuccessInvalidatesTemporaryOauthSession() throws IOException {
+        HttpSession session = mock(HttpSession.class);
+        when(request.getSession(false)).thenReturn(session);
+        when(authentication.getPrincipal()).thenReturn(oauth2User);
+        when(oauth2User.getAttribute("email")).thenReturn("google-user@example.com");
+        when(oauth2User.getAttribute("sub")).thenReturn("google-sub-id");
+        when(oauth2User.getAttribute("name")).thenReturn("Google User");
+        when(oauth2User.getAttribute("email_verified")).thenReturn(true);
+        when(authService.upsertGoogleUser("google-user@example.com", "google-sub-id", "Google User", true))
+                .thenReturn(testUser);
+        when(oauth2LoginCodeService.generateCodeForUser(testUser)).thenReturn("one-time-code");
+
+        handler.onAuthenticationSuccess(request, response, authentication);
+
+        verify(session).invalidate();
     }
 }

@@ -535,6 +535,18 @@ class SubscriptionServiceTest {
         assertThat(ex.getStatus()).isEqualTo(org.springframework.http.HttpStatus.NOT_FOUND);
     }
 
+    @Test
+    void httpWebhookPathFailsClosedWhenSignatureCannotBeVerified() {
+        IyzicoWebhookRequest request = new IyzicoWebhookRequest(100L, "SUCCESS", null);
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.processWebhook(request, null));
+
+        assertThat(ex.getErrorCode()).isEqualTo("WEBHOOK_DISABLED");
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        verifyNoInteractions(paymentRepository);
+    }
+
     // --- refund tests ---
 
     @Test

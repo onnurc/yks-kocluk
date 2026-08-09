@@ -2,6 +2,7 @@ package com.ykskocluk.demo.security;
 
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.UserStatus;
+import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.repository.UserRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
@@ -125,6 +126,7 @@ class JwtAuthenticationFilterTest {
 
         User activeUser = new User();
         activeUser.setStatus(UserStatus.ACTIVE);
+        activeUser.setRole(Role.STUDENT);
         when(userRepository.findById(1L)).thenReturn(Optional.of(activeUser));
 
         jwtAuthenticationFilter.doFilterInternal(request, response, filterChain);
@@ -132,6 +134,43 @@ class JwtAuthenticationFilterTest {
         verify(filterChain).doFilter(request, response);
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
         assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal()).isEqualTo(1L);
+    }
+
+    @Test
+    void doFilterInternal_missingUserDoesNotAuthenticateSignedToken() throws Exception {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        FilterChain chain = mock(FilterChain.class);
+        when(request.getHeader("Authorization")).thenReturn("Bearer orphan-token");
+        Claims claims = new DefaultClaims(Map.of("sub", "99", "role", "ADMIN"));
+        Jws jws = mock(Jws.class);
+        when(jws.getPayload()).thenReturn(claims);
+        when(jwtService.parse("orphan-token")).thenReturn(jws);
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        jwtAuthenticationFilter.doFilterInternal(request, response, chain);
+
+        verify(chain).doFilter(request, response);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
+    void doFilterInternal_usesCurrentDatabaseRoleInsteadOfTokenClaim() throws Exception {
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        FilterChain chain = mock(FilterChain.class);
+        when(request.getHeader("Authorization")).thenReturn("Bearer role-token");
+        Claims claims = new DefaultClaims(Map.of("sub", "1", "role", "ADMIN"));
+        Jws jws = mock(Jws.class);
+        when(jws.getPayload()).thenReturn(claims);
+        when(jwtService.parse("role-token")).thenReturn(jws);
+        User user = new User(); user.setStatus(UserStatus.ACTIVE); user.setRole(Role.STUDENT);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        jwtAuthenticationFilter.doFilterInternal(request, response, chain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
+                .extracting("authority").containsExactly("ROLE_STUDENT");
     }
 
     @Test

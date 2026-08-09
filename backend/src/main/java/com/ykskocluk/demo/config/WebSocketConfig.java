@@ -19,19 +19,21 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final StompAuthChannelInterceptor authChannelInterceptor;
+    private final CorsProperties corsProperties;
 
-    public WebSocketConfig(StompAuthChannelInterceptor authChannelInterceptor) {
+    public WebSocketConfig(StompAuthChannelInterceptor authChannelInterceptor,
+                           CorsProperties corsProperties) {
         this.authChannelInterceptor = authChannelInterceptor;
+        this.corsProperties = corsProperties;
     }
 
     // Same allowlist as SecurityConfig's REST CORS — keep the two in sync.
-    private static final String ALLOWED_ORIGIN = "http://localhost:5173";
-
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws").setAllowedOriginPatterns(ALLOWED_ORIGIN);
+        String[] allowedOrigins = corsProperties.allowedOrigins().toArray(String[]::new);
+        registry.addEndpoint("/ws").setAllowedOrigins(allowedOrigins);
         // SockJS fallback for browsers that can't open a raw WebSocket.
-        registry.addEndpoint("/ws").setAllowedOriginPatterns(ALLOWED_ORIGIN).withSockJS();
+        registry.addEndpoint("/ws").setAllowedOrigins(allowedOrigins).withSockJS();
     }
 
     @Override

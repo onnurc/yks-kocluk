@@ -59,8 +59,15 @@ spring:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+    enabled: ${SWAGGER_ENABLED:true}
   api-docs:
     path: /v3/api-docs
+    enabled: ${SWAGGER_ENABLED:true}
+
+# Railway terminates TLS at its proxy. Honor the original scheme/host when Spring builds
+# OAuth2 callback URLs from {baseUrl}; set to none only when running without a trusted proxy.
+server:
+  forward-headers-strategy: ${SERVER_FORWARD_HEADERS_STRATEGY:framework}
 
 management:
   endpoints:
@@ -69,6 +76,10 @@ management:
         include: health,info
 
 app:
+  cors:
+    # Comma-separated exact origins. Set CORS_ALLOWED_ORIGINS to the deployed frontend
+    # origin(s), e.g. https://app.example.com,https://www.example.com. Wildcards are rejected.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
     environment: ${APP_ENV:local}
@@ -127,7 +138,7 @@ app:
     max-attempts: 5
     cleanup-cron: ${EMAIL_VERIFICATION_CLEANUP_CRON:0 30 3 * * *}
   oauth2:
-    frontend-redirect-uri: ${OAUTH2_FRONTEND_REDIRECT_URI:http://localhost:3000/oauth/callback}
+    frontend-redirect-uri: ${OAUTH2_FRONTEND_REDIRECT_URI:http://localhost:5173/oauth/callback}
     login-code-ttl-seconds: ${OAUTH2_LOGIN_CODE_TTL_SECONDS:120}
   resend:
     # Resend API key — secret, env only (RESEND_API_KEY in application-local.yml / env). No default.
