@@ -1,5 +1,16 @@
 # Handoff — YKS Coaching Platform (Backend)
 
+## Production security configuration
+
+- API authentication is `Authorization: Bearer <JWT>` only. The JWT filter verifies signature/expiry, requires the subject user to still exist, blocks `SUSPENDED`/`DELETED`, enforces `passwordChangedAt` and `passwordVersion`, and derives the granted role from the current database user rather than a stale token role claim.
+- `SessionCreationPolicy.IF_REQUIRED` is intentional. Spring Security temporarily stores Google OAuth2 authorization request/state in an HTTP session. After a successful callback, the backend creates the one-time frontend exchange code, invalidates that temporary session, clears the request security context, and redirects. The resulting API login is therefore JWT-based rather than cookie-session-based.
+- CSRF remains disabled because application API authorization is not cookie based. CORS credential sharing is disabled. The OAuth2 handshake uses top-level browser redirects and does not require credentialed cross-origin API requests.
+- Coarse route rules protect `/api/v1/admin/**` as `ADMIN`, `/api/v1/coach/**` as `COACH`, and student self/trial namespaces as `STUDENT`; controller `@PreAuthorize` and service ownership checks remain the finer-grained layer. Public coach discovery stays under the separate `/api/v1/coaches/**` namespace and is not blocked by the coach-self matcher. Admin is not implicitly allowed onto coach-self endpoints.
+- REST and WebSocket origins share typed `app.cors.allowed-origins` configuration. Set `CORS_ALLOWED_ORIGINS` to a comma-separated list of exact deployed frontend origins, for example `https://app.example.com,https://www.example.com`. Development defaults to `http://localhost:5173`. Empty and wildcard origin lists fail startup. Allowed methods are `GET,POST,PUT,PATCH,DELETE,OPTIONS`; request headers are `Authorization,Content-Type`; no response authorization header is exposed.
+- The `/ws/**` HTTP handshake remains public because the token travels in the STOMP `CONNECT` frame. `StompAuthChannelInterceptor` requires a valid current JWT/user, applies password/session invalidation rules, and authorizes conversation subscriptions by membership. REST and WebSocket share the same origin allowlist.
+- The Iyzico webhook remains public at the HTTP-auth layer because providers cannot send an application JWT. The controller always calls the signature-verifying service overload; missing/invalid signatures fail closed, and disabled/missing provider configuration rejects the webhook.
+- `/api/v1/health` remains public for Railway health checks. Swagger/API docs remain enabled by default for local development and can be removed from the production HTTP surface with `SWAGGER_ENABLED=false`. `server.forward-headers-strategy=framework` preserves the original HTTPS scheme/host behind Railway when Spring builds the Google callback URL. Production must also set `CORS_ALLOWED_ORIGINS`, `OAUTH2_FRONTEND_REDIRECT_URI`, `FRONTEND_BASE_URL`, the external backend callback URL, and all secrets/real OAuth credentials.
+
 ## Dashboard Frontend API Contract (final hardening pass, 2026-08-09)
 
 ### Shared authentication, routing, and readiness

@@ -5,8 +5,10 @@ import com.ykskocluk.demo.service.AuthService;
 import com.ykskocluk.demo.service.OAuth2LoginCodeService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -47,6 +49,15 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                 email, googleSub, fullName, Boolean.TRUE.equals(emailVerified));
 
         String code = oauth2LoginCodeService.generateCodeForUser(user);
+
+        // The HTTP session exists only to protect the OAuth2 authorization-code handshake.
+        // Authentication continues through the one-time frontend exchange code, not a cookie
+        // session, so discard the temporary session before redirecting.
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+        SecurityContextHolder.clearContext();
 
         String target = UriComponentsBuilder.fromUriString(frontendRedirectUri)
                 .queryParam("code", code)

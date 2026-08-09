@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.security;
 
 import com.ykskocluk.demo.config.JwtProperties;
+import com.ykskocluk.demo.config.CorsProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,16 +19,17 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.List;
 
 /**
- * Phase 1 security. API authentication is stateless via JWT (the {@link JwtAuthenticationFilter}
- * authenticates every request from the bearer token; no session-based API auth).
+ * API requests authenticate with bearer JWTs and do not use the HTTP session as an API
+ * authentication store.
  *
- * <p>Session policy is IF_REQUIRED only so the brief Google OAuth2 authorization handshake
- * (which stores its state server-side) works; no session is created for normal API traffic.
+ * <p>{@link SessionCreationPolicy#IF_REQUIRED} is intentional: Spring Security's Google OAuth2
+ * authorization-code handshake temporarily stores its authorization request/state in an HTTP
+ * session. Normal bearer-token API traffic remains session-independent.
  */
 @Configuration
 @EnableMethodSecurity
 @EnableConfigurationProperties({JwtProperties.class, com.ykskocluk.demo.config.PasswordSecurityProperties.class,
-        com.ykskocluk.demo.config.EmailVerificationProperties.class})
+        com.ykskocluk.demo.config.EmailVerificationProperties.class, CorsProperties.class})
 public class SecurityConfig {
 
     @Bean
@@ -35,9 +37,12 @@ public class SecurityConfig {
                                             JwtAuthenticationFilter jwtAuthenticationFilter,
                                             ProblemDetailAuthenticationEntryPoint authenticationEntryPoint,
                                             ProblemDetailAccessDeniedHandler accessDeniedHandler,
-                                            OAuth2LoginSuccessHandler oauth2LoginSuccessHandler) throws Exception {
+                                            OAuth2LoginSuccessHandler oauth2LoginSuccessHandler,
+                                            CorsProperties corsProperties) throws Exception {
         http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .cors(cors -> cors.configurationSource(corsConfigurationSource(corsProperties)))
+                // API authorization is bearer-header based, not cookie based. The temporary
+                // OAuth2 handshake session does not make application API endpoints cookie-authenticated.
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
@@ -61,6 +66,12 @@ public class SecurityConfig {
                         // STOMP handshake is open; the JWT is validated in the CONNECT frame
                         // by StompAuthChannelInterceptor (no token rides on the handshake).
                         .requestMatchers("/ws/**").permitAll()
+                        // Coarse route protection complements controller method security. Public
+                        // coach discovery uses /api/v1/coaches/** and is intentionally unaffected.
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/coach/**").hasRole("COACH")
+                        .requestMatchers("/api/v1/student/**", "/api/v1/students/**",
+                                "/api/v1/trial-consultations/**").hasRole("STUDENT")
                         .anyRequest().authenticated())
                 .oauth2Login(oauth -> oauth.successHandler(oauth2LoginSuccessHandler))
                 .exceptionHandling(ex -> ex
@@ -71,13 +82,14 @@ public class SecurityConfig {
     }
 
     @Bean
-    CorsConfigurationSource corsConfigurationSource() {
+    CorsConfigurationSource corsConfigurationSource(CorsProperties corsProperties) {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
+        configuration.setAllowedOrigins(corsProperties.allowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-        configuration.setExposedHeaders(List.of("Authorization"));
-        configuration.setAllowCredentials(true); // Enabled for standard compatibility if cookies are integrated
+        // Frontend tokens are JSON payloads and API auth uses the Authorization header.
+        // OAuth2 uses top-level redirects, so cross-origin cookie credentials are unnecessary.
+        configuration.setAllowCredentials(false);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
