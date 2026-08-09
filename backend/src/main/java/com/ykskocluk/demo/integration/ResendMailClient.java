@@ -53,6 +53,24 @@ public class ResendMailClient implements MailClient {
     }
 
     @Override
+    public void sendPurchaseConfirmed(String toEmail, String studentName, String packageName,
+                                      String coachName, BigDecimal amount, String currency,
+                                      Instant purchasedAt, Instant periodEndAt) {
+        String purchased = WHEN_FORMAT.format(purchasedAt.atZone(ISTANBUL));
+        String periodEnd = DATE_FORMAT.format(periodEndAt.atZone(ISTANBUL));
+        send(toEmail, "Uniform Akademi plan satın alımınız tamamlandı", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Plan satın alımınız başarıyla tamamlandı</h2>
+                  <p>Merhaba %s,</p>
+                  <p><strong>%s</strong> planınız, koçunuz <strong>%s</strong> ile aktif edildi.</p>
+                  <p>Tutar: <strong>%s %s</strong><br>Satın alma: <strong>%s</strong><br>
+                     Mevcut dönem sonu: <strong>%s</strong></p>
+                </div>
+                """.formatted(studentName, packageName, coachName, amount.toPlainString(), currency,
+                        purchased, periodEnd));
+    }
+
+    @Override
     public void sendSessionBooked(String toEmail, String coachName, Instant startTime, String meetLink) {
         String when = WHEN_FORMAT.format(startTime.atZone(ISTANBUL));
         send(toEmail, "Görüşmeniz planlandı", """

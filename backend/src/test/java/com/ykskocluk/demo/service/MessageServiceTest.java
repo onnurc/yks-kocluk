@@ -83,7 +83,7 @@ class MessageServiceTest {
 
         lenient().when(conversationMapper.toResponse(any(), org.mockito.ArgumentMatchers.anyLong()))
                 .thenReturn(new ConversationResponse(CONVERSATION_ID, COACH_PROFILE_ID, "Coach", "Student",
-                        Instant.now(), 0));
+                        Instant.now(), 0, com.ykskocluk.demo.dto.ConversationObserverResponse.platformAdmin()));
     }
 
     // --- gate (checkpoints 1 & 2) ---

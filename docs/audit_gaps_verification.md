@@ -1,5 +1,13 @@
 # Audit Gaps Verification
 
+## Confirmed account/chat/purchase/refund policy verification (2026-08-09)
+
+- Removed the voluntary password cooldown from configuration, service errors, frontend copy and tests while retaining password/session invalidation controls.
+- Conversation DTOs now make the stable platform ADMIN observer visible to both participants. Admin coach/student directory APIs reuse the existing conversation model and audited read surface; no concrete admin ID is hard-coded. Authorized ADMIN can subscribe read-only to the existing conversation topic for live fan-out, while ADMIN remains excluded from REST/STOMP send paths.
+- Successful initial purchases now persist a canonical success instant and emit an after-commit, idempotent transactional Resend event. Marketing state is deliberately irrelevant and no recipient/provider secrets come from the callback body.
+- V25 adds `payments.succeeded_at` plus the indexed, constrained `refund_requests` workflow table. The financial refund ledger remains separate. The policy is `[0,7d)` unconditional, `[7d,14d]` standard-eligible or manual-review based on paid-session evidence, and expired after 14 days. Trial consultations and future planned sessions are excluded; service commencement during days 8–14 never auto-rejects.
+- Principal ownership and role checks protect student/admin workflows; the database prevents multiple active requests per original payment, approval calls the configured provider refund, and provider failure cannot stamp `REFUNDED`.
+
 ## Final dashboard integration and hardening verification (2026-08-09)
 
 - Role separation is explicit at controller boundaries: student self, coach self, and admin management surfaces are mutually denied. Shared student/coach messaging additionally enforces conversation membership and subscription-derived history/send gates. Principal-derived identity is used throughout; no self owner ID or role is trusted from requests.
@@ -10,7 +18,7 @@
 - Dashboard month/week windows consistently derive boundaries in `Europe/Istanbul` and persist/transport UTC `Instant`. Date filters are half-open `[from,to)`. No JVM-default timezone use was found in dashboard metric code.
 - Paid `Session` and `TrialConsultation` remain separate. Concrete availability ranges cannot overlap for a coach; both reservation paths lock the same availability row, honor `booked`, and have unique slot references. Trial creation also explicitly checks active trial/paid overlaps. Trial cancellation unlinks and reopens the slot; trials create no payment/subscription/quota/message relationship.
 - DTO review found no password hash/version, refresh/reset/verification token/hash, OAuth subject, legal evidence blob, card/provider secret, or raw provider payload in dashboard responses. Admin directories expose operational identity/status fields only; coach/student dashboard DTOs expose relationship data only.
-- KPI and finance definitions are frozen in `docs/handoff.md`. Gross revenue/sales means successful charge volume; refunds are successful refund ledger volume; `netCollectedAmount` is gross charges minus refunds and is not payout/profit. The refund service-commencement rule remains intentionally unresolved.
+- KPI and finance definitions are frozen in `docs/handoff.md`. Gross revenue/sales means successful charge volume; refunds are successful refund ledger volume; `netCollectedAmount` is gross charges minus refunds and is not payout/profit. V25 adds the separate policy-classified request workflow without changing these ledger definitions.
 - No migration was added and V1-V24 were not modified.
 - Verification in this environment: backend compile passed; the 52 focused tests in `StudentDashboardServiceTest`, `CoachDashboardServiceTest`, `AdminDashboardServiceTest`, `TrialConsultationServiceTest`, `SessionServiceTest`, `MessageServiceTest`, and `AccountReadinessServiceTest` passed. A broader controller/service/security selection produced 374 passes and 1 skip; its six `IyzicoWebhookSignatureTest` context errors were all caused by the unavailable Docker environment, not assertions. `test-compile`, tests-skipped `package`, and `git diff --check` passed. Docker CLI/daemon is unavailable, so PostgreSQL/Testcontainers dashboard and full integration suites were not run; run them on a Docker-enabled host before merge.
 
@@ -106,7 +114,7 @@ Note that:
 - Completed deletion anonymizes account/profile PII, makes coaches undiscoverable, revokes refresh/OAuth login codes, unlinks Google identity, and keeps the main user row as `DELETED`. Financial, subscription, legal/checkout evidence, message, report, security, and audit relations are not hard-deleted or rewritten.
 - Deletion identity hashes are retained only to prevent a deleted password/Google identity from silently recreating an account. Exact legal retention periods, message-retention duration, external object cleanup, failed-request operator tooling, and a suspended-user support path remain production TODOs.
 - Refund/service-commencement policy and coach-transfer behavior are unchanged.
-- Refund/service-commencement behavior is deliberately unchanged: the exact commencement event remains unresolved, and no automatic eligibility logic is introduced here.
+- This older verification pass did not yet alter refund/service commencement; it is superseded by the V25 policy section at the top of this document.
 
 ---
 

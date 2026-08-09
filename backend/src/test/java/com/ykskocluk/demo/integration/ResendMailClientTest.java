@@ -37,6 +37,26 @@ class ResendMailClientTest {
     }
 
     @Test
+    void purchaseConfirmed_containsPlanCoachAmountButNoPaymentSecrets() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.to[0]").value(TO))
+                .andExpect(jsonPath("$.subject").value("Uniform Akademi plan satın alımınız tamamlandı"))
+                .andExpect(jsonPath("$.html", containsString("Aylık Koçluk")))
+                .andExpect(jsonPath("$.html", containsString("Ayşe Koç")))
+                .andExpect(jsonPath("$.html", containsString("1500.00")))
+                .andExpect(jsonPath("$.html", org.hamcrest.Matchers.not(containsString("card"))))
+                .andExpect(jsonPath("$.html", org.hamcrest.Matchers.not(containsString("token"))))
+                .andRespond(withSuccess("{\"id\":\"msg_purchase\"}", APPLICATION_JSON));
+        client.sendPurchaseConfirmed(TO, "Ali", "Aylık Koçluk", "Ayşe Koç",
+                new BigDecimal("1500.00"), "TRY", Instant.parse("2026-08-01T10:00:00Z"),
+                Instant.parse("2026-08-31T10:00:00Z"));
+        server[0].verify();
+    }
+
+    @Test
     void send_postsToResend_withAuthHeaderAndExpectedBody() {
         MockRestServiceServer[] server = new MockRestServiceServer[1];
         ResendMailClient client = clientBoundTo(server);

@@ -12,7 +12,8 @@ public record ConversationSummaryResponse(
         StudentRef student,
         CoachRef coach,
         Instant lastMessageAt,
-        long messageCount
+        long messageCount,
+        ConversationObserverResponse observer
 ) {
     public record StudentRef(Long id, String fullName) {
     }

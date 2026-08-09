@@ -73,6 +73,7 @@ class SubscriptionServiceTest {
     @Mock AccountReadinessService accountReadinessService;
     @Mock LegalAcceptanceService legalAcceptanceService;
     @Mock org.springframework.transaction.PlatformTransactionManager transactionManager;
+    @Mock org.springframework.context.ApplicationEventPublisher events;
 
     PaymentProperties paymentProperties;
     SubscriptionService service;
@@ -88,7 +89,7 @@ class SubscriptionServiceTest {
             coachProfileRepository, userRepository, paymentRepository, paymentProperties,
             iyzicoClient, subscriptionMapper, entityManager,
             new com.ykskocluk.demo.config.IyzicoProperties(false, "sandbox", "dummy", "dummy", "dummy", "dummy"),
-            accountReadinessService, legalAcceptanceService, transactionManager);
+            accountReadinessService, legalAcceptanceService, transactionManager, events);
 
         Package pkg = new Package();
         ReflectionTestUtils.setField(pkg, "id", PKG_ID);
@@ -278,6 +279,7 @@ class SubscriptionServiceTest {
         sub.setStudent(student);
         CoachProfile coach = new CoachProfile();
         ReflectionTestUtils.setField(coach, "id", COACH_ID);
+        User coachUser = new User(); coachUser.setFullName("Coach"); coach.setUser(coachUser);
         sub.setCoachProfile(coach);
 
         Payment payment = new Payment();
@@ -293,6 +295,7 @@ class SubscriptionServiceTest {
         assertThat(response.status()).isEqualTo(SubscriptionStatus.ACTIVE);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
         assertThat(payment.getProviderReference()).startsWith("stub-provider-ref-");
+        assertThat(payment.getSucceededAt()).isNotNull();
         assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
         assertThat(sub.getStartAt()).isNotNull();
         assertThat(sub.getEndAt()).isNotNull();
@@ -300,6 +303,7 @@ class SubscriptionServiceTest {
         verify(coachProfileRepository).incrementActiveStudentCountIfRoom(COACH_ID);
         verify(paymentRepository).saveAndFlush(payment);
         verify(subscriptionRepository).saveAndFlush(sub);
+        verify(events).publishEvent(any(PurchaseConfirmedEvent.class));
     }
 
     @Test
@@ -321,6 +325,7 @@ class SubscriptionServiceTest {
 
         assertThat(response.status()).isEqualTo(SubscriptionStatus.ACTIVE);
         verify(coachProfileRepository, never()).incrementActiveStudentCountIfRoom(any());
+        verify(events, never()).publishEvent(any(PurchaseConfirmedEvent.class));
         verify(paymentRepository, never()).saveAndFlush(any());
         verify(subscriptionRepository, never()).saveAndFlush(any());
     }
@@ -414,6 +419,7 @@ class SubscriptionServiceTest {
     void processWebhook_success_activatesSubscriptionAndMarksPaymentSuccess() {
         Subscription sub = new Subscription();
         sub.setStatus(SubscriptionStatus.PENDING_PAYMENT);
+        User student = new User(); student.setEmail("student@example.com"); student.setFullName("Student"); sub.setStudent(student);
         Package pkg = new Package();
         pkg.setDurationDays(30);
         pkg.setWeeklySessions(1);
@@ -421,6 +427,7 @@ class SubscriptionServiceTest {
         sub.setPkg(pkg);
         CoachProfile coach = new CoachProfile();
         ReflectionTestUtils.setField(coach, "id", COACH_ID);
+        User coachUser = new User(); coachUser.setFullName("Coach"); coach.setUser(coachUser);
         sub.setCoachProfile(coach);
 
         Payment payment = new Payment();

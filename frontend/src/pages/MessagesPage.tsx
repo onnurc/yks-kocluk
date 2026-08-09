@@ -106,6 +106,9 @@ export const MessagesPage: React.FC = () => {
                 <span style={{ fontSize: "0.8rem", color: "#6c757d" }}>
                   Son Mesajlaşma: {formatTimestamp(conv.lastMessageAt)}
                 </span>
+                <div style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "#6c757d" }}>
+                  {conv.observer.displayName} · Salt okunur gözlemci
+                </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <span style={{ color: "#ccc", fontSize: "1.25rem" }}>&rsaquo;</span>

@@ -21,6 +21,14 @@ public class StubMailClient implements MailClient {
     private static final Logger log = LoggerFactory.getLogger(StubMailClient.class);
 
     @Override
+    public void sendPurchaseConfirmed(String toEmail, String studentName, String packageName,
+                                      String coachName, BigDecimal amount, String currency,
+                                      Instant purchasedAt, Instant periodEndAt) {
+        log.info("[STUB MailClient] purchase-confirmed mail to {} (package {}, coach {}, amount {} {})",
+                toEmail, packageName, coachName, amount, currency);
+    }
+
+    @Override
     public void sendSessionBooked(String toEmail, String coachName, Instant startTime, String meetLink) {
         log.info("[STUB MailClient] session-booked mail to {} (coach {}, start {}, link {})",
                 toEmail, coachName, startTime, meetLink);

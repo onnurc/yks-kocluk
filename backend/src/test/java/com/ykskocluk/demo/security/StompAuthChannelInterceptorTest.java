@@ -5,6 +5,7 @@ import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.service.MessageService;
+import com.ykskocluk.demo.service.AdminConversationService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.impl.DefaultClaims;
@@ -46,11 +47,15 @@ class StompAuthChannelInterceptorTest {
     @Mock
     UserRepository userRepository;
 
+    @Mock
+    AdminConversationService adminConversationService;
+
     StompAuthChannelInterceptor interceptor;
 
     @BeforeEach
     void setUp() {
-        interceptor = new StompAuthChannelInterceptor(jwtService, messageService, userRepository);
+        interceptor = new StompAuthChannelInterceptor(jwtService, messageService, userRepository,
+                adminConversationService);
     }
 
     @Test
@@ -201,5 +206,46 @@ class StompAuthChannelInterceptorTest {
                 () -> interceptor.preSend(message, null));
         assertThat(ex).isNotNull();
         assertThat(ex.getMessage()).contains("Bu konuşmaya erişiminiz yok");
+    }
+
+    @Test
+    void preSend_adminCanSubscribeToExistingConversationAsReadOnlyObserver() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        accessor.setLeaveMutable(true);
+        accessor.setDestination("/topic/conversations/50");
+        accessor.setUser(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                9L, null, java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))));
+        when(adminConversationService.canObserve(50L)).thenReturn(true);
+
+        assertThat(interceptor.preSend(message(accessor), null)).isNotNull();
+        verify(adminConversationService).canObserve(50L);
+        verify(messageService, never()).isParticipant(any(), any());
+    }
+
+    @Test
+    void preSend_adminCannotSubscribeToMissingConversation() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        accessor.setLeaveMutable(true);
+        accessor.setDestination("/topic/conversations/404");
+        accessor.setUser(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                9L, null, java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))));
+        when(adminConversationService.canObserve(404L)).thenReturn(false);
+
+        assertThat(catchThrowableOfType(MessagingException.class,
+                () -> interceptor.preSend(message(accessor), null))).isNotNull();
+    }
+
+    @Test
+    void preSend_adminStompSendIsRejectedBeforeController() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SEND);
+        accessor.setLeaveMutable(true);
+        accessor.setDestination("/app/conversations/50/send");
+        accessor.setUser(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                9L, null, java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))));
+
+        MessagingException error = catchThrowableOfType(MessagingException.class,
+                () -> interceptor.preSend(message(accessor), null));
+        assertThat(error.getMessage()).contains("mesaj gönderemez");
+        verifyNoInteractions(messageService, adminConversationService);
     }
 }

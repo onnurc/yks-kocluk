@@ -5,6 +5,8 @@ import com.ykskocluk.demo.dto.MessageResponse;
 import com.ykskocluk.demo.dto.PageResponse;
 import com.ykskocluk.demo.dto.AdminConversationAccessRequest;
 import com.ykskocluk.demo.dto.AdminConversationAccessResponse;
+import com.ykskocluk.demo.dto.AdminConversationCoachResponse;
+import com.ykskocluk.demo.dto.AdminConversationStudentResponse;
 import com.ykskocluk.demo.service.AdminConversationService;
 import com.ykskocluk.demo.service.AdminConversationAccessAuditService;
 import jakarta.validation.Valid;
@@ -50,7 +52,22 @@ public class AdminConversationController {
         return adminConversationService.listConversations(pageable);
     }
 
+    @GetMapping("/coaches")
+    public PageResponse<AdminConversationCoachResponse> coaches(
+            @PageableDefault(size = 20, sort = "coachProfile.id") Pageable pageable) {
+        return adminConversationService.listCoaches(pageable);
+    }
+
+    @GetMapping("/coaches/{coachId}/students")
+    public PageResponse<AdminConversationStudentResponse> students(
+            @PathVariable Long coachId,
+            @PageableDefault(size = 20, sort = "lastMessageAt", direction = Sort.Direction.DESC)
+            Pageable pageable) {
+        return adminConversationService.listStudents(coachId, pageable);
+    }
+
     @PostMapping("/{id}/messages")
+    @Deprecated
     public PageResponse<MessageResponse> messages(
             @AuthenticationPrincipal Long adminUserId,
             @PathVariable Long id,
@@ -58,6 +75,17 @@ public class AdminConversationController {
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
         return adminConversationService.getMessages(adminUserId, id, request.reason(), pageable);
+    }
+
+    /** Semantic read endpoint. The POST variant remains temporarily for existing clients. */
+    @GetMapping("/{id}/messages")
+    public PageResponse<MessageResponse> messages(
+            @AuthenticationPrincipal Long adminUserId,
+            @PathVariable Long id,
+            @RequestParam String reason,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable) {
+        return adminConversationService.getMessages(adminUserId, id, reason, pageable);
     }
 
     @PostMapping("/{conversationId}/access-log")

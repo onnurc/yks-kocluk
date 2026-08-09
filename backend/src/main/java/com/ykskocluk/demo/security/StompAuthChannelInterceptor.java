@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.security;
 
 import com.ykskocluk.demo.service.MessageService;
+import com.ykskocluk.demo.service.AdminConversationService;
 import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.entity.User;
@@ -28,26 +29,33 @@ import java.util.List;
  *   <li><b>CONNECT</b>: the JWT must be present in the {@code Authorization} native header
  *       and valid — otherwise the connection is rejected. The authenticated user is bound
  *       to the STOMP session.</li>
- *   <li><b>SUBSCRIBE</b> to {@code /topic/conversations/{id}}: the bound user must be a
- *       participant of that conversation, or the subscription is rejected server-side.</li>
+ *   <li><b>SUBSCRIBE</b> to {@code /topic/conversations/{id}}: STUDENT/COACH must be a
+ *       participant; authenticated ADMIN may observe an existing conversation read-only.</li>
+ *   <li><b>SEND</b>: ADMIN is rejected at the channel boundary. Participant sends still pass
+ *       through {@code MessageService.sendMessage} for membership/subscription enforcement.</li>
  * </ul>
  *
- * <p>The send path is authorized inside {@code MessageService.sendMessage} (same gate +
- * membership re-check as REST), so both transports enforce the rules identically.
+ * <p>All successful participant messages fan out on the existing shared conversation topic;
+ * no second admin messaging channel exists.
  */
 @Component
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private static final String TOPIC_PREFIX = "/topic/conversations/";
+    private static final String SEND_PREFIX = "/app/conversations/";
 
     private final JwtService jwtService;
     private final MessageService messageService;
     private final UserRepository userRepository;
+    private final AdminConversationService adminConversationService;
 
-    public StompAuthChannelInterceptor(JwtService jwtService, MessageService messageService, UserRepository userRepository) {
+    public StompAuthChannelInterceptor(JwtService jwtService, MessageService messageService,
+                                       UserRepository userRepository,
+                                       AdminConversationService adminConversationService) {
         this.jwtService = jwtService;
         this.messageService = messageService;
         this.userRepository = userRepository;
+        this.adminConversationService = adminConversationService;
     }
 
     @Override
@@ -59,6 +67,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         switch (accessor.getCommand()) {
             case CONNECT -> accessor.setUser(authenticate(accessor));
             case SUBSCRIBE -> authorizeSubscribe(accessor);
+            case SEND -> authorizeSend(accessor);
             default -> { /* other frames: nothing extra */ }
         }
         return message;
@@ -109,9 +118,22 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         if (conversationId == null) {
             return; // not a conversation topic — nothing to authorize here
         }
-        Long userId = currentUserId(accessor);
-        if (userId == null || !messageService.isParticipant(userId, conversationId)) {
+        Authentication authentication = currentAuthentication(accessor);
+        Long userId = currentUserId(authentication);
+        boolean authorized = authentication != null && (isAdmin(authentication)
+                ? adminConversationService.canObserve(conversationId)
+                : userId != null && messageService.isParticipant(userId, conversationId));
+        if (!authorized) {
             throw new MessagingException("Bu konuşmaya erişiminiz yok");
+        }
+    }
+
+    private void authorizeSend(StompHeaderAccessor accessor) {
+        String destination = accessor.getDestination();
+        Authentication authentication = currentAuthentication(accessor);
+        if (destination != null && destination.startsWith(SEND_PREFIX)
+                && destination.endsWith("/send") && authentication != null && isAdmin(authentication)) {
+            throw new MessagingException("ADMIN konuşma gözlemcisi mesaj gönderemez");
         }
     }
 
@@ -126,11 +148,17 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         }
     }
 
-    private Long currentUserId(StompHeaderAccessor accessor) {
+    private Authentication currentAuthentication(StompHeaderAccessor accessor) {
         Principal user = accessor.getUser();
-        if (user instanceof Authentication auth && auth.getPrincipal() instanceof Long userId) {
-            return userId;
-        }
-        return null;
+        return user instanceof Authentication auth ? auth : null;
+    }
+
+    private Long currentUserId(Authentication authentication) {
+        return authentication != null && authentication.getPrincipal() instanceof Long userId ? userId : null;
+    }
+
+    private boolean isAdmin(Authentication authentication) {
+        return authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
     }
 }

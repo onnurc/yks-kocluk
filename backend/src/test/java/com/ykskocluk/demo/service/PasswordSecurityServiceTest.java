@@ -29,7 +29,7 @@ class PasswordSecurityServiceTest {
 
     @BeforeEach void setup() {
         service = new PasswordSecurityService(users, resetTokens, refreshTokens, encoder,
-                new PasswordSecurityProperties("https://app.example.com", Duration.ofMinutes(30), Duration.ofDays(15), Duration.ofDays(7)), events);
+                new PasswordSecurityProperties("https://app.example.com", Duration.ofMinutes(30), Duration.ofDays(7)), events);
     }
     private User user() { User u=new User(); u.setEmail("user@example.com"); u.setPasswordHash("old-hash"); u.setStatus(UserStatus.ACTIVE); u.setRole(Role.STUDENT); u.setFullName("User"); return u; }
 
@@ -42,7 +42,7 @@ class PasswordSecurityServiceTest {
     }
     @Test void changePassword_rejectsIncorrectCurrent() { User u=user(); when(users.findById(1L)).thenReturn(Optional.of(u)); when(encoder.matches("bad-password","old-hash")).thenReturn(false); assertThatThrownBy(() -> service.changePassword(1L,new ChangePasswordRequest("bad-password","new-password"))).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getErrorCode()).isEqualTo("CURRENT_PASSWORD_INVALID")); }
     @Test void changePassword_rejectsReuse() { User u=user(); when(users.findById(1L)).thenReturn(Optional.of(u)); when(encoder.matches(anyString(),eq("old-hash"))).thenReturn(true); assertThatThrownBy(() -> service.changePassword(1L,new ChangePasswordRequest("old-password","old-password"))).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getErrorCode()).isEqualTo("PASSWORD_REUSE_NOT_ALLOWED")); }
-    @Test void changePassword_enforcesCooldown() { User u=user(); u.setPasswordChangedAt(Instant.now().minus(Duration.ofDays(1))); when(users.findById(1L)).thenReturn(Optional.of(u)); when(encoder.matches("old-password","old-hash")).thenReturn(true); when(encoder.matches("new-password","old-hash")).thenReturn(false); assertThatThrownBy(() -> service.changePassword(1L,new ChangePasswordRequest("old-password","new-password"))).isInstanceOfSatisfying(ApiException.class,e->{assertThat(e.getErrorCode()).isEqualTo("PASSWORD_CHANGE_TOO_SOON"); assertThat(e.getProperties()).containsKey("nextAllowedAt");}); }
+    @Test void changePassword_hasNoTimeRestriction() { User u=user(); u.setPasswordChangedAt(Instant.now().minusSeconds(30)); when(users.findById(1L)).thenReturn(Optional.of(u)); when(encoder.matches("old-password","old-hash")).thenReturn(true); when(encoder.matches("new-password","old-hash")).thenReturn(false); when(encoder.encode("new-password")).thenReturn("new-hash"); assertThatCode(() -> service.changePassword(1L,new ChangePasswordRequest("old-password","new-password"))).doesNotThrowAnyException(); }
     @Test void changePassword_googleOnlyUnavailable() { User u=user(); u.setPasswordHash(null); when(users.findById(1L)).thenReturn(Optional.of(u)); assertThatThrownBy(() -> service.changePassword(1L,new ChangePasswordRequest("old-password","new-password"))).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getErrorCode()).isEqualTo("PASSWORD_CHANGE_NOT_AVAILABLE")); }
 
     @Test void forgotPassword_knownAccountStoresOnlyHashAndPublishesMailEvent() {

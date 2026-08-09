@@ -52,13 +52,6 @@ public class PasswordSecurityService {
         }
         rejectReuse(user, request.newPassword());
         Instant now = now();
-        if (user.getPasswordChangedAt() != null) {
-            Instant next = user.getPasswordChangedAt().plus(properties.changeCooldown());
-            if (now.isBefore(next)) {
-                throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "PASSWORD_CHANGE_TOO_SOON",
-                        "Şifrenizi en fazla 15 günde bir değiştirebilirsiniz", Map.of("nextAllowedAt", next));
-            }
-        }
         updatePassword(user, request.newPassword(), now);
         invalidateSessionsAndResets(userId, now);
         return new PasswordActionResponse("Şifreniz değiştirildi. Tüm oturumlar kapatıldı; yeniden giriş yapın.", true);

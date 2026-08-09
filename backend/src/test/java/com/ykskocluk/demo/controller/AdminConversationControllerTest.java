@@ -220,8 +220,11 @@ class AdminConversationControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    void get_messages_methodNotAllowed() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/conversations/5/messages"))
-                .andExpect(status().isMethodNotAllowed());
+    void get_messages_isSemanticReadEndpointAndRequiresAuditReason() throws Exception {
+        when(adminConversationService.getMessages(any(), eq(5L), eq("Live moderation"), any()))
+                .thenReturn(emptyPage());
+        mockMvc.perform(get("/api/v1/admin/conversations/5/messages")
+                        .param("reason", "Live moderation"))
+                .andExpect(status().isOk());
     }
 }

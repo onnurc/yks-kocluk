@@ -38,6 +38,11 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
      */
     List<Payment> findBySourcePaymentIdAndStatusIn(Long sourcePaymentId, Collection<PaymentStatus> statuses);
 
+    long countBySourcePaymentId(Long sourcePaymentId);
+
+    Optional<Payment> findFirstBySubscriptionIdAndTypeAndStatusOrderBySucceededAtAsc(
+            Long subscriptionId, PaymentType type, PaymentStatus status);
+
     /** Batch variant of {@link #findBySourcePaymentIdAndStatus} — avoids N+1 in admin listings. */
     List<Payment> findBySourcePaymentIdInAndStatus(List<Long> sourcePaymentIds, PaymentStatus status);
 

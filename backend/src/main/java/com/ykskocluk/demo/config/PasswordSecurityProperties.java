@@ -6,4 +6,4 @@ import java.time.Duration;
 
 @ConfigurationProperties(prefix = "app.password-security")
 public record PasswordSecurityProperties(String frontendBaseUrl, Duration resetTokenTtl,
-                                         Duration changeCooldown, Duration tokenRetention) {}
+                                         Duration tokenRetention) {}
