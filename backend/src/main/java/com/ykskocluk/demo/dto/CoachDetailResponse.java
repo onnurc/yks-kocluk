@@ -20,6 +20,8 @@ public record CoachDetailResponse(
         Set<Track> tracks,
         Double rating,
         int totalSessions,
-        boolean acceptingNewStudents
+        boolean acceptingNewStudents,
+        String profileImageUrl,
+        String introVideoUrl
 ) {
 }

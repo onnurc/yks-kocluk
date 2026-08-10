@@ -62,4 +62,12 @@ public class CoachProfile extends BaseEntity {
 
     @Column(name = "payout_account_ready", nullable = false)
     private boolean payoutAccountReady;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "profile_image_asset_id")
+    private MediaAsset profileImageAsset;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "intro_video_asset_id")
+    private MediaAsset introVideoAsset;
 }

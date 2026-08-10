@@ -21,6 +21,8 @@ public record CoachProfileResponse(
         Set<Track> tracks,
         int activeStudentCount,
         int maxStudentCapacity,
-        boolean payoutAccountReady
+        boolean payoutAccountReady,
+        String profileImageUrl,
+        String introVideoUrl
 ) {
 }

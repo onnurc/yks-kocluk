@@ -1,5 +1,17 @@
 # Audit Gaps Verification
 
+## Cloudflare R2 media/file verification
+
+- Migration `V26__media_assets_and_profile_media.sql` adds metadata-only `media_assets`, owner/status/type indexes, strict type/visibility/status checks, and nullable coach/student profile asset references. Existing profiles remain valid.
+- Presign is authenticated and accepts only media type, declared MIME, size and optional metadata filename. Bucket, visibility and object key are server-owned. Keys contain only category, numeric owner ID and UUID; filename, email and full name never enter the key.
+- Policy enforcement happens before signing: profile images 5 MiB, coach intro videos 20 MiB and documents 10 MiB by default. MIME allowlists are media-type-specific and do not rely on extension.
+- Intro video requires the authenticated owner's coach profile. Profile image requires the authenticated owner's coach/student profile. Finalize and delete require exact ownership; ADMIN cannot impersonate an upload owner.
+- Finalize checks object existence, length and content type before activation. Pending media cannot resolve to public DTO URLs. Private files never resolve through the public base URL; signed GET access is restricted to owner or ADMIN.
+- Public mapping resolves only `ACTIVE` + `PUBLIC` references. Without a public base URL it returns null, never an invalid or temporary URL.
+- R2 secrets are configuration-only and are never returned or logged. There is no arbitrary remote URL fetch, filesystem persistence, backend body proxy, Cloudflare daemon, Stream integration, production DNS setup, or real Cloudflare API call.
+- Disabled/default mode requires no R2 credentials and wires the non-persistent stub. Enabled mode fails startup configuration validation when required R2 settings are missing.
+- Remaining hardening: presign-specific rate limiting if abuse data warrants it; malware scanning/quarantine; abandoned-pending and orphan cleanup; failed physical-delete retry/monitoring; real R2 CORS/custom-domain smoke tests.
+
 ## Confirmed account/chat/purchase/refund policy verification (2026-08-09)
 
 - Removed the voluntary password cooldown from configuration, service errors, frontend copy and tests while retaining password/session invalidation controls.
