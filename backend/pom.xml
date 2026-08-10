@@ -34,6 +34,7 @@
 		<lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
 		<jjwt.version>0.12.7</jjwt.version>
 		<iyzipay.version>2.0.142</iyzipay.version>
+		<aws-sdk.version>2.31.54</aws-sdk.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -71,6 +72,11 @@
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-database-postgresql</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>s3</artifactId>
+			<version>${aws-sdk.version}</version>
 		</dependency>
 
 		<!-- API docs (Swagger UI). v3.0.x is the Spring Boot 4 line; v2.x is SB3-only. -->

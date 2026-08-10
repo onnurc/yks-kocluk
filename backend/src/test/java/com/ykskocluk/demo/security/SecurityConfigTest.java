@@ -37,6 +37,7 @@ class SecurityConfigTest {
     @Test
     void unauthenticatedProtectedRequestReturns401() throws Exception {
         mvc.perform(get("/api/v1/admin/probe")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/media/uploads/presign")).andExpect(status().isUnauthorized());
     }
 
     @Test @WithMockUser(roles = "STUDENT")
@@ -105,5 +106,6 @@ class SecurityConfigTest {
         @PostMapping("/api/v1/auth/login") String login() { return "ok"; }
         @PostMapping("/api/v1/payments/iyzico/webhook") String webhook() { return "ok"; }
         @GetMapping("/api/v1/health") String health() { return "ok"; }
+        @PostMapping("/api/v1/media/uploads/presign") String mediaPresign() { return "ok"; }
     }
 }

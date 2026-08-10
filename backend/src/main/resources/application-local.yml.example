@@ -19,3 +19,6 @@ app:
   resend:
     api-key: <RESEND_API_KEY>       # Resend secret key (re_...). NEVER commit the real value.
     from: onboarding@resend.dev     # sandbox sender; or your verified-domain address
+  # Keep disabled until a real Cloudflare bucket and scoped credentials exist.
+  r2:
+    enabled: false

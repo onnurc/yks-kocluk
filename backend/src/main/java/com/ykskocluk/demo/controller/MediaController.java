@@ -1,0 +1,33 @@
+package com.ykskocluk.demo.controller;
+
+import com.ykskocluk.demo.dto.*;
+import com.ykskocluk.demo.service.MediaService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/v1/media")
+public class MediaController {
+    private final MediaService mediaService;
+    public MediaController(MediaService mediaService) { this.mediaService = mediaService; }
+
+    @PostMapping("/uploads/presign") @ResponseStatus(HttpStatus.CREATED)
+    public MediaPresignResponse presign(@AuthenticationPrincipal Long userId, @Valid @RequestBody MediaPresignRequest request) {
+        return mediaService.presign(userId, request);
+    }
+
+    @PostMapping("/uploads/{assetId}/complete")
+    public MediaAssetResponse complete(@AuthenticationPrincipal Long userId, @PathVariable Long assetId) {
+        return mediaService.complete(userId, assetId);
+    }
+
+    @GetMapping("/{assetId}/download-url")
+    public MediaDownloadResponse download(@AuthenticationPrincipal Long userId, @PathVariable Long assetId) {
+        return mediaService.download(userId, assetId);
+    }
+
+    @DeleteMapping("/{assetId}") @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@AuthenticationPrincipal Long userId, @PathVariable Long assetId) { mediaService.delete(userId, assetId); }
+}

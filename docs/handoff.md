@@ -1,5 +1,29 @@
 # Handoff — YKS Coaching Platform (Backend)
 
+## Cloudflare R2 media storage foundation (V26)
+
+- Neon/PostgreSQL remains the structured-data store. `media_assets` stores only owner, object key, declared metadata, type, visibility and lifecycle status; no binary content, credentials, or temporary signed URLs are stored in PostgreSQL.
+- `StorageService` isolates business code from the S3-compatible SDK. `CloudflareR2StorageService` uses AWS SDK v2 only when `R2_ENABLED=true`; otherwise `StubStorageService` provides in-memory, network-free presign/HEAD/download/delete behavior.
+- Authenticated clients call `POST /api/v1/media/uploads/presign`, upload directly with the required `Content-Type`, then call `POST /api/v1/media/uploads/{assetId}/complete`. Completion performs object HEAD/metadata validation before changing `PENDING_UPLOAD` to `ACTIVE`.
+- The backend selects visibility and random object key. Profile images and coach intro videos are public; documents are private. Public URLs resolve only from `R2_PUBLIC_BASE_URL`; private downloads require owner or ADMIN authorization and use short-lived signed GET URLs.
+- Coach/student profiles can reference an active profile-image asset. Coach profiles can additionally reference an optional active intro-video asset. Discovery/detail DTOs expose only resolved active public media. Pending, deleted, and private assets are never emitted there.
+- Defaults: profile image (JPEG/PNG/WebP) 5 MiB; coach video (MP4/WebM) 20 MiB; private document (PDF/JPEG/PNG) 10 MiB. R2 is object storage only: Cloudflare Stream, transcoding and adaptive bitrate are not included.
+- Replacement is transactional: the new active asset becomes the profile reference and the old asset is lifecycle-marked `DELETED` without immediate physical deletion. Explicit deletion calls storage first; a provider failure rolls back the database transition.
+- Railway does not proxy upload bodies or use its ephemeral filesystem. Required future variables are `R2_ENABLED`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_ENDPOINT`, `R2_PUBLIC_BASE_URL`, `R2_UPLOAD_URL_EXPIRATION_MINUTES`, and `R2_DOWNLOAD_URL_EXPIRATION_MINUTES`. Optional policy overrides are `MEDIA_PROFILE_IMAGE_MAX_BYTES`, `MEDIA_COACH_VIDEO_MAX_BYTES`, and `MEDIA_DOCUMENT_MAX_BYTES`.
+
+No real Cloudflare account, bucket, credentials, DNS, CORS, custom domain, or API call is configured in this branch. Production setup checklist:
+
+1. Create the Cloudflare account.
+2. Create the R2 bucket.
+3. Create a bucket-scoped API token with minimum required object permissions.
+4. Set Railway environment variables and enable R2.
+5. Configure bucket CORS for exact frontend origins, PUT/GET methods and required headers.
+6. Configure the media custom domain.
+7. Set `R2_PUBLIC_BASE_URL` (for example `https://media.uniformakademi.com`).
+8. Run real presign/upload/finalize/public-read/private-download/replacement/delete smoke tests.
+
+Private-document malware scanning/quarantine, abandoned-pending cleanup and physical deletion retry are production-hardening follow-ups.
+
 ## Account, conversation, purchase-mail and refund policy contract (2026-08-09)
 
 - Local-password users may change their password at any time. There is no 15-day cooldown and no `PASSWORD_CHANGE_TOO_SOON`/`nextAllowedAt` contract. Current-password verification, password policy/reuse rejection, `passwordChangedAt`, `passwordVersion`, refresh-token revocation, old-access-token invalidation and re-login behavior remain unchanged. Reset-password and Google-only behavior are unchanged.

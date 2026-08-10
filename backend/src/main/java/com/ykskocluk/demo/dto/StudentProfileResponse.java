@@ -6,6 +6,7 @@ public record StudentProfileResponse(
         String fullName,
         String email,
         String gradeLevel,
-        String city
+        String city,
+        String profileImageUrl
 ) {
 }
