@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthProvider";
 import { AppLayout } from "./components/AppLayout";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
@@ -26,6 +26,8 @@ import { SecuritySettingsPage } from "./pages/SecuritySettingsPage";
 import { LegalOnboardingRoute } from "./routes/LegalOnboardingRoute";
 import { EmailVerificationRoute } from "./routes/EmailVerificationRoute";
 import { VerifyEmailPage } from "./pages/VerifyEmailPage";
+import { PublicFoundationPage } from "./public/PublicFoundationPage";
+import { PublicLayout } from "./public/PublicLayout";
 import "./App.css";
 
 const App: React.FC = () => {
@@ -33,7 +35,12 @@ const App: React.FC = () => {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Public Routes */}
+          {/* Public Marketing Routes */}
+          <Route element={<PublicLayout />}>
+            <Route index element={<PublicFoundationPage />} />
+          </Route>
+
+          {/* Authentication Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/suspended" element={<SuspendedPage />} />
@@ -71,9 +78,6 @@ const App: React.FC = () => {
               </Route>
             </Route>
           </Route>
-
-          {/* Root Redirect */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
           {/* Wildcard 404 Route */}
           <Route path="*" element={<NotFoundPage />} />
