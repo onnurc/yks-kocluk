@@ -28,6 +28,7 @@ import { EmailVerificationRoute } from "./routes/EmailVerificationRoute";
 import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 import { HomePage } from "./public/HomePage";
 import { AboutPage } from "./public/AboutPage";
+import { CoachingPage } from "./public/CoachingPage";
 import { PublicLayout } from "./public/PublicLayout";
 import "./App.css";
 
@@ -40,6 +41,7 @@ const App: React.FC = () => {
           <Route element={<PublicLayout />}>
             <Route index element={<HomePage />} />
             <Route path="biz-kimiz" element={<AboutPage />} />
+            <Route path="kocluk" element={<CoachingPage />} />
           </Route>
 
           {/* Authentication Routes */}
