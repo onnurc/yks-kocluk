@@ -7,7 +7,7 @@ export type PublicNavigationItem = {
 export const publicNavigation: readonly PublicNavigationItem[] = [
   { label: "Koçluk", to: "/kocluk", available: false },
   { label: "Koçlarımız", to: "/coaches", available: true },
-  { label: "Biz Kimiz", to: "/biz-kimiz", available: false },
+  { label: "Biz Kimiz", to: "/biz-kimiz", available: true },
 ];
 
 export const publicQuickLinks: readonly PublicNavigationItem[] = [

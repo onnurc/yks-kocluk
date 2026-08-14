@@ -27,6 +27,7 @@ import { LegalOnboardingRoute } from "./routes/LegalOnboardingRoute";
 import { EmailVerificationRoute } from "./routes/EmailVerificationRoute";
 import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 import { PublicFoundationPage } from "./public/PublicFoundationPage";
+import { AboutPage } from "./public/AboutPage";
 import { PublicLayout } from "./public/PublicLayout";
 import "./App.css";
 
@@ -38,6 +39,7 @@ const App: React.FC = () => {
           {/* Public Marketing Routes */}
           <Route element={<PublicLayout />}>
             <Route index element={<PublicFoundationPage />} />
+            <Route path="biz-kimiz" element={<AboutPage />} />
           </Route>
 
           {/* Authentication Routes */}
