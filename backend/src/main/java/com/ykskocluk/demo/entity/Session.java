@@ -59,4 +59,9 @@ public class Session extends BaseEntity {
     // Set after commit by the notification listener (Phase 4d); null until then.
     @Column(name = "meet_link", length = 500)
     private String meetLink;
+
+    // Set by SessionReminderJob's atomic claim once the reminder mail is dispatched; null until
+    // then — the idempotency guard against a session being reminded twice.
+    @Column(name = "reminder_sent_at")
+    private Instant reminderSentAt;
 }

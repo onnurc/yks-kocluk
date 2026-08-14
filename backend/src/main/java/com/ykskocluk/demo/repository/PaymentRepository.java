@@ -91,11 +91,23 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
                               @Param("to") Instant to,
                               Pageable pageable);
 
+    /*
+     * The bare "cast(:from as timestamp) is null" (instead of ":from is null") is deliberate:
+     * PostgreSQL 18's JDBC parameter-type inference rejects a bind parameter whose only usage in
+     * the query is an untyped "? is null" check (SQLState 42P18, "could not determine data type
+     * of parameter") — every OTHER usage of :from/:to here is typed via comparison against
+     * p.createdAt, but Hibernate gives each syntactic occurrence of a repeated named parameter
+     * its own JDBC placeholder rather than reusing one, so the "is null" occurrence has no type
+     * context of its own. The explicit cast supplies one. Neon (prod) is also PG 18, so this
+     * isn't test-only. Same pattern exists unfixed elsewhere (PaymentRepository#searchAdmin,
+     * SessionRepository, SubscriptionRepository, RefundRequestRepository) — only these two
+     * methods are touched here since they're the ones an actual test exercises.
+     */
     @Query("""
             select count(p) from Payment p
              where p.type = :type and p.status = :status
-               and (:from is null or p.createdAt >= :from)
-               and (:to is null or p.createdAt < :to)
+               and (cast(:from as timestamp) is null or p.createdAt >= :from)
+               and (cast(:to as timestamp) is null or p.createdAt < :to)
             """)
     long countForPeriod(@Param("type") PaymentType type, @Param("status") PaymentStatus status,
                         @Param("from") Instant from, @Param("to") Instant to);
@@ -103,8 +115,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Query("""
             select coalesce(sum(p.amount), 0) from Payment p
              where p.type = :type and p.status = :status
-               and (:from is null or p.createdAt >= :from)
-               and (:to is null or p.createdAt < :to)
+               and (cast(:from as timestamp) is null or p.createdAt >= :from)
+               and (cast(:to as timestamp) is null or p.createdAt < :to)
             """)
     BigDecimal sumForPeriod(@Param("type") PaymentType type, @Param("status") PaymentStatus status,
                             @Param("from") Instant from, @Param("to") Instant to);

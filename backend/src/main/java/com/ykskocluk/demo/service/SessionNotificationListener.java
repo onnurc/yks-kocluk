@@ -41,6 +41,8 @@ public class SessionNotificationListener {
             String meetLink = meetClient.createMeetLink(event.sessionId(), event.startTime(), event.endTime());
             sessionService.setMeetLink(event.sessionId(), meetLink);
             mailClient.sendSessionBooked(event.studentEmail(), event.coachName(), event.startTime(), meetLink);
+            mailClient.sendSessionBookedToCoach(event.coachEmail(), event.coachName(), event.studentName(),
+                    event.startTime(), meetLink);
         } catch (Exception e) {
             // Booking is already committed — never let a side-effect failure surface. Log and move on.
             log.error("After-commit notification failed for session {}: {}",

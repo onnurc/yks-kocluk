@@ -29,9 +29,42 @@ public class StubMailClient implements MailClient {
     }
 
     @Override
+    public void sendPurchaseConfirmedToCoach(String toEmail, String coachName, String studentName,
+                                             String packageName, Instant purchasedAt) {
+        log.info("[STUB MailClient] purchase-confirmed (coach side) mail to {} (student {}, package {})",
+                toEmail, studentName, packageName);
+    }
+
+    @Override
     public void sendSessionBooked(String toEmail, String coachName, Instant startTime, String meetLink) {
         log.info("[STUB MailClient] session-booked mail to {} (coach {}, start {}, link {})",
                 toEmail, coachName, startTime, meetLink);
+    }
+
+    @Override
+    public void sendSessionBookedToCoach(String toEmail, String coachName, String studentName,
+                                         Instant startTime, String meetLink) {
+        log.info("[STUB MailClient] session-booked (coach side) mail to {} (student {}, start {}, link {})",
+                toEmail, studentName, startTime, meetLink);
+    }
+
+    @Override
+    public void sendSessionCancelled(String toEmail, String coachName, Instant startTime, boolean late) {
+        log.info("[STUB MailClient] session-cancelled mail to {} (coach {}, start {}, late {})",
+                toEmail, coachName, startTime, late);
+    }
+
+    @Override
+    public void sendSessionCancelledToCoach(String toEmail, String coachName, String studentName,
+                                            Instant startTime, boolean late) {
+        log.info("[STUB MailClient] session-cancelled (coach side) mail to {} (student {}, start {}, late {})",
+                toEmail, studentName, startTime, late);
+    }
+
+    @Override
+    public void sendSessionReminder(String toEmail, String coachName, Instant startTime, String meetLink) {
+        log.info("[STUB MailClient] session-reminder mail to {} (coach {}, start {})",
+                toEmail, coachName, startTime);
     }
 
     @Override
@@ -81,5 +114,10 @@ public class StubMailClient implements MailClient {
     public void sendEmailVerification(String toEmail, String code) {
         // The code is intentionally never logged, even by the local/test stub.
         log.info("[STUB MailClient] email-verification mail to {}", toEmail);
+    }
+
+    @Override
+    public void sendWelcome(String toEmail, String fullName) {
+        log.info("[STUB MailClient] welcome mail to {} ({})", toEmail, fullName);
     }
 }

@@ -96,12 +96,16 @@ class CoachAvailabilityIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         int slotId = JsonPath.read(created, "$.id");
 
-        // duplicate start -> 409 SLOT_DUPLICATE
+        // Same start time -> any two ranges sharing a start point overlap, so the application-level
+        // existsOverlapping check (CoachAvailabilityService.createOwn) catches this deterministically
+        // before the insert -> SLOT_OVERLAP. SLOT_DUPLICATE is the DB UNIQUE(coach_profile_id,
+        // start_time) constraint's fallback for a genuine concurrent-insert race, which a
+        // sequential request pair like this one can't trigger.
         mockMvc.perform(post("/api/v1/coach/availability")
                         .header("Authorization", "Bearer " + coach)
                         .contentType(MediaType.APPLICATION_JSON).content(slotBody(start, end.plus(1, ChronoUnit.HOURS))))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.errorCode").value("SLOT_DUPLICATE"));
+                .andExpect(jsonPath("$.errorCode").value("SLOT_OVERLAP"));
 
         // coach lists own slots
         mockMvc.perform(get("/api/v1/coach/availability").header("Authorization", "Bearer " + coach))

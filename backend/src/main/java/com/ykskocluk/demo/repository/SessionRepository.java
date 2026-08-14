@@ -1,8 +1,10 @@
 package com.ykskocluk.demo.repository;
 
+import com.ykskocluk.demo.dto.SessionReminderView;
 import com.ykskocluk.demo.entity.Session;
 import com.ykskocluk.demo.enums.SessionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -24,6 +26,38 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     Optional<Session> findByIdAndStudentId(Long id, Long studentId);
 
     Optional<Session> findByIdAndCoachProfileId(Long id, Long coachProfileId);
+
+    /**
+     * Candidate set for {@code SessionReminderJob}: PLANNED sessions starting within the lead
+     * window that haven't been reminded yet. {@code startTime > :now} excludes anything already
+     * underway/past (e.g. after job downtime); {@code reminderSentAt is null} excludes anything
+     * already claimed by a previous run; {@code meetLink is not null} skips a session whose
+     * after-commit Meet-link creation (booking time) hasn't landed yet — it'll be picked up on a
+     * later run once the link exists, rather than sending a reminder with a dead link.
+     */
+    @Query("""
+            select new com.ykskocluk.demo.dto.SessionReminderView(
+                     s.id, s.student.email, s.coachProfile.user.fullName, s.startTime, s.meetLink)
+              from Session s
+             where s.status = com.ykskocluk.demo.enums.SessionStatus.PLANNED
+               and s.reminderSentAt is null
+               and s.meetLink is not null
+               and s.startTime > :now and s.startTime <= :horizon
+            """)
+    List<SessionReminderView> findReminderCandidates(@Param("now") Instant now, @Param("horizon") Instant horizon);
+
+    /**
+     * Atomic claim (mirrors {@code CoachProfileRepository.incrementActiveStudentCountIfRoom}):
+     * rows affected is 0 or 1, so a concurrent/overlapping job run can never send the same
+     * reminder twice. Caller must run this in its own transaction (see
+     * {@code SessionService#claimReminder}) so the claim commits before the mail is dispatched.
+     */
+    @Modifying
+    @Query("""
+            update Session s set s.reminderSentAt = :now
+             where s.id = :id and s.reminderSentAt is null
+            """)
+    int claimReminder(@Param("id") Long id, @Param("now") Instant now);
 
     /**
      * Per-coach count of sessions in a given status, batched for the discovery-stats seam
@@ -128,6 +162,12 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     long countByStatusAndStartTimeGreaterThanEqualAndStartTimeLessThan(
             SessionStatus status, Instant from, Instant to);
 
+    /*
+     * cast(:param as ...) on the bare "is null" side of each optional filter (not needed on the
+     * comparison side, which already has type context from the compared column) — PostgreSQL 18
+     * rejects an untyped bind parameter whose only usage is a plain "? is null" check (SQLState
+     * 42P18). See the longer note on PaymentRepository#countForPeriod for the full explanation.
+     */
     @Query(value = """
             select * from (
                 select s.id as id, 'PAID' as type, s.coach_profile_id as "coachProfileId",
@@ -152,11 +192,11 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
                   join users su on su.id = t.student_user_id
                  where (:type = 'ALL' or :type = 'TRIAL')
             ) x
-            where (:status is null or x.status = :status)
-              and (:coachId is null or x."coachProfileId" = :coachId)
-              and (:studentId is null or x."studentId" = :studentId)
-              and (:from is null or x."startsAt" >= :from)
-              and (:to is null or x."startsAt" < :to)
+            where (cast(:status as text) is null or x.status = :status)
+              and (cast(:coachId as bigint) is null or x."coachProfileId" = :coachId)
+              and (cast(:studentId as bigint) is null or x."studentId" = :studentId)
+              and (cast(:from as timestamptz) is null or x."startsAt" >= :from)
+              and (cast(:to as timestamptz) is null or x."startsAt" < :to)
             order by x."createdAt" desc, x.id desc
             """,
             countQuery = """
@@ -167,11 +207,11 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
                 select t.id, t.coach_profile_id, t.student_user_id, t.start_time, t.status
                   from trial_consultations t where (:type = 'ALL' or :type = 'TRIAL')
             ) x
-            where (:status is null or x.status = :status)
-              and (:coachId is null or x.coach_profile_id = :coachId)
-              and (:studentId is null or x.student_user_id = :studentId)
-              and (:from is null or x.start_time >= :from)
-              and (:to is null or x.start_time < :to)
+            where (cast(:status as text) is null or x.status = :status)
+              and (cast(:coachId as bigint) is null or x.coach_profile_id = :coachId)
+              and (cast(:studentId as bigint) is null or x.student_user_id = :studentId)
+              and (cast(:from as timestamptz) is null or x.start_time >= :from)
+              and (cast(:to as timestamptz) is null or x.start_time < :to)
             """, nativeQuery = true)
     Page<AdminSessionView> searchAdminOperations(@Param("type") String type,
                                                  @Param("status") String status,

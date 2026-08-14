@@ -18,6 +18,7 @@ import com.ykskocluk.demo.repository.RefreshTokenRepository;
 import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.repository.AccountDeletionRequestRepository;
 import com.ykskocluk.demo.security.JwtService;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -47,6 +48,7 @@ public class AuthService {
     private final LegalAcceptanceService legalAcceptanceService;
     private final AccountDeletionRequestRepository accountDeletionRequestRepository;
     private final EmailVerificationService emailVerificationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public AuthService(UserRepository userRepository,
                        RefreshTokenRepository refreshTokenRepository,
@@ -57,7 +59,8 @@ public class AuthService {
                        OAuth2LoginCodeService oauth2LoginCodeService,
                        LegalAcceptanceService legalAcceptanceService,
                        AccountDeletionRequestRepository accountDeletionRequestRepository,
-                       EmailVerificationService emailVerificationService) {
+                       EmailVerificationService emailVerificationService,
+                       ApplicationEventPublisher eventPublisher) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
@@ -68,6 +71,7 @@ public class AuthService {
         this.legalAcceptanceService = legalAcceptanceService;
         this.accountDeletionRequestRepository = accountDeletionRequestRepository;
         this.emailVerificationService = emailVerificationService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -173,6 +177,7 @@ public class AuthService {
             if (!user.isEmailVerified()) {
                 user.setEmailVerified(true);
                 emailVerificationService.invalidateOutstanding(user);
+                eventPublisher.publishEvent(new WelcomeMailEvent(user.getEmail(), user.getFullName()));
             }
         } else {
             Optional<User> byEmail = userRepository.findByEmail(email);
@@ -186,6 +191,7 @@ public class AuthService {
                 if (!user.isEmailVerified()) {
                     user.setEmailVerified(true);
                     emailVerificationService.invalidateOutstanding(user);
+                    eventPublisher.publishEvent(new WelcomeMailEvent(user.getEmail(), user.getFullName()));
                 }
             } else {
                 user = new User();
@@ -197,6 +203,7 @@ public class AuthService {
                 user.setEmailVerified(true);
                 user.setLegalOnboardingCompleted(false);
                 userRepository.save(user);
+                eventPublisher.publishEvent(new WelcomeMailEvent(user.getEmail(), user.getFullName()));
             }
         }
         ensureActive(user);

@@ -8,7 +8,6 @@ import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
-import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.integration.IyzicoClient;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PackageRepository;
@@ -65,12 +64,7 @@ class SubscriptionRenewalJobConcurrencyTest {
     @MockitoSpyBean IyzicoClient iyzicoClient; // wraps the real StubIyzicoClient (always succeeds)
 
     private User user(String prefix, Role role) {
-        User u = new User();
-        u.setEmail(prefix + System.nanoTime() + "@example.com");
-        u.setFullName("User");
-        u.setRole(role);
-        u.setStatus(UserStatus.ACTIVE);
-        return userRepository.save(u);
+        return TestUsers.create(userRepository, role, prefix + System.nanoTime() + "@example.com");
     }
 
     @Test

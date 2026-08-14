@@ -42,7 +42,7 @@ class ResendLiveSmokeTest {
         RestClient.Builder builder = RestClient.builder().requestFactory(factory);
 
         ResendMailClient client = new ResendMailClient(
-                builder, new ResendProperties(apiKey, "onboarding@resend.dev"));
+                builder, new ResendProperties(apiKey, "onboarding@resend.dev", null));
 
         // Exercises the real client end-to-end (HTML build + POST). Errors are swallowed-and-logged
         // by the client, so a bad key surfaces as an error log, not an exception — check the log/inbox.

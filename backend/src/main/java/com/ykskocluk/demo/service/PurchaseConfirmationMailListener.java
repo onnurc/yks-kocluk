@@ -17,5 +17,7 @@ public class PurchaseConfirmationMailListener {
     public void onPurchaseConfirmed(PurchaseConfirmedEvent event) {
         mailClient.sendPurchaseConfirmed(event.recipientEmail(), event.studentName(), event.packageName(),
                 event.coachName(), event.amount(), event.currency(), event.purchasedAt(), event.periodEndAt());
+        mailClient.sendPurchaseConfirmedToCoach(event.coachEmail(), event.coachName(), event.studentName(),
+                event.packageName(), event.purchasedAt());
     }
 }

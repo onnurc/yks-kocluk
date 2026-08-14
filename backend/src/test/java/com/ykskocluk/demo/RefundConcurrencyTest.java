@@ -10,7 +10,6 @@ import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.PaymentStatus;
 import com.ykskocluk.demo.enums.Role;
-import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PackageRepository;
@@ -62,12 +61,8 @@ class RefundConcurrencyTest {
         uni.setName("Refund Uni " + UUID.randomUUID());
         universityRepository.save(uni);
 
-        User coachUser = new User();
-        coachUser.setEmail("coach-refund-" + UUID.randomUUID() + "@example.com");
-        coachUser.setFullName("Coach");
-        coachUser.setRole(Role.COACH);
-        coachUser.setStatus(UserStatus.ACTIVE);
-        userRepository.save(coachUser);
+        User coachUser = TestUsers.create(userRepository, Role.COACH,
+                "coach-refund-" + UUID.randomUUID() + "@example.com", "Coach");
 
         CoachProfile coach = new CoachProfile();
         coach.setUser(coachUser);
@@ -125,11 +120,6 @@ class RefundConcurrencyTest {
     }
 
     private User student(String email) {
-        User u = new User();
-        u.setEmail(email);
-        u.setFullName("Student");
-        u.setRole(Role.STUDENT);
-        u.setStatus(UserStatus.ACTIVE);
-        return userRepository.save(u);
+        return TestUsers.create(userRepository, Role.STUDENT, email, "Student");
     }
 }

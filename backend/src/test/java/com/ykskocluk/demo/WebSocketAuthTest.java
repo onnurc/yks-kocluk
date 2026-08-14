@@ -2,13 +2,17 @@ package com.ykskocluk.demo;
 
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Conversation;
+import com.ykskocluk.demo.entity.Package;
+import com.ykskocluk.demo.entity.Subscription;
 import com.ykskocluk.demo.entity.University;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.Role;
-import com.ykskocluk.demo.enums.UserStatus;
+import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.repository.ConversationRepository;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
+import com.ykskocluk.demo.repository.PackageRepository;
+import com.ykskocluk.demo.repository.SubscriptionRepository;
 import com.ykskocluk.demo.repository.UniversityRepository;
 import com.ykskocluk.demo.config.JwtProperties;
 import com.ykskocluk.demo.repository.UserRepository;
@@ -29,6 +33,7 @@ import org.springframework.messaging.simp.stomp.StompHeaders;
 import org.springframework.messaging.simp.stomp.StompSession;
 import org.springframework.messaging.simp.stomp.StompSessionHandler;
 import org.springframework.messaging.simp.stomp.StompSessionHandlerAdapter;
+import org.springframework.scheduling.concurrent.ConcurrentTaskScheduler;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
@@ -67,6 +72,8 @@ class WebSocketAuthTest {
     @Autowired UniversityRepository universityRepository;
     @Autowired CoachProfileRepository coachProfileRepository;
     @Autowired ConversationRepository conversationRepository;
+    @Autowired SubscriptionRepository subscriptionRepository;
+    @Autowired PackageRepository packageRepository;
 
     private WebSocketStompClient stompClient;
 
@@ -78,6 +85,9 @@ class WebSocketAuthTest {
     void setUp() {
         stompClient = new WebSocketStompClient(new StandardWebSocketClient());
         stompClient.setMessageConverter(new StringMessageConverter());
+        // Required for receipt tracking (subscribeHeaders.setReceipt in the round-trip test below) —
+        // DefaultStompSession throws IllegalArgumentException without a scheduler configured.
+        stompClient.setTaskScheduler(new ConcurrentTaskScheduler());
 
         University uni = new University();
         uni.setName("WS Uni " + System.nanoTime());
@@ -94,6 +104,17 @@ class WebSocketAuthTest {
         coachProfileRepository.save(coach);
 
         student = persistUser(Role.STUDENT);
+
+        // The message gate (CLAUDE.md) applies to WS topic authorization too: isParticipant()
+        // requires history access, i.e. a Subscription — a bare Conversation row isn't enough.
+        Subscription subscription = new Subscription();
+        subscription.setStudent(student);
+        subscription.setCoachProfile(coach);
+        subscription.setPkg(packageRepository.findByActiveTrueOrderByPriceAsc().get(0));
+        subscription.setStatus(SubscriptionStatus.ACTIVE);
+        subscription.setStartAt(Instant.now());
+        subscription.setEndAt(Instant.now().plus(30, java.time.temporal.ChronoUnit.DAYS));
+        subscriptionRepository.save(subscription);
 
         Conversation conversation = new Conversation();
         conversation.setStudent(student);
@@ -135,16 +156,13 @@ class WebSocketAuthTest {
         });
         BlockingQueue<String> received = new LinkedBlockingQueue<>();
 
-        StompHeaders subscribeHeaders = new StompHeaders();
-        subscribeHeaders.setDestination("/topic/conversations/" + conversationId);
-        subscribeHeaders.setReceipt("sub-receipt-1");
+        session.subscribe("/topic/conversations/" + conversationId, frameHandler(received));
 
-        CountDownLatch receiptLatch = new CountDownLatch(1);
-        StompSession.Subscription sub = session.subscribe(subscribeHeaders, frameHandler(received));
-        sub.addReceiptTask(receiptLatch::countDown);
-
-        boolean subscribed = receiptLatch.await(5, TimeUnit.SECONDS);
-        assertThat(subscribed).isTrue();
+        // enableSimpleBroker (in-memory) never echoes a RECEIPT frame — that's a broker-relay
+        // feature, not something StompSubProtocolHandler synthesizes on its own — so there's no
+        // receipt to wait on here. Give the SUBSCRIBE a beat to register server-side before
+        // sending, since subscribe() returns once the frame is written, not once it's processed.
+        Thread.sleep(300);
 
         session.send("/app/conversations/" + conversationId + "/send", "merhaba ws");
 
@@ -206,12 +224,7 @@ class WebSocketAuthTest {
     }
 
     private User persistUser(Role role) {
-        User u = new User();
-        u.setEmail(role.name().toLowerCase() + "-ws-" + System.nanoTime() + "@example.com");
-        u.setFullName(role.name() + " User");
-        u.setRole(role);
-        u.setStatus(UserStatus.ACTIVE);
-        return userRepository.save(u);
+        return TestUsers.create(userRepository, role);
     }
 
     /** Records session-level errors (e.g. a rejected SUBSCRIBE) so the test can await them. */

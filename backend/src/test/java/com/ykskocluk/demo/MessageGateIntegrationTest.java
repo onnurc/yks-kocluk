@@ -9,7 +9,6 @@ import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
-import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PackageRepository;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
@@ -55,12 +54,7 @@ class MessageGateIntegrationTest {
     @Autowired PackageRepository packageRepository;
 
     private User persistUser(Role role) {
-        User u = new User();
-        u.setEmail(role.name().toLowerCase() + "-" + System.nanoTime() + "@example.com");
-        u.setFullName(role.name() + " User");
-        u.setRole(role);
-        u.setStatus(UserStatus.ACTIVE);
-        return userRepository.save(u);
+        return TestUsers.create(userRepository, role);
     }
 
     private CoachProfile persistCoach() {
@@ -106,17 +100,30 @@ class MessageGateIntegrationTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("MESSAGING_NOT_ALLOWED"));
     }
-    // --- Checkpoint 2: past-only (CANCELLED) subscription forbids messaging ---
+    // --- Checkpoint 2: past-only (CANCELLED) subscription — history access allowed, sending is not.
+    // CLAUDE.md's child-safety message gate: "A student can view history of active/past
+    // subscriptions (ACTIVE, PAST_DUE, EXPIRED, CANCELLED), but send messages only with an ACTIVE
+    // subscription." existsHistoryAccessSubscription (SubscriptionRepository) deliberately includes
+    // CANCELLED, so opening the conversation succeeds; sendMessage's separate ACTIVE-only check is
+    // what actually enforces the gate.
 
     @Test
-    void open_pastOnlySubscription_forbidden() throws Exception {
+    void open_pastOnlySubscription_allowedButSendForbidden() throws Exception {
         User student = persistUser(Role.STUDENT);
         CoachProfile coach = persistCoach();
         subscribe(student, coach, SubscriptionStatus.CANCELLED); // past only, no active
 
-        mockMvc.perform(post("/api/v1/conversations").header("Authorization", token(student))
+        String opened = mockMvc.perform(post("/api/v1/conversations").header("Authorization", token(student))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"coachId\":%d}".formatted(coach.getId())))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        int convId = JsonPath.read(opened, "$.id");
+
+        mockMvc.perform(post("/api/v1/conversations/" + convId + "/messages")
+                        .header("Authorization", token(student))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"merhaba\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("MESSAGING_NOT_ALLOWED"));
     }

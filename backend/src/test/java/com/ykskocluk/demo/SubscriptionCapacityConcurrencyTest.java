@@ -13,7 +13,6 @@ import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.PaymentStatus;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
-import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PackageRepository;
@@ -55,12 +54,11 @@ class SubscriptionCapacityConcurrencyTest {
     @Autowired private TransactionTemplate transactionTemplate;
 
     private User student(String email) {
-        User u = new User();
-        u.setEmail(email);
-        u.setFullName("Student");
-        u.setRole(Role.STUDENT);
-        u.setStatus(UserStatus.ACTIVE);
-        return userRepository.save(u);
+        return TestUsers.create(userRepository, Role.STUDENT, email, "Student");
+    }
+
+    private User coach(String emailPrefix) {
+        return TestUsers.create(userRepository, Role.COACH, emailPrefix + UUID.randomUUID() + "@example.com", "Coach");
     }
 
     @Test
@@ -69,12 +67,7 @@ class SubscriptionCapacityConcurrencyTest {
         uni.setName("Capacity Uni " + UUID.randomUUID());
         universityRepository.save(uni);
 
-        User coachUser = new User();
-        coachUser.setEmail("coach-cap-" + UUID.randomUUID() + "@example.com");
-        coachUser.setFullName("Coach");
-        coachUser.setRole(Role.COACH);
-        coachUser.setStatus(UserStatus.ACTIVE);
-        userRepository.save(coachUser);
+        User coachUser = coach("coach-cap-");
 
         CoachProfile coach = new CoachProfile();
         coach.setUser(coachUser);
@@ -144,12 +137,7 @@ class SubscriptionCapacityConcurrencyTest {
         uni.setName("SamePay Uni " + UUID.randomUUID());
         universityRepository.save(uni);
 
-        User coachUser = new User();
-        coachUser.setEmail("coach-same-" + UUID.randomUUID() + "@example.com");
-        coachUser.setFullName("Coach");
-        coachUser.setRole(Role.COACH);
-        coachUser.setStatus(UserStatus.ACTIVE);
-        userRepository.save(coachUser);
+        User coachUser = coach("coach-same-");
 
         CoachProfile coach = new CoachProfile();
         coach.setUser(coachUser);
@@ -202,12 +190,7 @@ class SubscriptionCapacityConcurrencyTest {
         uni.setName("WebhookSame Uni " + UUID.randomUUID());
         universityRepository.save(uni);
 
-        User coachUser = new User();
-        coachUser.setEmail("coach-web-same-" + UUID.randomUUID() + "@example.com");
-        coachUser.setFullName("Coach");
-        coachUser.setRole(Role.COACH);
-        coachUser.setStatus(UserStatus.ACTIVE);
-        userRepository.save(coachUser);
+        User coachUser = coach("coach-web-same-");
 
         CoachProfile coach = new CoachProfile();
         coach.setUser(coachUser);
@@ -262,12 +245,7 @@ class SubscriptionCapacityConcurrencyTest {
         uni.setName("Rollback Uni " + UUID.randomUUID());
         universityRepository.save(uni);
 
-        User coachUser = new User();
-        coachUser.setEmail("coach-roll-" + UUID.randomUUID() + "@example.com");
-        coachUser.setFullName("Coach");
-        coachUser.setRole(Role.COACH);
-        coachUser.setStatus(UserStatus.ACTIVE);
-        userRepository.save(coachUser);
+        User coachUser = coach("coach-roll-");
 
         CoachProfile coach = new CoachProfile();
         coach.setUser(coachUser);

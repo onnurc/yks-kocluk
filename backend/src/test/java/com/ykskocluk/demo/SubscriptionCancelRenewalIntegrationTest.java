@@ -4,12 +4,8 @@ import com.jayway.jsonpath.JsonPath;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Package;
 import com.ykskocluk.demo.entity.Subscription;
-import com.ykskocluk.demo.entity.University;
 import com.ykskocluk.demo.entity.User;
-import com.ykskocluk.demo.enums.CoachProfileStatus;
-import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
-import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PackageRepository;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
@@ -54,6 +50,7 @@ class SubscriptionCancelRenewalIntegrationTest {
                                 """.formatted(email, email.split("@")[0], role)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
+        TestUsers.verifyEmail(userRepository, email);
         return JsonPath.read(json, "$.accessToken");
     }
 

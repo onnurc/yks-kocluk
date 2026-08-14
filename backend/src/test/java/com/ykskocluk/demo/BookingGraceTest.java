@@ -11,7 +11,6 @@ import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
-import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.CoachAvailabilityRepository;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
@@ -51,12 +50,7 @@ class BookingGraceTest {
     @Autowired CoachAvailabilityRepository availabilityRepository;
 
     private User user(Role role) {
-        User u = new User();
-        u.setEmail(role.name().toLowerCase() + "-" + System.nanoTime() + "@example.com");
-        u.setFullName("User");
-        u.setRole(role);
-        u.setStatus(UserStatus.ACTIVE);
-        return userRepository.save(u);
+        return TestUsers.create(userRepository, role);
     }
 
     private CoachProfile coach() {

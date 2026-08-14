@@ -53,6 +53,7 @@ class AuthServiceTest {
     @Mock LegalAcceptanceService legalAcceptanceService;
     @Mock AccountDeletionRequestRepository accountDeletionRequestRepository;
     @Mock EmailVerificationService emailVerificationService;
+    @Mock org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     AuthService authService;
 
@@ -60,7 +61,7 @@ class AuthServiceTest {
     void setUp() {
         authService = new AuthService(userRepository, refreshTokenRepository,
                 passwordEncoder, jwtService, userMapper, jwtProperties, oauth2LoginCodeService,
-                legalAcceptanceService, accountDeletionRequestRepository, emailVerificationService);
+                legalAcceptanceService, accountDeletionRequestRepository, emailVerificationService, eventPublisher);
         // Common stubs for the issueTokens() path; lenient so failure tests don't trip strict stubbing.
         lenient().when(jwtService.generateAccessToken(any())).thenReturn("access-token");
         lenient().when(jwtService.getAccessTtlSeconds()).thenReturn(900L);
@@ -290,6 +291,7 @@ class AuthServiceTest {
         assertThat(existing.getGoogleSub()).isEqualTo("sub-123");
         assertThat(existing.isEmailVerified()).isTrue();
         verify(userRepository, never()).save(any()); // existing row updated in place
+        verify(eventPublisher).publishEvent(new WelcomeMailEvent("user@example.com", existing.getFullName()));
     }
 
     @Test
@@ -307,6 +309,7 @@ class AuthServiceTest {
         assertThat(captor.getValue().isEmailVerified()).isTrue();
         assertThat(captor.getValue().isLegalOnboardingCompleted()).isFalse();
         verify(emailVerificationService, never()).issueForRegistration(any());
+        verify(eventPublisher).publishEvent(new WelcomeMailEvent("new@example.com", "New User"));
     }
 
     @Test

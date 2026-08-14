@@ -74,12 +74,9 @@ class AdminConversationIntegrationTest {
     // --- seeding helpers (direct repo writes; precise control over state) ---
 
     private User persistUser(Role role, UserStatus status) {
-        User u = new User();
-        u.setEmail(role.name().toLowerCase() + "-" + System.nanoTime() + "@example.com");
-        u.setFullName(role.name() + " " + System.nanoTime());
-        u.setRole(role);
-        u.setStatus(status);
-        return userRepository.save(u);
+        return TestUsers.create(userRepository, role,
+                role.name().toLowerCase() + "-" + System.nanoTime() + "@example.com",
+                role.name() + " " + System.nanoTime(), status);
     }
 
     private CoachProfile persistCoach() {

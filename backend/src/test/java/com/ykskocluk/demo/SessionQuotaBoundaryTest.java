@@ -10,7 +10,6 @@ import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
-import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.CoachAvailabilityRepository;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
@@ -63,12 +62,8 @@ class SessionQuotaBoundaryTest {
         universityRepository.save(uni);
 
         CoachProfile coach = new CoachProfile();
-        User coachUser = new User();
-        coachUser.setEmail("coach-q-" + System.nanoTime() + "@example.com");
-        coachUser.setFullName("Coach");
-        coachUser.setRole(Role.COACH);
-        coachUser.setStatus(UserStatus.ACTIVE);
-        userRepository.save(coachUser);
+        User coachUser = TestUsers.create(userRepository, Role.COACH,
+                "coach-q-" + System.nanoTime() + "@example.com", "Coach");
         coach.setUser(coachUser);
         coach.setUniversity(uni);
         coach.setHeadline("Koç");
@@ -81,12 +76,8 @@ class SessionQuotaBoundaryTest {
         Package pkg = packageRepository.findByActiveTrueOrderByPriceAsc().get(0);
         assertThat(pkg.getWeeklySessions()).isEqualTo(1);
 
-        User student = new User();
-        student.setEmail("student-q-" + System.nanoTime() + "@example.com");
-        student.setFullName("Student");
-        student.setRole(Role.STUDENT);
-        student.setStatus(UserStatus.ACTIVE);
-        userRepository.save(student);
+        User student = TestUsers.create(userRepository, Role.STUDENT,
+                "student-q-" + System.nanoTime() + "@example.com", "Student");
 
         Subscription sub = new Subscription();
         sub.setStudent(student);

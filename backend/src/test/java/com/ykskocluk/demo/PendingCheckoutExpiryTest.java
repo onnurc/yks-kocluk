@@ -13,7 +13,6 @@ import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.PaymentStatus;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
-import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PackageRepository;
@@ -129,12 +128,8 @@ class PendingCheckoutExpiryTest {
         uni.setName("Pending Uni " + UUID.randomUUID());
         universityRepository.save(uni);
 
-        User coachUser = new User();
-        coachUser.setEmail("coach-pending-" + UUID.randomUUID() + "@example.com");
-        coachUser.setFullName("Coach");
-        coachUser.setRole(Role.COACH);
-        coachUser.setStatus(UserStatus.ACTIVE);
-        userRepository.save(coachUser);
+        User coachUser = TestUsers.create(userRepository, Role.COACH,
+                "coach-pending-" + UUID.randomUUID() + "@example.com", "Coach");
 
         CoachProfile coach = new CoachProfile();
         coach.setUser(coachUser);
@@ -145,12 +140,8 @@ class PendingCheckoutExpiryTest {
         coach.setActiveStudentCount(0);
         coachProfileRepository.save(coach);
 
-        User student = new User();
-        student.setEmail("student-pending-" + UUID.randomUUID() + "@example.com");
-        student.setFullName("Student");
-        student.setRole(Role.STUDENT);
-        student.setStatus(UserStatus.ACTIVE);
-        userRepository.save(student);
+        User student = TestUsers.create(userRepository, Role.STUDENT,
+                "student-pending-" + UUID.randomUUID() + "@example.com", "Student");
 
         Long packageId = packageRepository.findByActiveTrueOrderByPriceAsc().get(0).getId();
         return new Fixture(student.getId(), coach.getId(), packageId);

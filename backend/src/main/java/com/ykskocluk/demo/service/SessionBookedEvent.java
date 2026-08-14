@@ -10,6 +10,8 @@ import java.time.Instant;
 public record SessionBookedEvent(
         Long sessionId,
         String studentEmail,
+        String studentName,
+        String coachEmail,
         String coachName,
         Instant startTime,
         Instant endTime

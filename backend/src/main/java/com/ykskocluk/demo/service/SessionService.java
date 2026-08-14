@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.service;
 
 import com.ykskocluk.demo.dto.SessionCreateRequest;
+import com.ykskocluk.demo.dto.SessionReminderView;
 import com.ykskocluk.demo.dto.SessionResponse;
 import com.ykskocluk.demo.entity.CoachAvailability;
 import com.ykskocluk.demo.entity.CoachProfile;
@@ -137,7 +138,8 @@ public class SessionService {
 
         // External side effects (Meet link + email) happen AFTER_COMMIT — see SessionNotificationListener.
         eventPublisher.publishEvent(new SessionBookedEvent(
-                session.getId(), student.getEmail(), coach.getUser().getFullName(),
+                session.getId(), student.getEmail(), student.getFullName(),
+                coach.getUser().getEmail(), coach.getUser().getFullName(),
                 session.getStartTime(), session.getEndTime()));
 
         return sessionMapper.toResponse(session);
@@ -151,6 +153,22 @@ public class SessionService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void setMeetLink(Long sessionId, String meetLink) {
         sessionRepository.findById(sessionId).ifPresent(s -> s.setMeetLink(meetLink));
+    }
+
+    /**
+     * Atomically claims a session for reminder dispatch — returns {@code true} iff this call won
+     * the claim (see {@link SessionRepository#claimReminder}). Its own transaction so the claim is
+     * committed before {@code SessionReminderJob} sends the mail, the same after-commit discipline
+     * as {@link #setMeetLink}.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean claimReminder(Long sessionId, Instant now) {
+        return sessionRepository.claimReminder(sessionId, now) > 0;
+    }
+
+    @Transactional(readOnly = true)
+    public List<SessionReminderView> findReminderCandidates(Instant now, Instant horizon) {
+        return sessionRepository.findReminderCandidates(now, horizon);
     }
 
     /**
@@ -175,6 +193,13 @@ public class SessionService {
         } else {
             session.setStatus(SessionStatus.LATE_CANCELLED); // slot stays booked; quota burned
         }
+
+        // External side effects (email) happen AFTER_COMMIT — see SessionCancellationMailListener.
+        eventPublisher.publishEvent(new SessionCancelledEvent(
+                session.getId(), session.getStudent().getEmail(), session.getStudent().getFullName(),
+                session.getCoachProfile().getUser().getEmail(), session.getCoachProfile().getUser().getFullName(),
+                session.getStartTime(), !early));
+
         return sessionMapper.toResponse(session);
     }
 

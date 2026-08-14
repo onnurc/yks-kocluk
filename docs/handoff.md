@@ -1,5 +1,142 @@
 # Handoff — YKS Coaching Platform (Backend)
 
+## Integration test suite drift fix (2026-08-15)
+
+`mvn verify` had 5 failing tests in `SubscriptionCheckoutIntegrationTest`, all pre-existing
+regressions unrelated to any recent app-code change — the tests just hadn't been run against the
+current dependency/security stack in a while. Root causes and fixes:
+
+- **`checkout_nonStudent_forbidden` (403→400).** `tools.jackson.core:jackson-databind:3.1.2`
+  (pulled in by Spring Boot 4.0.6's `spring-boot-starter-jackson`) now rejects a JSON body that
+  omits properties of a record DTO (`HttpMessageNotReadableException` → 400) **before**
+  `@PreAuthorize` ever runs — argument binding/validation happens outside the method-security proxy,
+  so a malformed/partial body always wins over a role check. The test sent a 2-field body
+  (`{"coachId":1,"packageId":1}"`) against `SubscriptionCheckoutRequest`'s 6 fields. Fixed by
+  sending the full body via the existing `checkoutBody()` helper — the test's job is authorization,
+  not payload completeness. **Same trap will resurface anywhere else a test posts a partial JSON
+  body for a record request DTO** — this isn't specific to this one test/endpoint.
+- **Two `succeedPayment_*` tests (403/200→404).** `StubPaymentController` is gated by
+  `@ConditionalOnProperty(payments.stub.success-enabled=true)`, default `false`
+  (`application.yml:196`). `application-test.yml` never set it, so under `@ActiveProfiles("test")`
+  the controller bean never registered → 404 on every request. Fixed with
+  `@SpringBootTest(properties = "payments.stub.success-enabled=true")` scoped to
+  `SubscriptionCheckoutIntegrationTest` only (not global in `application-test.yml`) — it's a
+  backdoor that must stay closed everywhere else, same reasoning `IyzicoWebhookSignatureTest`
+  already applies to `payments.iyzico.enabled`.
+- **Two `webhook_*` tests (200→401).** `SubscriptionService.verifyWebhookSignature` fails closed:
+  requires `payments.iyzico.enabled=true` and a valid `X-IYZ-SIGNATURE-V3` HMAC header. Both tests
+  posted unsigned, exactly the case the file's own bottom-of-file comment already documents as
+  fixed for two *other*, earlier-removed tests — these two were missed in that pass. **Could not
+  just add a signature + `payments.iyzico.enabled=true` to this test class**: that property is a
+  bean-selection switch — `IyzicoClient` flips from `StubIyzicoClient` to `RealIyzicoClient`
+  (`@ConditionalOnProperty` on each), and every checkout test in this same Spring context calls
+  `POST /api/v1/subscriptions/checkout`, which synchronously calls
+  `IyzicoClient.initializeCheckout()`. `RealIyzicoClient`'s constructor throws
+  `IllegalStateException` when `baseUrl` isn't configured, which would fail context startup and
+  take down every test in the class. **General lesson: before adding a `@SpringBootTest(properties
+  = ...)` override to an existing test class, check what else that property gates in the same
+  Spring context — a property flip can be a global bean swap, not a local toggle.** Fixed instead
+  by removing both tests from `SubscriptionCheckoutIntegrationTest` (see the file's own
+  bottom-of-file note, extended) — the SUCCESS+idempotency half was already redundantly covered by
+  `IyzicoWebhookSignatureTest#processWebhook_validSignature_success` /
+  `#processWebhook_duplicateWebhook_idempotent`; the FAILURE+idempotency half was genuinely missing
+  and was added there as `processWebhook_validSignatureFailureStatus_processedAndIdempotent`,
+  reusing the class's existing `calculateSignature` helper and `@BeforeEach` fixture. Fail-closed
+  coverage for missing/invalid signatures already existed
+  (`processWebhook_missingSignature_unauthorized` / `processWebhook_invalidSignature_unauthorized`)
+  — nothing to add there.
+- **Result:** `mvn verify` is green — 547 tests, 0 failures, 0 errors, 1 skip (pre-existing,
+  unrelated). Full run including Testcontainers, not just the unit-test subset.
+- **Pattern worth naming:** this whole class of failure exists because the Testcontainers-backed
+  integration suite hadn't been run in CI/locally for a while — Docker wasn't available in the
+  sandbox that made the last several code changes (see the Phase 7 entry below for a concrete
+  instance), so app code kept moving (Jackson 3 upgrade, webhook signature hardening) while these
+  tests silently fell behind. Now that a local Docker daemon is available and the full suite passes,
+  **this integration suite should be wired into CI** so this kind of drift is caught at merge time
+  instead of accumulating across several unrelated changes.
+
+## Resend sender hardening: RESEND_FROM fail-fast + reply-to (2026-08-12)
+
+Follow-up to the section below. Two gaps closed:
+
+- **`RESEND_FROM` fail-fast.** `app.resend.from` defaults to Resend's `onboarding@resend.dev`
+  sandbox sender in `application.yml` — fine for local dev, wrong for production (unverified
+  domain, sandbox restrictions), and it was silently falling back with no signal if the env var
+  was ever missing on a real deploy. This project has **no dedicated `prod` Spring profile**
+  (Railway runs the bare/default profile — no `application-prod.yml`, no
+  `SPRING_PROFILES_ACTIVE` set anywhere in-repo), so "prod" is detected as *not*
+  local/test/stub. `ResendConfig` now registers an `InitializingBean`
+  (`@Profile("!local & !stub")`, class already `@Profile("!test")`) that throws
+  `IllegalStateException` at context refresh if `Environment.containsProperty("RESEND_FROM")` is
+  false — checking the raw env var's presence, not `ResendProperties.from()`, since the latter is
+  never blank (the yaml placeholder default always resolves to *something*). Local and stub stay
+  zero-config. Covered by `ResendConfigTest` (`ApplicationContextRunner`, mirrors
+  `StorageConfigTest`'s shape).
+- **`app.resend.reply-to`** (new, optional key / `RESEND_REPLY_TO` env var). `ResendMailClient`
+  includes it as `reply_to` on every Resend request when set; when blank, the field is omitted
+  from the request body entirely (`@JsonInclude(NON_NULL)` on the internal request record) rather
+  than sending an empty header. No behavior change for existing deployments that don't set it.
+- **Domain verification is still outstanding** — the project has not yet verified a sending
+  domain with Resend (DNS/SPF/DKIM). `RESEND_FROM` being required doesn't imply that step is
+  done; it only prevents silently shipping the sandbox sender to production. See the PROD NOTE in
+  `application-local.yml.example`.
+- **Docs/env:** `application-local.yml.example` documents both keys plus the domain-verification
+  note. No backend `README.md` exists in this repo (only `frontend/README.md`/`HELP.md`), so this
+  handoff doc is where backend config changes are recorded — same as the section below.
+
+## Resend integration completion: coach-side mail, WELCOME, session cancel/reminder (V27, 2026-08-11)
+
+Completed the Phase 7 `MailClient`/Resend work that was left half-wired. Architecture unchanged
+(concrete `MailClient` interface + `ResendMailClient`/`StubMailClient`, `@TransactionalEventListener(AFTER_COMMIT)`,
+best-effort swallow-and-log, no retry) — CLAUDE.md's `@Async` ban and "no abstractions beyond the 4
+sanctioned interfaces" rule were kept, not revisited.
+
+- **pom.xml cleanup:** removed `com.resend:resend-java` — declared with an unpinned `LATEST` version
+  (a CLAUDE.md "pin everything" violation) but never actually imported; `ResendMailClient` talks to
+  Resend directly over Spring `RestClient`, not the SDK. Dead dependency, not a real integration gap.
+- **Coach-side notifications:** `PACKAGE_PURCHASED` and `SESSION_BOOKED` previously emailed the
+  student only. Added `sendPurchaseConfirmedToCoach`/`sendSessionBookedToCoach` to `MailClient`,
+  populated from a new `coachEmail` field on `PurchaseConfirmedEvent`/`SessionBookedEvent`. The
+  coach-side purchase mail deliberately omits the payment amount — coach payout/commission math is
+  still unresolved (`docs/adr_coach_payout_architecture.md`), so no commission-sensitive figure is
+  surfaced via email.
+- **WELCOME mail:** new `WelcomeMailEvent`/`WelcomeMailListener`. Fires once, the moment an account
+  first becomes usable — after a successful `EmailVerificationService.verify()` for password
+  sign-ups (not on code issue/resend, which can happen multiple times before the account is usable),
+  or immediately on account creation/linking for Google sign-ups (already verified by Google, no
+  code step; `AuthService.upsertGoogleUser`'s three verified-transition branches).
+- **Session-level SESSION_CANCELLED:** distinct from the existing subscription-cancellation email
+  (`sendCancellationConfirmed`). New `SessionCancelledEvent`/`SessionCancellationMailListener` fires
+  from `SessionService.cancel()`, emailing both student (confirmation) and coach (notified), with
+  copy that differs on early (`CANCELLED`, quota returned) vs. late (`LATE_CANCELLED`, quota burned).
+  Only the existing student-initiated cancel flow — there is no coach-initiated session cancellation
+  endpoint, so "who cancelled" only has the one branch today.
+- **SESSION_REMINDER (new scheduled job):** `SessionReminderJob` mirrors `SubscriptionRenewalJob`'s
+  shape (`@Scheduled` + a deterministic `now`-parameterized method tests call directly). Runs every
+  15 min (`app.session-reminder.cron`), sends one reminder ~24h before start
+  (`app.session-reminder.lead-time`, default `24h`) — single reminder, not 24h+1h, per the project's
+  MVP-simplicity stance. Idempotency is a DB-level atomic claim, **V27** adds
+  `sessions.reminder_sent_at`; `SessionRepository.claimReminder` is `UPDATE ... WHERE
+  reminder_sent_at IS NULL` (same pattern as `CoachProfileRepository.incrementActiveStudentCountIfRoom`),
+  so overlapping/concurrent job runs can never double-send. The frequent poll interval means a
+  session is simply caught on whichever run first sees it inside the lead window — self-healing
+  after job downtime, no precise per-session timer needed. Student-side only (coaches are paid via
+  the subscription regardless of a no-show). Candidates additionally require a non-null `meetLink`,
+  so a session is skipped (and picked up later) if the booking-time Meet-link creation hasn't landed
+  yet, rather than reminding with a dead link.
+- **Still deferred:** the pre-renewal notice ("your subscription auto-renews on X") from the
+  "Scheduling / Reminders" slice below — only the session reminder was in scope for this pass.
+- **Tests:** all new mail methods covered in `ResendMailClientTest` (`MockRestServiceServer`, no
+  Spring context); new `PurchaseConfirmationMailListenerTest`, `SessionCancellationMailListenerTest`,
+  `SessionReminderJobTest` (pure Mockito). `SessionLifecycleTest` (the Testcontainers integration
+  test covering `SessionService.cancel()`) could not be run to completion in the session that made
+  this change — Testcontainers hung with zero container spawned and near-zero CPU for 14+ minutes in
+  that sandboxed environment, unrelated to the code change. All 352 non-Testcontainers unit tests
+  pass; `SessionLifecycleTest` should be re-run locally to confirm before merging.
+- **Config:** new env vars `SESSION_REMINDER_LEAD_TIME` (default `24h`) and `SESSION_REMINDER_CRON`
+  (default `0 */15 * * * *`), both in `application.yml` with defaults — no `.env` changes required
+  to run locally.
+
 ## Cloudflare R2 media storage foundation (V26)
 
 - Neon/PostgreSQL remains the structured-data store. `media_assets` stores only owner, object key, declared metadata, type, visibility and lifecycle status; no binary content, credentials, or temporary signed URLs are stored in PostgreSQL.
@@ -187,7 +324,7 @@ _Last updated: 2026-06-27._
 
 - **Phases complete:** 0, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (Full Backend + Frontend workflows complete, rate limiting security layer integrated, except payout which is only prepared as an ADR).
 - **In progress / next:** Closed beta QA, production infrastructure provisioning, and legal/tax model finalization.
-- **Tests:** Backend verify is **GREEN — 85+ unit tests** (including rate limit bounds, concurrent subscription renewals and minor consent rules). Testcontainers are compiled but bypassed locally due to the absence of a local Docker daemon.
+- **Tests:** Full `mvn verify` (including Testcontainers) is **GREEN — 547 tests, 0 failures, 1 unrelated skip** (2026-08-15; see the top handoff entry for the drift fix that got it there). A local Docker daemon is required and was available for this run — Testcontainers should not be assumed "bypassed" going forward without checking.
 - **Neon (prod DB):** Flyway at **v17** (all V1–V17 applied. V17 = date of birth and consent status).
 - **Build:** Java 21 + Spring Boot 4 (backend); React + Vite + TypeScript (frontend).
 
@@ -488,7 +625,7 @@ keys (merchant 3429394) go in `application-local.yml`. No core-flow change expec
 
 | Slice | Scope |
 | --- | --- |
-| **Scheduling / Reminders** (own phase) | The two **time-driven** emails still deferred: **session reminder** (X h before start) and a **pre-renewal notice** (*"your subscription auto-renews on X — you can cancel"*, sent ahead of the charge). **Scheduling infra now EXISTS** (Phase 8c: `@EnableScheduling` in `SchedulingConfig`, `SubscriptionRenewalJob`), so these can hang off the same daily job (or a sibling). Still needs a **`reminder_sent_at` marker** for idempotency + a catch-up story. Note: the *renewal-succeeded / payment-failed / expired* emails already ship (8d) — what's left here is the **proactive pre-event reminders**, not the post-event ones. |
+| **Scheduling / Reminders** (own phase) | **Session reminder ✅ DONE (2026-08-11, V27):** `SessionReminderJob`, every 15 min, ~24h lead time, `reminder_sent_at` atomic-claim idempotency — see the top section. Still deferred: the **pre-renewal notice** (*"your subscription auto-renews on X — you can cancel"*, sent ahead of the charge) — no job/marker for this one yet; could hang off a sibling of `SessionReminderJob` using the same claim pattern against `Subscription`. |
 | **In-app `Notification` entity** (own slice) | Persisted in-app notifications (`Notification`: `user_id`, `type`, `title`, `content`, `read_at`, `related_type`, `related_id`) + list/mark-read endpoints. **Not built.** Structurally independent of the email transport (no shared code) → its own vertical slice (entity→repo→service→controller→DTO→mapper→**V10 migration**→tests). May pair naturally with the Scheduling phase (shared triggers). |
 
 > **PHASES.md divergence (recorded, deliberate):** `PHASES.md` Phase 7 bundles "persist in-app
@@ -554,9 +691,9 @@ Both standing credential-rotation action items are **DONE** (no longer open):
 
 ---
 
-## Migrations (V1–V24)
+## Migrations (V1–V27)
 
-V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subscriptions · V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging · V10 payments_autorenew · V11 webhook_verifications · V12-V13 safety/admin · V14-V16 demo seed · V17 legacy minor-consent status · V18 OAuth login codes · V19 versioned legal documents and acceptances · V20 checkout legal documents and transaction-linked evidence · V21 privacy preferences and account deletion · V22 password recovery/security · V23 email verification.
+V1 baseline · V2 auth · V3 seed_admin · V4 coach_profile · V5 packages_subscriptions · V6 coach_availability · V7 sessions · V8 session_meet_link · V9 messaging · V10 payments_autorenew · V11 webhook_verifications · V12-V13 safety/admin · V14-V16 demo seed · V17 legacy minor-consent status · V18 OAuth login codes · V19 versioned legal documents and acceptances · V20 checkout legal documents and transaction-linked evidence · V21 privacy preferences and account deletion · V22 password recovery/security · V23 email verification · V24 trial consultations · V25 purchase confirmation and refund requests · V26 media assets and profile media · V27 session reminder (`sessions.reminder_sent_at`).
 
 ## Versioned registration legal acceptance
 

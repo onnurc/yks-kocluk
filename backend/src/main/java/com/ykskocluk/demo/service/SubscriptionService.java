@@ -260,7 +260,8 @@ public class SubscriptionService {
         subscriptionRepository.saveAndFlush(subscription);
         events.publishEvent(new PurchaseConfirmedEvent(payment.getId(),
                 subscription.getStudent().getEmail(), subscription.getStudent().getFullName(),
-                subscription.getPkg().getName(), subscription.getCoachProfile().getUser().getFullName(),
+                subscription.getPkg().getName(), subscription.getCoachProfile().getUser().getEmail(),
+                subscription.getCoachProfile().getUser().getFullName(),
                 payment.getAmount(), "TRY", now, subscription.getEndAt()));
     }
 

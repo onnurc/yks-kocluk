@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MailClientWiringTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withBean(ResendProperties.class, () -> new ResendProperties("re_test_key", "onboarding@resend.dev"))
+            .withBean(ResendProperties.class, () -> new ResendProperties("re_test_key", "onboarding@resend.dev", null))
             .withBean("resendRestClientBuilder", RestClient.Builder.class, RestClient::builder)
             .withUserConfiguration(StubMailClient.class, ResendMailClient.class);
 

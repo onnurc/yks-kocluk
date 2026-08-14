@@ -54,4 +54,15 @@ public class InMemoryRateLimitStore implements RateLimitStore {
         long now = clock.millis();
         store.entrySet().removeIf(entry -> (now - entry.getValue().windowStartMs) >= maxAgeMs);
     }
+
+    /**
+     * Drops every bucket. Not part of {@link RateLimitStore} — this is a full reset, not the
+     * age-based sweep {@code cleanup} does, and the only caller is the test-side
+     * {@code RateLimitResetTestExecutionListener} (this bean is a singleton shared by every
+     * {@code @SpringBootTest} in the suite via Spring Test's context cache, so without a reset,
+     * one test class's login/register calls count toward the next class's limit).
+     */
+    public void clear() {
+        store.clear();
+    }
 }

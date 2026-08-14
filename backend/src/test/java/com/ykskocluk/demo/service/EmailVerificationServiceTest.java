@@ -75,6 +75,7 @@ class EmailVerificationServiceTest {
         assertThat(service.verify(7L, raw).emailVerified()).isTrue();
         assertThat(user.isEmailVerified()).isTrue();
         verify(codeRepository).invalidateAllForUser(eq(7L), any());
+        verify(eventPublisher).publishEvent(new WelcomeMailEvent("student@example.com", user.getFullName()));
     }
 
     @Test

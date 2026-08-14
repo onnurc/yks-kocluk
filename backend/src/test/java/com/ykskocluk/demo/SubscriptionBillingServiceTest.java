@@ -11,7 +11,6 @@ import com.ykskocluk.demo.enums.PaymentStatus;
 import com.ykskocluk.demo.enums.PaymentType;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
-import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.integration.ChargeResult;
 import com.ykskocluk.demo.integration.IyzicoClient;
@@ -73,12 +72,8 @@ class SubscriptionBillingServiceTest {
         University uni = new University();
         uni.setName("Uni " + System.nanoTime());
         universityRepository.save(uni);
-        User u = new User();
-        u.setEmail("coach-" + System.nanoTime() + "@example.com");
-        u.setFullName("Coach");
-        u.setRole(Role.COACH);
-        u.setStatus(UserStatus.ACTIVE);
-        userRepository.save(u);
+        User u = TestUsers.create(userRepository, Role.COACH,
+                "coach-" + System.nanoTime() + "@example.com", "Coach");
         CoachProfile c = new CoachProfile();
         c.setUser(u);
         c.setUniversity(uni);
@@ -90,12 +85,8 @@ class SubscriptionBillingServiceTest {
     }
 
     private User student() {
-        User u = new User();
-        u.setEmail("stu-" + System.nanoTime() + "@example.com");
-        u.setFullName("Student");
-        u.setRole(Role.STUDENT);
-        u.setStatus(UserStatus.ACTIVE);
-        return userRepository.save(u);
+        return TestUsers.create(userRepository, Role.STUDENT,
+                "stu-" + System.nanoTime() + "@example.com", "Student");
     }
 
     private Subscription sub(CoachProfile coach, SubscriptionStatus status, Instant endAt,

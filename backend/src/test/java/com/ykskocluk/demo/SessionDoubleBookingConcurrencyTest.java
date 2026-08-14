@@ -10,7 +10,6 @@ import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
-import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.CoachAvailabilityRepository;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
@@ -59,12 +58,7 @@ class SessionDoubleBookingConcurrencyTest {
     @Autowired SessionRepository sessionRepository;
 
     private User user(String email, Role role) {
-        User u = new User();
-        u.setEmail(email);
-        u.setFullName("User");
-        u.setRole(role);
-        u.setStatus(UserStatus.ACTIVE);
-        return userRepository.save(u);
+        return TestUsers.create(userRepository, role, email);
     }
 
     private Subscription activeSub(User student, CoachProfile coach, Package pkg) {

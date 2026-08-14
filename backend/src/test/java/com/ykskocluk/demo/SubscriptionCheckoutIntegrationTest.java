@@ -36,7 +36,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+// payments.stub.success-enabled is off by default (it's a prod-closed backdoor) and
+// application-test.yml deliberately doesn't flip it globally, so it's scoped to this class only —
+// the same pattern IyzicoWebhookSignatureTest uses for payments.iyzico.enabled.
+@SpringBootTest(properties = "payments.stub.success-enabled=true")
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("test")
@@ -59,6 +62,7 @@ class SubscriptionCheckoutIntegrationTest {
                                 """.formatted(email, email.split("@")[0], role)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
+        TestUsers.verifyEmail(userRepository, email);
         return JsonPath.read(json, "$.accessToken");
     }
 
@@ -117,8 +121,8 @@ class SubscriptionCheckoutIntegrationTest {
                 .andExpect(jsonPath("$.checkoutUrl").exists())
                 .andReturn().getResponse().getContentAsString();
 
-        long subscriptionId = JsonPath.read(response, "$.subscriptionId");
-        long paymentId = JsonPath.read(response, "$.paymentId");
+        long subscriptionId = ((Number) JsonPath.read(response, "$.subscriptionId")).longValue();
+        long paymentId = ((Number) JsonPath.read(response, "$.paymentId")).longValue();
 
         Subscription subscription = subscriptionRepository.findById(subscriptionId).orElseThrow();
         assertThat(subscription.getStatus()).isEqualTo(SubscriptionStatus.PENDING_PAYMENT);
@@ -150,7 +154,7 @@ class SubscriptionCheckoutIntegrationTest {
                         .content(body))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        long subscriptionId = JsonPath.read(firstResponse, "$.subscriptionId");
+        long subscriptionId = ((Number) JsonPath.read(firstResponse, "$.subscriptionId")).longValue();
 
         mockMvc.perform(post("/api/v1/subscriptions/checkout")
                         .header("Authorization", "Bearer " + student)
@@ -165,10 +169,14 @@ class SubscriptionCheckoutIntegrationTest {
     void checkout_nonStudent_forbidden() throws Exception {
         String coach = register("coach-checkout-authz@example.com", "COACH");
 
+        // Full body (checkoutBody helper): a partial body no longer reaches @PreAuthorize at all —
+        // Jackson 3 (Spring Boot 4.0.6) rejects a record with missing properties during argument
+        // binding, which runs before the security-proxied method call, so a minimal body would 400
+        // regardless of role. This test's job is authorization, not payload completeness.
         mockMvc.perform(post("/api/v1/subscriptions/checkout")
                         .header("Authorization", "Bearer " + coach)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"coachId\":1,\"packageId\":1}"))
+                        .content(checkoutBody(1, 1)))
                 .andExpect(status().isForbidden());
     }
 
@@ -187,8 +195,8 @@ class SubscriptionCheckoutIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
 
-        long subscriptionId = JsonPath.read(checkoutRes, "$.subscriptionId");
-        long paymentId = JsonPath.read(checkoutRes, "$.paymentId");
+        long subscriptionId = ((Number) JsonPath.read(checkoutRes, "$.subscriptionId")).longValue();
+        long paymentId = ((Number) JsonPath.read(checkoutRes, "$.paymentId")).longValue();
 
         // Verify initial state
         Subscription initialSub = subscriptionRepository.findById(subscriptionId).orElseThrow();
@@ -236,98 +244,13 @@ class SubscriptionCheckoutIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
 
-        long paymentId = JsonPath.read(checkoutRes, "$.paymentId");
+        long paymentId = ((Number) JsonPath.read(checkoutRes, "$.paymentId")).longValue();
 
         // Try to succeed using studentB's token
         mockMvc.perform(post("/api/v1/payments/" + paymentId + "/stub/succeed")
                         .header("Authorization", "Bearer " + studentB))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("NOT_PAYMENT_OWNER"));
-    }
-
-    @Test
-    void webhook_succeeds_andIsIdempotent() throws Exception {
-        String admin = adminToken();
-        int coachId = approvedCoachProfileId("coach-webhook-succeed@example.com", admin);
-        String student = register("student-webhook-succeed@example.com", "STUDENT");
-        long packageId = firstPackageId(student);
-
-        String body = checkoutBody(coachId, packageId);
-        String checkoutRes = mockMvc.perform(post("/api/v1/subscriptions/checkout")
-                        .header("Authorization", "Bearer " + student)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-
-        long subscriptionId = JsonPath.read(checkoutRes, "$.subscriptionId");
-        long paymentId = JsonPath.read(checkoutRes, "$.paymentId");
-
-        // Verify initial state
-        Subscription initialSub = subscriptionRepository.findById(subscriptionId).orElseThrow();
-        assertThat(initialSub.getStatus()).isEqualTo(SubscriptionStatus.PENDING_PAYMENT);
-
-        // Perform succeed payment via webhook (No Authorization header!)
-        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"paymentId\":%d,\"status\":\"SUCCESS\",\"providerReference\":\"webhook-ref-123\"}".formatted(paymentId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PROCESSED"));
-
-        // Verify updated state
-        Subscription activeSub = subscriptionRepository.findById(subscriptionId).orElseThrow();
-        assertThat(activeSub.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
-        assertThat(paymentRepository.findById(paymentId).orElseThrow().getStatus()).isEqualTo(PaymentStatus.SUCCESS);
-        assertThat(coachProfileRepository.findById((long) coachId).orElseThrow().getActiveStudentCount()).isEqualTo(1);
-
-        // Duplicate successful webhook call
-        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"paymentId\":%d,\"status\":\"SUCCESS\",\"providerReference\":\"webhook-ref-123\"}".formatted(paymentId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("IDEMPOTENT"));
-
-        // Capacity remains 1
-        assertThat(coachProfileRepository.findById((long) coachId).orElseThrow().getActiveStudentCount()).isEqualTo(1);
-    }
-
-    @Test
-    void webhook_fails_andIsIdempotent() throws Exception {
-        String admin = adminToken();
-        int coachId = approvedCoachProfileId("coach-webhook-fail@example.com", admin);
-        String student = register("student-webhook-fail@example.com", "STUDENT");
-        long packageId = firstPackageId(student);
-
-        String body = checkoutBody(coachId, packageId);
-        String checkoutRes = mockMvc.perform(post("/api/v1/subscriptions/checkout")
-                        .header("Authorization", "Bearer " + student)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-
-        long subscriptionId = JsonPath.read(checkoutRes, "$.subscriptionId");
-        long paymentId = JsonPath.read(checkoutRes, "$.paymentId");
-
-        // Perform fail payment via webhook
-        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"paymentId\":%d,\"status\":\"FAILURE\"}".formatted(paymentId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PROCESSED"));
-
-        // Verify updated state
-        Subscription sub = subscriptionRepository.findById(subscriptionId).orElseThrow();
-        assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.PENDING_PAYMENT); // remains pending
-        assertThat(paymentRepository.findById(paymentId).orElseThrow().getStatus()).isEqualTo(PaymentStatus.FAILED);
-        assertThat(coachProfileRepository.findById((long) coachId).orElseThrow().getActiveStudentCount()).isZero(); // remains 0
-
-        // Duplicate failure webhook call
-        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"paymentId\":%d,\"status\":\"FAILURE\"}".formatted(paymentId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("IDEMPOTENT"));
     }
 
     private String checkoutBody(long coachId, long packageId) {
@@ -341,4 +264,17 @@ class SubscriptionCheckoutIntegrationTest {
     // with 401 before reaching this validation (see SubscriptionService.verifyWebhookSignature).
     // Equivalent signed coverage already exists in IyzicoWebhookSignatureTest
     // (processWebhook_unsupportedStatus_badRequest / processWebhook_wrongPaymentId_notFound).
+    //
+    // webhook_succeeds_andIsIdempotent and webhook_fails_andIsIdempotent were also removed for the
+    // same reason (unsigned webhook calls, now 401). They were NOT moved here as-is: this class
+    // can't set payments.iyzico.enabled=true, because that property switches the IyzicoClient bean
+    // from StubIyzicoClient to RealIyzicoClient (see IyzicoClient impls' @ConditionalOnProperty),
+    // and every checkout test in this same Spring context calls the real
+    // /api/v1/subscriptions/checkout endpoint, which synchronously calls
+    // IyzicoClient.initializeCheckout — RealIyzicoClient would then fail context startup
+    // (IllegalStateException: no baseUrl configured) and take down every test in this class.
+    // The SUCCESS+idempotency half was already covered by
+    // IyzicoWebhookSignatureTest#processWebhook_validSignature_success /
+    // #processWebhook_duplicateWebhook_idempotent. The FAILURE+idempotency half was genuinely
+    // missing coverage and was added there instead, using its existing signed-request fixture.
 }

@@ -53,6 +53,7 @@ class SessionIntegrationTest {
                                 """.formatted(email, email.split("@")[0], role)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
+        TestUsers.verifyEmail(userRepository, email);
         return JsonPath.read(json, "$.accessToken");
     }
 

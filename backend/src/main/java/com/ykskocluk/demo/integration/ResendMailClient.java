@@ -1,5 +1,7 @@
 package com.ykskocluk.demo.integration;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ykskocluk.demo.config.ResendProperties;
 import com.ykskocluk.demo.enums.ReportStatus;
 import org.slf4j.Logger;
@@ -8,6 +10,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
@@ -71,12 +74,84 @@ public class ResendMailClient implements MailClient {
     }
 
     @Override
+    public void sendPurchaseConfirmedToCoach(String toEmail, String coachName, String studentName,
+                                             String packageName, Instant purchasedAt) {
+        String purchased = WHEN_FORMAT.format(purchasedAt.atZone(ISTANBUL));
+        send(toEmail, "Yeni bir öğrenciniz var", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Yeni bir öğrenciniz var</h2>
+                  <p>Merhaba %s,</p>
+                  <p><strong>%s</strong>, <strong>%s</strong> planı ile size abone oldu.</p>
+                  <p>Abonelik tarihi: <strong>%s</strong></p>
+                </div>
+                """.formatted(coachName, studentName, packageName, purchased));
+    }
+
+    @Override
     public void sendSessionBooked(String toEmail, String coachName, Instant startTime, String meetLink) {
         String when = WHEN_FORMAT.format(startTime.atZone(ISTANBUL));
         send(toEmail, "Görüşmeniz planlandı", """
                 <div style="font-family:sans-serif;line-height:1.5">
                   <h2>Görüşmeniz planlandı</h2>
                   <p>Koçunuz <strong>%s</strong> ile görüşmeniz <strong>%s</strong> tarihinde planlandı.</p>
+                  <p><a href="%s">Görüşmeye katıl</a></p>
+                </div>
+                """.formatted(coachName, when, meetLink));
+    }
+
+    @Override
+    public void sendSessionBookedToCoach(String toEmail, String coachName, String studentName,
+                                         Instant startTime, String meetLink) {
+        String when = WHEN_FORMAT.format(startTime.atZone(ISTANBUL));
+        send(toEmail, "Yeni bir görüşmeniz planlandı", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Yeni bir görüşmeniz planlandı</h2>
+                  <p>Merhaba %s,</p>
+                  <p>Öğrenciniz <strong>%s</strong> ile görüşmeniz <strong>%s</strong> tarihinde planlandı.</p>
+                  <p><a href="%s">Görüşmeye katıl</a></p>
+                </div>
+                """.formatted(coachName, studentName, when, meetLink));
+    }
+
+    @Override
+    public void sendSessionCancelled(String toEmail, String coachName, Instant startTime, boolean late) {
+        String when = WHEN_FORMAT.format(startTime.atZone(ISTANBUL));
+        String note = late
+                ? "Bu iptal 24 saatlik pencere içinde yapıldığı için haftalık kotanız kullanıldı."
+                : "Erken iptal ettiğiniz için haftalık kotanız iade edildi.";
+        send(toEmail, "Seans iptaliniz alındı", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Seans iptaliniz alındı</h2>
+                  <p>Koçunuz <strong>%s</strong> ile <strong>%s</strong> tarihindeki görüşmeniz iptal edildi.</p>
+                  <p>%s</p>
+                </div>
+                """.formatted(coachName, when, note));
+    }
+
+    @Override
+    public void sendSessionCancelledToCoach(String toEmail, String coachName, String studentName,
+                                            Instant startTime, boolean late) {
+        String when = WHEN_FORMAT.format(startTime.atZone(ISTANBUL));
+        String note = late
+                ? "Slot 24 saatten kısa süre kaldığı için dolu kalacak."
+                : "Slot yeniden açıldı, başka bir öğrenci rezerve edebilir.";
+        send(toEmail, "Bir seansınız iptal edildi", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Bir seansınız iptal edildi</h2>
+                  <p>Merhaba %s,</p>
+                  <p>Öğrenciniz <strong>%s</strong>, <strong>%s</strong> tarihindeki görüşmenizi iptal etti.</p>
+                  <p>%s</p>
+                </div>
+                """.formatted(coachName, studentName, when, note));
+    }
+
+    @Override
+    public void sendSessionReminder(String toEmail, String coachName, Instant startTime, String meetLink) {
+        String when = WHEN_FORMAT.format(startTime.atZone(ISTANBUL));
+        send(toEmail, "Yaklaşan görüşme hatırlatması", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Görüşmeniz yaklaşıyor</h2>
+                  <p>Koçunuz <strong>%s</strong> ile <strong>%s</strong> tarihinde bir görüşmeniz var.</p>
                   <p><a href="%s">Görüşmeye katıl</a></p>
                 </div>
                 """.formatted(coachName, when, meetLink));
@@ -197,10 +272,21 @@ public class ResendMailClient implements MailClient {
                 """.formatted(code));
     }
 
+    @Override
+    public void sendWelcome(String toEmail, String fullName) {
+        send(toEmail, "Uniform Akademi'ye hoş geldiniz", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Uniform Akademi'ye hoş geldiniz, %s!</h2>
+                  <p>Hesabınız kullanıma hazır. Koçunuzu seçip planınızı belirleyerek hemen başlayabilirsiniz.</p>
+                </div>
+                """.formatted(fullName));
+    }
+
     /** Single best-effort POST to Resend — swallows-and-logs every error (timeouts included). */
     private void send(String toEmail, String subject, String html) {
         try {
-            var request = new ResendEmailRequest(properties.from(), List.of(toEmail), subject, html);
+            String replyTo = StringUtils.hasText(properties.replyTo()) ? properties.replyTo() : null;
+            var request = new ResendEmailRequest(properties.from(), List.of(toEmail), subject, html, replyTo);
             ResendEmailResponse response = restClient.post()
                     .uri("/emails")
                     .contentType(MediaType.APPLICATION_JSON)
@@ -215,8 +301,10 @@ public class ResendMailClient implements MailClient {
         }
     }
 
-    /** Resend send-email request body. */
-    private record ResendEmailRequest(String from, List<String> to, String subject, String html) {
+    /** Resend send-email request body. {@code replyTo} null (never blank) omits the field entirely. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private record ResendEmailRequest(String from, List<String> to, String subject, String html,
+                                      @JsonProperty("reply_to") String replyTo) {
     }
 
     /** Resend send-email response — we only need the message id. */

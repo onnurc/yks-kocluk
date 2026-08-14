@@ -30,7 +30,8 @@ class SessionNotificationListenerTest {
 
     private SessionBookedEvent event() {
         Instant start = Instant.now().plus(2, ChronoUnit.DAYS);
-        return new SessionBookedEvent(42L, "student@example.com", "Coach", start, start.plus(1, ChronoUnit.HOURS));
+        return new SessionBookedEvent(42L, "student@example.com", "Student", "coach@example.com", "Coach",
+                start, start.plus(1, ChronoUnit.HOURS));
     }
 
     @Test
@@ -41,6 +42,8 @@ class SessionNotificationListenerTest {
 
         verify(sessionService).setMeetLink(42L, "https://meet.stub.local/session/42");
         verify(mailClient).sendSessionBooked(eq("student@example.com"), eq("Coach"), any(),
+                eq("https://meet.stub.local/session/42"));
+        verify(mailClient).sendSessionBookedToCoach(eq("coach@example.com"), eq("Coach"), eq("Student"), any(),
                 eq("https://meet.stub.local/session/42"));
     }
 
@@ -54,5 +57,6 @@ class SessionNotificationListenerTest {
 
         verify(sessionService, never()).setMeetLink(anyLong(), any());
         verify(mailClient, never()).sendSessionBooked(any(), any(), any(), any());
+        verify(mailClient, never()).sendSessionBookedToCoach(any(), any(), any(), any(), any());
     }
 }

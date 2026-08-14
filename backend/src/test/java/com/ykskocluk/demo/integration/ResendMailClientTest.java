@@ -31,9 +31,35 @@ class ResendMailClientTest {
     private static final String LINK = "https://meet.jit.si/yks-1234";
 
     private ResendMailClient clientBoundTo(MockRestServiceServer[] serverOut) {
+        return clientBoundTo(serverOut, null);
+    }
+
+    private ResendMailClient clientBoundTo(MockRestServiceServer[] serverOut, String replyTo) {
         RestClient.Builder builder = RestClient.builder();
         serverOut[0] = MockRestServiceServer.bindTo(builder).build();
-        return new ResendMailClient(builder, new ResendProperties("re_test_key", "onboarding@resend.dev"));
+        return new ResendMailClient(builder, new ResendProperties("re_test_key", "onboarding@resend.dev", replyTo));
+    }
+
+    @Test
+    void replyTo_blank_omitsFieldEntirely() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server, null);
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(jsonPath("$.reply_to").doesNotExist())
+                .andRespond(withSuccess("{\"id\":\"msg_no_reply_to\"}", APPLICATION_JSON));
+        client.sendSessionBooked(TO, "Ayşe Koç", Instant.parse("2026-06-22T18:00:00Z"), LINK);
+        server[0].verify();
+    }
+
+    @Test
+    void replyTo_set_isIncludedOnEverySend() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server, "destek@uniformakademi.com");
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(jsonPath("$.reply_to").value("destek@uniformakademi.com"))
+                .andRespond(withSuccess("{\"id\":\"msg_with_reply_to\"}", APPLICATION_JSON));
+        client.sendSessionBooked(TO, "Ayşe Koç", Instant.parse("2026-06-22T18:00:00Z"), LINK);
+        server[0].verify();
     }
 
     @Test
@@ -53,6 +79,23 @@ class ResendMailClientTest {
         client.sendPurchaseConfirmed(TO, "Ali", "Aylık Koçluk", "Ayşe Koç",
                 new BigDecimal("1500.00"), "TRY", Instant.parse("2026-08-01T10:00:00Z"),
                 Instant.parse("2026-08-31T10:00:00Z"));
+        server[0].verify();
+    }
+
+    @Test
+    void purchaseConfirmedToCoach_containsStudentAndPlanButNoAmount() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.to[0]").value("coach@example.com"))
+                .andExpect(jsonPath("$.subject").value("Yeni bir öğrenciniz var"))
+                .andExpect(jsonPath("$.html", containsString("Ali")))
+                .andExpect(jsonPath("$.html", containsString("Aylık Koçluk")))
+                .andExpect(jsonPath("$.html", org.hamcrest.Matchers.not(containsString("1500"))))
+                .andRespond(withSuccess("{\"id\":\"msg_purchase_coach\"}", APPLICATION_JSON));
+        client.sendPurchaseConfirmedToCoach("coach@example.com", "Ayşe Koç", "Ali", "Aylık Koçluk",
+                Instant.parse("2026-08-01T10:00:00Z"));
         server[0].verify();
     }
 
@@ -88,6 +131,79 @@ class ResendMailClientTest {
         assertThatCode(() ->
                 client.sendSessionBooked(TO, "Ayşe Koç", Instant.parse("2026-06-22T18:00:00Z"), LINK))
                 .doesNotThrowAnyException();
+
+        server[0].verify();
+    }
+
+    @Test
+    void sessionBookedToCoach_postsExpectedSubjectAndBody() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.to[0]").value("coach@example.com"))
+                .andExpect(jsonPath("$.subject").value("Yeni bir görüşmeniz planlandı"))
+                .andExpect(jsonPath("$.html", containsString("Ali")))
+                .andExpect(jsonPath("$.html", containsString(LINK)))
+                .andRespond(withSuccess("{\"id\":\"msg_session_coach\"}", APPLICATION_JSON));
+
+        client.sendSessionBookedToCoach("coach@example.com", "Ayşe Koç", "Ali",
+                Instant.parse("2026-06-22T18:00:00Z"), LINK);
+
+        server[0].verify();
+    }
+
+    @Test
+    void sessionCancelled_lateVsEarly_differentCopy() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(jsonPath("$.subject").value("Seans iptaliniz alındı"))
+                .andExpect(jsonPath("$.html", containsString("kotanız kullanıldı")))
+                .andRespond(withSuccess("{\"id\":\"msg_cancel_late\"}", APPLICATION_JSON));
+        client.sendSessionCancelled(TO, "Ayşe Koç", Instant.parse("2026-06-22T18:00:00Z"), true);
+        server[0].verify();
+
+        server[0].reset();
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(jsonPath("$.html", containsString("kotanız iade edildi")))
+                .andRespond(withSuccess("{\"id\":\"msg_cancel_early\"}", APPLICATION_JSON));
+        client.sendSessionCancelled(TO, "Ayşe Koç", Instant.parse("2026-06-22T18:00:00Z"), false);
+        server[0].verify();
+    }
+
+    @Test
+    void sessionCancelledToCoach_postsExpectedSubjectAndBody() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(jsonPath("$.to[0]").value("coach@example.com"))
+                .andExpect(jsonPath("$.subject").value("Bir seansınız iptal edildi"))
+                .andExpect(jsonPath("$.html", containsString("Ali")))
+                .andRespond(withSuccess("{\"id\":\"msg_cancel_coach\"}", APPLICATION_JSON));
+
+        client.sendSessionCancelledToCoach("coach@example.com", "Ayşe Koç", "Ali",
+                Instant.parse("2026-06-22T18:00:00Z"), false);
+
+        server[0].verify();
+    }
+
+    @Test
+    void sessionReminder_postsExpectedSubjectAndBody() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.to[0]").value(TO))
+                .andExpect(jsonPath("$.subject").value("Yaklaşan görüşme hatırlatması"))
+                .andExpect(jsonPath("$.html", containsString(LINK)))
+                .andRespond(withSuccess("{\"id\":\"msg_reminder\"}", APPLICATION_JSON));
+
+        client.sendSessionReminder(TO, "Ayşe Koç", Instant.parse("2026-06-22T18:00:00Z"), LINK);
 
         server[0].verify();
     }
@@ -135,6 +251,19 @@ class ResendMailClientTest {
                 .andExpect(jsonPath("$.html", containsString("tek kullanımlık")))
                 .andRespond(withSuccess("{\"id\":\"msg_reset\"}", APPLICATION_JSON));
         client.sendPasswordReset(TO, resetLink);
+        server[0].verify();
+    }
+
+    @Test
+    void welcome_containsFullNameGreeting() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.subject").value("Uniform Akademi'ye hoş geldiniz"))
+                .andExpect(jsonPath("$.html", containsString("Ali")))
+                .andRespond(withSuccess("{\"id\":\"msg_welcome\"}", APPLICATION_JSON));
+        client.sendWelcome(TO, "Ali");
         server[0].verify();
     }
 

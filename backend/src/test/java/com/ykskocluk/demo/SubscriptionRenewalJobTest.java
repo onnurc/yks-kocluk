@@ -8,7 +8,6 @@ import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
-import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.integration.ChargeResult;
 import com.ykskocluk.demo.integration.IyzicoClient;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
@@ -62,12 +61,8 @@ class SubscriptionRenewalJobTest {
         University uni = new University();
         uni.setName("Uni " + System.nanoTime());
         universityRepository.save(uni);
-        User u = new User();
-        u.setEmail("coach-" + System.nanoTime() + "@example.com");
-        u.setFullName("Coach");
-        u.setRole(Role.COACH);
-        u.setStatus(UserStatus.ACTIVE);
-        userRepository.save(u);
+        User u = TestUsers.create(userRepository, Role.COACH,
+                "coach-" + System.nanoTime() + "@example.com", "Coach");
         CoachProfile c = new CoachProfile();
         c.setUser(u);
         c.setUniversity(uni);
@@ -80,12 +75,8 @@ class SubscriptionRenewalJobTest {
 
     private Subscription sub(CoachProfile coach, SubscriptionStatus status, Instant endAt,
                             int failedCount, boolean autoRenew) {
-        User student = new User();
-        student.setEmail("stu-" + System.nanoTime() + "@example.com");
-        student.setFullName("Student");
-        student.setRole(Role.STUDENT);
-        student.setStatus(UserStatus.ACTIVE);
-        userRepository.save(student);
+        User student = TestUsers.create(userRepository, Role.STUDENT,
+                "stu-" + System.nanoTime() + "@example.com", "Student");
         Package pkg = packageRepository.findByActiveTrueOrderByPriceAsc().get(0);
         Subscription s = new Subscription();
         s.setStudent(student);

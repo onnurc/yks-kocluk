@@ -238,6 +238,39 @@ class IyzicoWebhookSignatureTest {
     }
 
     @Test
+    void processWebhook_validSignatureFailureStatus_processedAndIdempotent() throws Exception {
+        String eventType = "PAYMENT_API";
+        String convId = "conv-1";
+        String status = "FAILURE";
+        String signature = calculateSignature(eventType, payment.getId(), convId, status);
+
+        IyzicoWebhookRequest request = new IyzicoWebhookRequest(payment.getId(), status, null, eventType, convId);
+
+        // First execution
+        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
+                        .header("X-IYZ-SIGNATURE-V3", signature)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PROCESSED"));
+
+        // Verify state updated: payment failed, subscription stays pending, capacity untouched
+        assertThat(paymentRepository.findById(payment.getId()).orElseThrow().getStatus()).isEqualTo(PaymentStatus.FAILED);
+        assertThat(subscriptionRepository.findById(subscription.getId()).orElseThrow().getStatus()).isEqualTo(SubscriptionStatus.PENDING_PAYMENT);
+        assertThat(coachProfileRepository.findById(coach.getId()).orElseThrow().getActiveStudentCount()).isZero();
+
+        // Duplicate execution
+        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
+                        .header("X-IYZ-SIGNATURE-V3", signature)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IDEMPOTENT"));
+
+        assertThat(coachProfileRepository.findById(coach.getId()).orElseThrow().getActiveStudentCount()).isZero();
+    }
+
+    @Test
     void processWebhook_duplicateWebhook_idempotent() throws Exception {
         String eventType = "PAYMENT_API";
         String convId = "conv-1";

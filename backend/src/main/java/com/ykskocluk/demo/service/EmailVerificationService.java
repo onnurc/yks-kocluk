@@ -86,6 +86,7 @@ public class EmailVerificationService {
         }
         user.setEmailVerified(true);
         codeRepository.invalidateAllForUser(userId, now);
+        eventPublisher.publishEvent(new WelcomeMailEvent(user.getEmail(), user.getFullName()));
         return new EmailVerificationResponse(true, null);
     }
 

@@ -158,8 +158,12 @@ app:
   resend:
     # Resend API key — secret, env only (RESEND_API_KEY in application-local.yml / env). No default.
     api-key: ${RESEND_API_KEY}
-    # Sender address. Resend's onboarding sender works in sandbox without domain verification.
+    # Sender address. Sandbox default is dev-only — required outside local/stub (ResendConfig
+    # fail-fast guard); domain verification is a prod prerequisite, see application-local.yml.example.
     from: ${RESEND_FROM:onboarding@resend.dev}
+    # Optional reply-to address (e.g. a support inbox). Omitted from the Resend request entirely
+    # when blank — see ResendMailClient.
+    reply-to: ${RESEND_REPLY_TO:}
   payment:
     # Commission fraction snapshotted onto each Payment (0.20 = 20%). Platform-set.
     commission-rate: ${PAYMENT_COMMISSION_RATE:0.20}
@@ -170,6 +174,14 @@ app:
     pending-checkout-timeout-minutes: ${PAYMENT_PENDING_CHECKOUT_TIMEOUT_MINUTES:30}
     # Renewal job schedule — daily 03:00 Europe/Istanbul (zone set on the @Scheduled).
     renewal-cron: ${PAYMENT_RENEWAL_CRON:0 0 3 * * *}
+  session-reminder:
+    # How far before a session's start the reminder becomes eligible. Actual delivery jitters by
+    # up to the job's poll interval (cron below), since a session is caught on whichever run first
+    # sees it inside the window.
+    lead-time: ${SESSION_REMINDER_LEAD_TIME:24h}
+    # Reminder job schedule — every 15 min (needs to be frequent; unlike the once-daily renewal
+    # job, delivery timing here is user-facing).
+    cron: ${SESSION_REMINDER_CRON:0 */15 * * * *}
 
 # ============================================================================
 # Iyzico Payment Client Configuration
