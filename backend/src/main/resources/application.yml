@@ -10,6 +10,8 @@ spring:
 
   datasource:
     url: ${NEON_DATABASE_URL}
+    username: ${NEON_DATABASE_USERNAME}
+    password: ${NEON_DATABASE_PASSWORD}
     hikari:
       maximum-pool-size: 10
       pool-name: yks-hikari
