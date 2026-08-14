@@ -5,13 +5,13 @@ export type PublicNavigationItem = {
 };
 
 export const publicNavigation: readonly PublicNavigationItem[] = [
-  { label: "Koçluk", to: "/kocluk", available: false },
+  { label: "Koçluk", to: "/kocluk", available: true },
   { label: "Koçlarımız", to: "/coaches", available: true },
   { label: "Biz Kimiz", to: "/biz-kimiz", available: true },
 ];
 
 export const publicQuickLinks: readonly PublicNavigationItem[] = [
-  { label: "Koçluk Paketleri", to: "/kocluk", available: false },
+  { label: "Koçluk Paketleri", to: "/kocluk", available: true },
   { label: "Koçlarımız", to: "/coaches", available: true },
   { label: "Giriş Yap", to: "/login", available: true },
   { label: "Hesap Oluştur", to: "/register", available: true },

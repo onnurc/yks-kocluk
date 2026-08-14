@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.service;
 
 import com.ykskocluk.demo.dto.PackageResponse;
+import com.ykskocluk.demo.dto.PublicPackageResponse;
 import com.ykskocluk.demo.mapper.PackageMapper;
 import com.ykskocluk.demo.repository.PackageRepository;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,18 @@ public class PackageService {
     public List<PackageResponse> listActive() {
         return packageRepository.findByActiveTrueOrderByPriceAsc().stream()
                 .map(packageMapper::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PublicPackageResponse> listPublicActive() {
+        return packageRepository.findByActiveTrueOrderByPriceAsc().stream()
+                .map(pkg -> new PublicPackageResponse(
+                        pkg.getId(),
+                        pkg.getName(),
+                        pkg.getWeeklySessions(),
+                        pkg.getDurationDays(),
+                        pkg.getPrice()))
                 .toList();
     }
 }

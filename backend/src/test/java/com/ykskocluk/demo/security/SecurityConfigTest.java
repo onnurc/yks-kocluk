@@ -38,6 +38,7 @@ class SecurityConfigTest {
     void unauthenticatedProtectedRequestReturns401() throws Exception {
         mvc.perform(get("/api/v1/admin/probe")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/v1/media/uploads/presign")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/trial-consultations/probe")).andExpect(status().isUnauthorized());
     }
 
     @Test @WithMockUser(roles = "STUDENT")
@@ -65,6 +66,7 @@ class SecurityConfigTest {
         mvc.perform(get("/api/v1/legal-documents/probe")).andExpect(status().isOk());
         mvc.perform(post("/api/v1/payments/iyzico/webhook")).andExpect(status().isOk());
         mvc.perform(get("/api/v1/health")).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/public/packages")).andExpect(status().isOk());
     }
 
     @Test
@@ -106,6 +108,8 @@ class SecurityConfigTest {
         @PostMapping("/api/v1/auth/login") String login() { return "ok"; }
         @PostMapping("/api/v1/payments/iyzico/webhook") String webhook() { return "ok"; }
         @GetMapping("/api/v1/health") String health() { return "ok"; }
+        @GetMapping("/api/v1/public/packages") String publicPackages() { return "ok"; }
         @PostMapping("/api/v1/media/uploads/presign") String mediaPresign() { return "ok"; }
+        @PostMapping("/api/v1/trial-consultations/probe") String trialWrite() { return "ok"; }
     }
 }
