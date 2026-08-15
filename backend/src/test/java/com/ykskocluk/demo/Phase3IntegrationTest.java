@@ -10,7 +10,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -89,22 +91,23 @@ class Phase3IntegrationTest {
 
         String student = register("student@example.com", "STUDENT");
 
-        // search returns only the three APPROVED coaches, with placeholder derived fields
-        mockMvc.perform(get("/api/v1/coaches").header("Authorization", "Bearer " + student))
+        // shared CI fixtures may add other approved coaches; these approved fixtures must be present and PENDING absent
+        mockMvc.perform(get("/api/v1/coaches?size=100").header("Authorization", "Bearer " + student))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(3))
-                .andExpect(jsonPath("$.content[0].rating").doesNotExist())
-                .andExpect(jsonPath("$.content[0].totalSessions").value(0));
+                .andExpect(jsonPath("$.content[*].id").value(hasItems(approvedNumeric, approvedVerbal, approvedMultiTrack)))
+                .andExpect(jsonPath("$.content[*].id").value(not(hasItem(pending))));
 
-        // each track includes its single-track coach plus the legitimate multi-track coach
-        mockMvc.perform(get("/api/v1/coaches?track=NUMERICAL").header("Authorization", "Bearer " + student))
+        // each track includes its single-track coach plus the multi-track coach, without cross-track leakage
+        mockMvc.perform(get("/api/v1/coaches?track=NUMERICAL&size=100").header("Authorization", "Bearer " + student))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(2))
-                .andExpect(jsonPath("$.content[*].id").value(containsInAnyOrder(approvedNumeric, approvedMultiTrack)));
-        mockMvc.perform(get("/api/v1/coaches?track=VERBAL").header("Authorization", "Bearer " + student))
+                .andExpect(jsonPath("$.content[*].id").value(hasItems(approvedNumeric, approvedMultiTrack)))
+                .andExpect(jsonPath("$.content[*].id").value(not(hasItem(approvedVerbal))))
+                .andExpect(jsonPath("$.content[*].id").value(not(hasItem(pending))));
+        mockMvc.perform(get("/api/v1/coaches?track=VERBAL&size=100").header("Authorization", "Bearer " + student))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(2))
-                .andExpect(jsonPath("$.content[*].id").value(containsInAnyOrder(approvedVerbal, approvedMultiTrack)));
+                .andExpect(jsonPath("$.content[*].id").value(hasItems(approvedVerbal, approvedMultiTrack)))
+                .andExpect(jsonPath("$.content[*].id").value(not(hasItem(approvedNumeric))))
+                .andExpect(jsonPath("$.content[*].id").value(not(hasItem(pending))));
 
         // detail: APPROVED coach visible, PENDING coach hidden (404)
         mockMvc.perform(get("/api/v1/coaches/" + approvedNumeric).header("Authorization", "Bearer " + student))

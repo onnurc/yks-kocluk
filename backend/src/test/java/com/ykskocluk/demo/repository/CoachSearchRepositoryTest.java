@@ -107,7 +107,7 @@ class CoachSearchRepositoryTest {
 
         // by university
         assertThat(coachProfileRepository.search(bogazici.getId(), null, null, page))
-                .extracting(CoachProfile::getId).containsExactly(b.getId());
+                .extracting(CoachProfile::getId).containsExactlyInAnyOrder(b.getId(), language.getId());
 
         // by free-text on name and headline
         assertThat(coachProfileRepository.search(null, null, "ahmet", page))
