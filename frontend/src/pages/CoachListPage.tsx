@@ -1,154 +1,268 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../auth/AuthProvider";
 import { coachDiscoveryApi } from "../coaches/coachDiscoveryApi";
-import type { CoachSummaryResponse } from "../coaches/coachDiscoveryTypes";
-import { FormError } from "../components/FormError";
+import type { CoachSearchParams } from "../coaches/coachDiscoveryApi";
+import type { CoachSummaryResponse, Track } from "../coaches/coachDiscoveryTypes";
+import { TRACK_LABELS } from "../coaches/coachDiscoveryTypes";
+import { CoachCard, ArrowRightIcon } from "../coaches/CoachCard";
+import { ApiError } from "../api/ApiError";
+import "../public/home-page.css";
+import "../coaches/coach-list-page.css";
+
+const TRACKS: Track[] = ["NUMERICAL", "EQUAL_WEIGHT", "VERBAL", "LANGUAGE"];
+
+const TRACK_ICONS: Record<Track, React.FC> = {
+  NUMERICAL: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 3v5.2L4.5 18a2 2 0 0 0 1.8 3h11.4a2 2 0 0 0 1.8-3L15 8.2V3" />
+      <path d="M9 3h6M6.5 14h11" />
+    </svg>
+  ),
+  EQUAL_WEIGHT: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v18M7 8 3 16h8L7 8Zm10 0-4 8h8l-4-8ZM4 20h16" />
+    </svg>
+  ),
+  VERBAL: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 5c3-1.2 6-1.2 8 0v14c-2-1.2-5-1.2-8 0V5ZM20 5c-3-1.2-6-1.2-8 0v14c2-1.2 5-1.2 8 0V5Z" />
+    </svg>
+  ),
+  LANGUAGE: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z" />
+    </svg>
+  ),
+};
+
+const SearchIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </svg>
+);
+
+const ChevronDownIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m6 9 6 6 6-6" />
+  </svg>
+);
+
+const TuneIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 6h9M17 6h3M4 12h3M9 12h11M4 18h13M19 18h1" />
+    <circle cx="13" cy="6" r="2" />
+    <circle cx="7" cy="12" r="2" />
+    <circle cx="17" cy="18" r="2" />
+  </svg>
+);
+
+const LockIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="5" y="11" width="14" height="9" rx="2" />
+    <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+  </svg>
+);
 
 export const CoachListPage: React.FC = () => {
-  const [coaches, setCoaches] = useState<CoachSummaryResponse[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<any | null>(null);
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const canBrowse = isAuthenticated && (user?.role === "STUDENT" || user?.role === "ADMIN");
 
-  const fetchCoaches = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await coachDiscoveryApi.listCoaches(0, 50);
-      setCoaches(response.content || []);
-    } catch (err: any) {
-      setError(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [coaches, setCoaches] = useState<CoachSummaryResponse[]>([]);
+  const [totalElements, setTotalElements] = useState(0);
+  const [page, setPage] = useState(0);
+  const [last, setLast] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<ApiError | Error | null>(null);
+
+  const [searchInput, setSearchInput] = useState("");
+  const [q, setQ] = useState("");
+  const [track, setTrack] = useState<Track | "">("");
+  const [sort, setSort] = useState<"createdAt,desc" | "createdAt,asc">("createdAt,desc");
+
+  const fetchCoaches = useCallback(
+    async (targetPage: number, append: boolean) => {
+      append ? setLoadingMore(true) : setLoading(true);
+      setError(null);
+      try {
+        const params: CoachSearchParams = { page: targetPage, size: 9, sort };
+        if (track) params.track = track;
+        if (q.trim()) params.q = q.trim();
+        const response = await coachDiscoveryApi.listCoaches(params);
+        setCoaches((prev) => (append ? [...prev, ...response.content] : response.content));
+        setTotalElements(response.totalElements);
+        setLast(response.last);
+        setPage(response.page);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error("Koçlar yüklenemedi."));
+      } finally {
+        append ? setLoadingMore(false) : setLoading(false);
+      }
+    },
+    [track, q, sort],
+  );
 
   useEffect(() => {
-    fetchCoaches();
-  }, []);
+    if (!canBrowse) return;
+    void fetchCoaches(0, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canBrowse, track, q, sort]);
 
-  if (loading) {
-    return (
-      <div style={{ padding: "3rem", textAlign: "center" }}>
-        <h3>Koçlar yükleniyor...</h3>
-      </div>
-    );
-  }
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setQ(searchInput);
+  };
+
+  const toggleTrackChip = (value: Track) => {
+    setTrack((current) => (current === value ? "" : value));
+  };
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "1000px", margin: "0 auto" }}>
-      <h1 style={{ marginBottom: "2rem", color: "#333" }}>Koç Keşfet</h1>
+    <div className="coaches-page">
+      <div className="home-container">
+        <section className="coaches-hero">
+          <div className="home-eyebrow">
+            <span aria-hidden="true" />
+            Geleceğini Tasarla
+          </div>
+          <h1>
+            Hayalindeki Üniversiteye Giden Yolda,
+            <br />
+            <em>
+              En Doğru Rehberi Bul.
+              <svg className="coaches-hero__squiggle" viewBox="0 0 200 9" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M2 6.64C47.78 1.95 128.52-1.41 198 6.64" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+              </svg>
+            </em>
+          </h1>
+          <p>
+            Türkiye&apos;nin seçkin üniversitelerinde okuyan koçlarımızla tanışın. Size en uygun koçu bulmak için
+            filtreleri kullanın.
+          </p>
+        </section>
 
-      <FormError error={error} />
+        {canBrowse ? (
+          <>
+            <div className="coaches-filters">
+              <form className="coaches-filters__row" onSubmit={handleSearchSubmit}>
+                <div className="coaches-search">
+                  <SearchIcon />
+                  <input
+                    type="text"
+                    placeholder="Koç adı veya uzmanlık alanı ara…"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                  />
+                </div>
 
-      {error && (
-        <button
-          onClick={fetchCoaches}
-          style={{
-            padding: "0.5rem 1rem",
-            backgroundColor: "#007bff",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            marginBottom: "1.5rem",
-          }}
-        >
-          Yeniden Dene
-        </button>
-      )}
+                <div className="coaches-select">
+                  <span className="coaches-select__label">Alan</span>
+                  <select value={track} onChange={(e) => setTrack(e.target.value as Track | "")}>
+                    <option value="">Tümü</option>
+                    {TRACKS.map((t) => (
+                      <option key={t} value={t}>
+                        {TRACK_LABELS[t]}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDownIcon />
+                </div>
 
-      {!error && coaches.length === 0 && (
-        <div style={{ padding: "2rem", textAlign: "center", border: "1px dashed #ccc", borderRadius: "8px", backgroundColor: "#fff" }}>
-          <p style={{ color: "#666", fontSize: "1.1rem" }}>Henüz listelenecek aktif koç bulunmuyor.</p>
-        </div>
-      )}
+                <div className="coaches-select">
+                  <span className="coaches-select__label">Sıralama</span>
+                  <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
+                    <option value="createdAt,desc">En Yeni</option>
+                    <option value="createdAt,asc">En Eski</option>
+                  </select>
+                  <ChevronDownIcon />
+                </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1.5rem" }}>
-        {coaches.map((coach) => (
-          <div
-            key={coach.id}
-            style={{
-              padding: "1.5rem",
-              border: "1px solid #dee2e6",
-              borderRadius: "8px",
-              backgroundColor: "#fff",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-            }}
-          >
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
-                <h3 style={{ margin: 0, color: "#0056b3" }}>{coach.fullName}</h3>
-                <span
-                  style={{
-                    padding: "0.25rem 0.5rem",
-                    borderRadius: "4px",
-                    fontSize: "0.75rem",
-                    fontWeight: "bold",
-                    backgroundColor: coach.acceptingNewStudents ? "#d4edda" : "#f8d7da",
-                    color: coach.acceptingNewStudents ? "#155724" : "#721c24",
-                  }}
-                >
-                  {coach.acceptingNewStudents ? "Aktif" : "Kontenjan Dolu"}
-                </span>
-              </div>
+                <button className="coaches-filter-submit" type="submit">
+                  <TuneIcon />
+                  Filtrele
+                </button>
+              </form>
 
-              <p style={{ margin: "0 0 0.75rem 0", fontStyle: "italic", color: "#666", fontSize: "0.9rem" }}>
-                {coach.headline || "YKS Koçu"}
-              </p>
-
-              <div style={{ fontSize: "0.9rem", color: "#495057", marginBottom: "1rem" }}>
-                <strong>Üniversite:</strong> {coach.universityName || "-"}
-              </div>
-
-              {coach.tracks && coach.tracks.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", marginBottom: "1rem" }}>
-                  {coach.tracks.map((track) => (
-                    <span
-                      key={track}
-                      style={{
-                        padding: "0.15rem 0.4rem",
-                        borderRadius: "20px",
-                        backgroundColor: "#e2e3e5",
-                        color: "#383d41",
-                        fontSize: "0.75rem",
-                        fontWeight: "bold",
-                      }}
+              <div className="coaches-chips">
+                {TRACKS.map((t) => {
+                  const Icon = TRACK_ICONS[t];
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      className={`coaches-chip${track === t ? " coaches-chip--active" : ""}`}
+                      onClick={() => toggleTrackChip(t)}
                     >
-                      {track}
-                    </span>
+                      <Icon />
+                      {TRACK_LABELS[t]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {!loading && !error && coaches.length > 0 && (
+              <p className="coaches-results-meta">{totalElements} koç bulundu</p>
+            )}
+
+            {loading ? (
+              <div className="coaches-skeleton-grid">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div className="coaches-skeleton-card" key={i} />
+                ))}
+              </div>
+            ) : error ? (
+              <div className="coaches-error">
+                <strong>Koçlar yüklenirken bir sorun oluştu.</strong>
+                <p>{error instanceof ApiError ? error.detail || error.title : error.message}</p>
+                <button onClick={() => fetchCoaches(0, false)}>Yeniden Dene</button>
+              </div>
+            ) : coaches.length === 0 ? (
+              <div className="coaches-empty">
+                <p>Bu kriterlere uyan koç bulunamadı. Filtreleri değiştirip tekrar deneyin.</p>
+              </div>
+            ) : (
+              <>
+                <div className="coaches-grid">
+                  {coaches.map((coach) => (
+                    <CoachCard coach={coach} key={coach.id} />
                   ))}
                 </div>
-              )}
+                {!last && (
+                  <div style={{ textAlign: "center", marginTop: "-48px", marginBottom: "72px" }}>
+                    <button className="coaches-filter-submit" onClick={() => fetchCoaches(page + 1, true)} disabled={loadingMore}>
+                      {loadingMore ? "Yükleniyor…" : "Daha Fazla Göster"}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        ) : !authLoading ? (
+          <div className="coaches-paywall">
+            <div className="coaches-paywall__glow-a" />
+            <div className="coaches-paywall__glow-b" />
+            <div className="coaches-paywall__icon">
+              <LockIcon />
             </div>
-
-            <div style={{ borderTop: "1px solid #eee", paddingTop: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: "0.85rem", color: "#6c757d" }}>
-                <span>⭐ {coach.rating != null ? coach.rating.toFixed(1) : "Yeni"}</span>
-                <span style={{ margin: "0 0.5rem" }}>|</span>
-                <span>{coach.totalSessions} Seans</span>
-              </div>
-
-              <Link
-                to={`/coaches/${coach.id}`}
-                style={{
-                  padding: "0.4rem 0.8rem",
-                  backgroundColor: "#007bff",
-                  color: "white",
-                  textDecoration: "none",
-                  borderRadius: "4px",
-                  fontSize: "0.9rem",
-                  fontWeight: "bold",
-                  textAlign: "center",
-                }}
-              >
-                Detayları Gör
+            <h2>Tüm Koçlarımızı Görmek İçin Kayıt Ol!</h2>
+            <p>
+              {user?.role === "COACH"
+                ? "Koç hesabınızla koç listesine erişim bulunmuyor — bu ekran öğrenci hesapları içindir."
+                : "Hedeflerine ulaşman için seni bekleyen mentorlerimizle tanışmak üzere ücretsiz bir öğrenci hesabı oluştur."}
+            </p>
+            {user?.role !== "COACH" && (
+              <Link className="home-button home-button--primary" to="/register">
+                Hemen Kayıt Ol
+                <ArrowRightIcon />
               </Link>
-            </div>
+            )}
+            <p className="coaches-paywall__note">Ücretsiz hesap oluştur ve tüm koçlara anında ulaş.</p>
           </div>
-        ))}
+        ) : null}
       </div>
     </div>
   );

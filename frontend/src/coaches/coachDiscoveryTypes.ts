@@ -1,3 +1,12 @@
+export type Track = "NUMERICAL" | "EQUAL_WEIGHT" | "VERBAL" | "LANGUAGE";
+
+export const TRACK_LABELS: Record<Track, string> = {
+  NUMERICAL: "Sayısal",
+  EQUAL_WEIGHT: "Eşit Ağırlık",
+  VERBAL: "Sözel",
+  LANGUAGE: "Dil",
+};
+
 export interface CoachSummaryResponse {
   id: number;
   fullName: string;

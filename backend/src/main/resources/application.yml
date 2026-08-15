@@ -159,7 +159,8 @@ app:
     # Resend API key — secret, env only (RESEND_API_KEY in application-local.yml / env). No default.
     api-key: ${RESEND_API_KEY}
     # Sender address. Sandbox default is dev-only — required outside local/stub (ResendConfig
-    # fail-fast guard); domain verification is a prod prerequisite, see application-local.yml.example.
+    # fail-fast guard). uniformakademi.com is verified in Resend (2026-08-15); prod sets
+    # RESEND_FROM="Uniform Akademi <noreply@uniformakademi.com>", see application-local.yml.example.
     from: ${RESEND_FROM:onboarding@resend.dev}
     # Optional reply-to address (e.g. a support inbox). Omitted from the Resend request entirely
     # when blank — see ResendMailClient.

@@ -1,8 +1,10 @@
 import { useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { BrandLogo } from "./BrandLogo";
 import { publicNavigation } from "./publicSiteConfig";
+import { useAuth } from "../auth/AuthProvider";
+import { readinessPathForUser } from "../auth/authNavigation";
 
 function MenuIcon({ open }: { open: boolean }) {
   return open ? (
@@ -19,6 +21,8 @@ function MenuIcon({ open }: { open: boolean }) {
 export function PublicHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
 
   const closeMenu = () => setMenuOpen(false);
 
@@ -28,6 +32,14 @@ export function PublicHeader() {
       menuButtonRef.current?.focus();
     }
   };
+
+  const handleLogout = async () => {
+    closeMenu();
+    await logout();
+    navigate("/login");
+  };
+
+  const panelPath = user ? readinessPathForUser(user) : "/dashboard";
 
   return (
     <header className="public-header" onKeyDown={handleKeyDown}>
@@ -54,26 +66,57 @@ export function PublicHeader() {
 
         <div className="public-header__actions">
           <div className="public-header__tablet-actions">
-            <Link className="public-button public-button--dark" to="/login">
-              Giriş Yap
-            </Link>
-            <Link className="public-button public-button--gold public-header__consultation" to="/register">
-              Ücretsiz Görüş
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link className="public-button public-button--dark" to={panelPath}>
+                  Panele Git
+                </Link>
+                <button className="public-button public-button--gold public-header__consultation" type="button" onClick={handleLogout}>
+                  Çıkış Yap
+                </button>
+              </>
+            ) : (
+              <>
+                <Link className="public-button public-button--dark" to="/login">
+                  Giriş Yap
+                </Link>
+                <Link className="public-button public-button--gold public-header__consultation" to="/register">
+                  Ücretsiz Görüş
+                </Link>
+              </>
+            )}
           </div>
 
           <div className="public-header__desktop-actions">
-            <Link className="public-button public-button--dark" to="/login">
-              Giriş Yap
-            </Link>
-            <Link className="public-button public-button--gold" to="/register">
-              Ücretsiz Görüş
-            </Link>
-            <span className="public-header__account" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c.55-3.36 3.46-5.5 7-5.5s6.45 2.14 7 5.5H5Z" />
-              </svg>
-            </span>
+            {isAuthenticated ? (
+              <>
+                <Link className="public-button public-button--dark" to={panelPath}>
+                  Panele Git
+                </Link>
+                <button className="public-button public-button--gold" type="button" onClick={handleLogout}>
+                  Çıkış Yap
+                </button>
+                <Link className="public-header__account" to={panelPath} aria-label={user?.fullName ?? "Hesabım"}>
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c.55-3.36 3.46-5.5 7-5.5s6.45 2.14 7 5.5H5Z" />
+                  </svg>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link className="public-button public-button--dark" to="/login">
+                  Giriş Yap
+                </Link>
+                <Link className="public-button public-button--gold" to="/register">
+                  Ücretsiz Görüş
+                </Link>
+                <span className="public-header__account" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c.55-3.36 3.46-5.5 7-5.5s6.45 2.14 7 5.5H5Z" />
+                  </svg>
+                </span>
+              </>
+            )}
           </div>
 
           <button
@@ -107,12 +150,25 @@ export function PublicHeader() {
             )}
           </nav>
           <div className="public-mobile-menu__actions">
-            <Link className="public-button public-button--dark" to="/login" onClick={closeMenu}>
-              Giriş Yap
-            </Link>
-            <Link className="public-button public-button--gold" to="/register" onClick={closeMenu}>
-              Ücretsiz Görüş
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link className="public-button public-button--dark" to={panelPath} onClick={closeMenu}>
+                  Panele Git
+                </Link>
+                <button className="public-button public-button--gold" type="button" onClick={handleLogout}>
+                  Çıkış Yap
+                </button>
+              </>
+            ) : (
+              <>
+                <Link className="public-button public-button--dark" to="/login" onClick={closeMenu}>
+                  Giriş Yap
+                </Link>
+                <Link className="public-button public-button--gold" to="/register" onClick={closeMenu}>
+                  Ücretsiz Görüş
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

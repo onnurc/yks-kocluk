@@ -1,5 +1,58 @@
 # Handoff — YKS Coaching Platform (Backend)
 
+## Resend domain verification landed: real from/reply-to (2026-08-15)
+
+`uniformakademi.com` is now **Verified** in Resend (DNS/SPF/DKIM done). Closes the gap the two
+Resend sections below both flagged as outstanding.
+
+- **Real sender wired in `application-local.yml`** (gitignored, real values — not just the
+  template): `app.resend.from: "Uniform Akademi <noreply@uniformakademi.com>"`,
+  `app.resend.reply-to: "merhaba@uniformakademi.com"`. Set as nested `app.resend.*` keys directly
+  rather than via the `RESEND_FROM`/`RESEND_REPLY_TO` env-var placeholders the rest of this file
+  uses (`RESEND_API_KEY`, `JWT_SECRET`, …) — no indirection needed for a non-secret value.
+  `noreply@` is a send-only sender label (no inbox behind it); `merhaba@` is the company's real
+  Google Workspace inbox and is used only as reply-to, never as the from address.
+  `application-local.yml.example` (the committed template) updated to match, replacing the old
+  `onboarding@resend.dev` example.
+- **`application.yml`'s default is unchanged on purpose** — `from: ${RESEND_FROM:onboarding@resend.dev}`
+  still falls back to the sandbox sender for local/stub; only its comment was updated (domain is
+  verified, prod sets `RESEND_FROM` to the real address). `ResendConfig`'s fail-fast guard
+  (`requireExplicitResendFrom`, `!local & !stub`) is unaffected — Railway prod still needs
+  `RESEND_FROM` set explicitly as an env var; this change doesn't add a new default in prod's favor
+  by design, it just means the value prod should set is now a real deliverable address instead of a
+  placeholder.
+- **`ResendLiveSmokeTest` reviewed, not modified.** Confirmed it actually sends live mail through
+  the real `ResendMailClient.sendSessionBooked` (real HTTP POST to Resend, not a stub) to whatever
+  `RESEND_SMOKE_TO` env var names. `@Disabled` unconditionally, and CI (`.github/workflows/ci.yml`)
+  runs plain `./mvnw clean test` with no `-Dtest=ResendLiveSmokeTest` override and no
+  disabled-test-enabling flag — JUnit `@Disabled` is skipped regardless of `-Dtest` filters, so
+  this can't fire in CI. To run manually:
+  ```
+  RESEND_API_KEY=re_xxx RESEND_SMOKE_TO=you@example.com \
+    ./mvnw test -Dtest=ResendLiveSmokeTest -DfailIfNoTests=false
+  ```
+  and temporarily delete the `@Disabled` line first (it's the belt-and-suspenders CI guard).
+  **Known gap, flagged but not changed:** the test hard-codes the sender as
+  `"onboarding@resend.dev"` (`ResendLiveSmokeTest.java:45`), not the now-verified domain — under
+  the sandbox sender, Resend restricts delivery to the account owner's own email regardless of
+  `RESEND_SMOKE_TO`. Whether to switch it to the real domain (which would let it send to *any*
+  `RESEND_SMOKE_TO` address, not just the account owner) is a real behavior change and was left for
+  an explicit decision rather than applied silently.
+- **Mail-content link audit (email verification, password reset, session notifications, etc.):**
+  no hardcoded `localhost` found in any outbound mail template (`ResendMailClient.java`). The only
+  two dynamic link sources in mail bodies are `meetLink` (Jitsi-generated per session, never
+  localhost) and the password-reset `resetLink`, built in `PasswordSecurityService.forgotPassword`
+  off `app.password-security.frontend-base-url` (`${FRONTEND_BASE_URL:http://localhost:5173}`) —
+  already config-driven, and `FRONTEND_BASE_URL` was already documented as a required prod env var
+  in the "Production security configuration" section below. Email verification is a 6-digit code,
+  not a link, so it has no URL to leak. The one hardcoded `http://localhost:8080/...` in the
+  codebase (`RealIyzicoClient.java:78`) is an iyzico webhook callback fallback, not mail content —
+  out of scope here, noted for awareness only.
+- **Remaining work:** one end-to-end manual scenario test against the real verified domain
+  (register → verify email → checkout → session booking/cancellation/reminder → password reset —
+  confirm each arrives from `noreply@uniformakademi.com`, headers show `reply-to:
+  merhaba@uniformakademi.com`, and nothing lands in spam). Not yet run as part of this change.
+
 ## Integration test suite drift fix (2026-08-15)
 
 `mvn verify` had 5 failing tests in `SubscriptionCheckoutIntegrationTest`, all pre-existing
@@ -76,13 +129,12 @@ Follow-up to the section below. Two gaps closed:
   includes it as `reply_to` on every Resend request when set; when blank, the field is omitted
   from the request body entirely (`@JsonInclude(NON_NULL)` on the internal request record) rather
   than sending an empty header. No behavior change for existing deployments that don't set it.
-- **Domain verification is still outstanding** — the project has not yet verified a sending
-  domain with Resend (DNS/SPF/DKIM). `RESEND_FROM` being required doesn't imply that step is
-  done; it only prevents silently shipping the sandbox sender to production. See the PROD NOTE in
-  `application-local.yml.example`.
-- **Docs/env:** `application-local.yml.example` documents both keys plus the domain-verification
-  note. No backend `README.md` exists in this repo (only `frontend/README.md`/`HELP.md`), so this
-  handoff doc is where backend config changes are recorded — same as the section below.
+- **Domain verification:** was outstanding at the time this section was written; completed
+  2026-08-15 (`uniformakademi.com`, Verified in Resend) — see the top handoff entry for the real
+  `from`/`reply-to` values now in use.
+- **Docs/env:** `application-local.yml.example` documents both keys. No backend `README.md`
+  exists in this repo (only `frontend/README.md`/`HELP.md`), so this handoff doc is where backend
+  config changes are recorded — same as the section below.
 
 ## Resend integration completion: coach-side mail, WELCOME, session cancel/reminder (V27, 2026-08-11)
 
@@ -662,6 +714,14 @@ keys (merchant 3429394) go in `application-local.yml`. No core-flow change expec
   **Tech-debt:** add per-class cleanup (or a transactional/isolated fixture) so the large-page workaround can go.
 - _(Resolved)_ **iCloud sync + repo not versioned** — repo moved to `~/dev/demo` (non-synced) and
   `git init` done (initial commit `cda5c73`); see "Security rotations — RESOLVED" below.
+- **iyzico webhook callback URL has a hardcoded localhost fallback:** `RealIyzicoClient.java:78`
+  falls back to `http://localhost:8080/api/v1/payments/iyzico/webhook` when
+  `properties.callbackUrl()` is blank. If this ever fires in prod (callback URL not configured),
+  iyzico gets handed an unreachable localhost address and payment success/failure webhooks silently
+  never arrive — checkouts would stay stuck `PENDING_PAYMENT` with no error surfaced anywhere. Not
+  fixed yet; needs a real config property (mirroring how `FRONTEND_BASE_URL` /
+  `OAUTH2_FRONTEND_REDIRECT_URI` are handled) before going live, ideally paired with a startup
+  fail-fast check outside local/stub — same shape as `ResendConfig.requireExplicitResendFrom`.
 
 ---
 

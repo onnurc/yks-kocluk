@@ -18,7 +18,10 @@ app:
     secret: <JWT_SECRET>            # HS256 signing key, >= 32 bytes
   resend:
     api-key: <RESEND_API_KEY>       # Resend secret key (re_...). NEVER commit the real value.
-    from: onboarding@resend.dev     # sandbox sender; or your verified-domain address
+    # uniformakademi.com is verified in Resend (2026-08-15) — use the real sender/reply-to below.
+    # Swap back to onboarding@resend.dev only if you want sandbox behavior for local testing.
+    from: "Uniform Akademi <noreply@uniformakademi.com>"
+    reply-to: "merhaba@uniformakademi.com"  # company Google Workspace inbox; noreply@ is send-only
   # Keep disabled until a real Cloudflare bucket and scoped credentials exist.
   r2:
     enabled: false
