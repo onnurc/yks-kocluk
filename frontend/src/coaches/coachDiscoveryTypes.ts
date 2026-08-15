@@ -7,6 +7,8 @@ export interface CoachSummaryResponse {
   rating: number | null;
   totalSessions: number;
   acceptingNewStudents: boolean;
+  profileImageUrl: string | null;
+  introVideoUrl: string | null;
 }
 
 export interface CoachDetailResponse {

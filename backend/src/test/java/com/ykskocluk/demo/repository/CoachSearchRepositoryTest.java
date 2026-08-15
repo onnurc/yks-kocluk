@@ -75,6 +75,10 @@ class CoachSearchRepositoryTest {
                 CoachProfileStatus.APPROVED, bogazici, Track.VERBAL);
         coach("c@x.com", "Cem Demir", "Bekleyen koç",
                 CoachProfileStatus.PENDING, metu, Track.NUMERICAL); // must never appear
+        CoachProfile suspended = coach("d@x.com", "Deniz Ak", "Askıdaki koç",
+                CoachProfileStatus.APPROVED, metu, Track.NUMERICAL);
+        suspended.getUser().setStatus(UserStatus.SUSPENDED);
+        userRepository.save(suspended.getUser());
 
         // all approved
         assertThat(coachProfileRepository.search(null, null, null, page))
@@ -96,5 +100,6 @@ class CoachSearchRepositoryTest {
 
         // pending coach never surfaces, even with matching filters
         assertThat(coachProfileRepository.search(metu.getId(), Track.NUMERICAL, "cem", page)).isEmpty();
+        assertThat(coachProfileRepository.search(metu.getId(), Track.NUMERICAL, "deniz", page)).isEmpty();
     }
 }

@@ -12,7 +12,6 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminSafetyPage } from "./pages/admin/AdminSafetyPage";
 import { AdminFinancePage } from "./pages/admin/AdminFinancePage";
-import { CoachListPage } from "./pages/CoachListPage";
 import { CoachDetailPage } from "./pages/CoachDetailPage";
 import { BookingsPage } from "./pages/BookingsPage";
 import { MessagesPage } from "./pages/MessagesPage";
@@ -29,6 +28,7 @@ import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 import { HomePage } from "./public/HomePage";
 import { AboutPage } from "./public/AboutPage";
 import { CoachingPage } from "./public/CoachingPage";
+import { CoachesPage } from "./public/CoachesPage";
 import { PublicLayout } from "./public/PublicLayout";
 import "./App.css";
 
@@ -42,6 +42,7 @@ const App: React.FC = () => {
             <Route index element={<HomePage />} />
             <Route path="biz-kimiz" element={<AboutPage />} />
             <Route path="kocluk" element={<CoachingPage />} />
+            <Route path="coaches" element={<CoachesPage />} />
           </Route>
 
           {/* Authentication Routes */}
@@ -65,7 +66,6 @@ const App: React.FC = () => {
               
               {/* Student-only Routes */}
               <Route element={<RoleRoute allowedRoles={["STUDENT"]} />}>
-                <Route path="/coaches" element={<CoachListPage />} />
                 <Route path="/coaches/:id" element={<CoachDetailPage />} />
                 <Route path="/bookings" element={<BookingsPage />} />
                 <Route path="/messages" element={<MessagesPage />} />
