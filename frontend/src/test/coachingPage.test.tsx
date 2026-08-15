@@ -6,6 +6,7 @@ import { HomePage } from "../public/HomePage";
 import { AboutPage } from "../public/AboutPage";
 import { PublicLayout } from "../public/PublicLayout";
 import { publicPackagesApi } from "../public/publicPackagesApi";
+import { TestAuthProvider } from "./TestAuthProvider";
 
 vi.mock("../public/publicPackagesApi", () => ({
   publicPackagesApi: { list: vi.fn() },
@@ -24,15 +25,17 @@ afterEach(() => {
 
 function renderPublicRoute(path = "/kocluk") {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route element={<PublicLayout />}>
-          <Route index element={<HomePage />} />
-          <Route path="biz-kimiz" element={<AboutPage />} />
-          <Route path="kocluk" element={<CoachingPage />} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    <TestAuthProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route element={<PublicLayout />}>
+            <Route index element={<HomePage />} />
+            <Route path="biz-kimiz" element={<AboutPage />} />
+            <Route path="kocluk" element={<CoachingPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </TestAuthProvider>,
   );
 }
 

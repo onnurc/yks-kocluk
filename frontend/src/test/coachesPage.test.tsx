@@ -1,12 +1,23 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { CoachesPage } from "../public/CoachesPage";
 import { PublicLayout } from "../public/PublicLayout";
 import { coachDiscoveryApi } from "../coaches/coachDiscoveryApi";
 
+const authState = vi.hoisted(() => ({
+  user: null as null | { role: "STUDENT"; emailVerified: boolean; legalOnboardingCompleted: boolean },
+  isAuthenticated: false,
+  isLoading: false,
+  isSuspended: false,
+}));
+
 vi.mock("../coaches/coachDiscoveryApi", () => ({
   coachDiscoveryApi: { listCoaches: vi.fn() },
+}));
+
+vi.mock("../auth/AuthProvider", () => ({
+  useAuth: () => authState,
 }));
 
 const coach = {
@@ -32,9 +43,18 @@ const verbalCoach = {
   tracks: ["VERBAL"],
 };
 
+const multiTrackCoach = {
+  ...coach,
+  id: 44,
+  fullName: "Deniz Ak",
+  tracks: ["NUMERICAL", "VERBAL"],
+};
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  authState.user = null;
+  authState.isAuthenticated = false;
 });
 
 function renderPage() {
@@ -66,21 +86,15 @@ describe("Koçlarımız sayfası", () => {
     expect(navLink).toHaveAttribute("aria-current", "page");
   });
 
-  it("supports backend search, track filters and sorting", async () => {
+  it("applies sorting immediately through the backend and has no manual filter button", async () => {
     vi.mocked(coachDiscoveryApi.listCoaches).mockResolvedValue(page);
     renderPage();
     await screen.findByText("Ayşe Yılmaz");
 
-    fireEvent.change(screen.getByPlaceholderText("İsim veya uzmanlık ara..."), { target: { value: "matematik" } });
     fireEvent.change(screen.getByLabelText("Sıralama"), { target: { value: "oldest" } });
-    fireEvent.click(screen.getByRole("button", { name: "Sayısal" }));
 
-    expect(await screen.findByRole("button", { name: "Sayısal", pressed: true })).toBeInTheDocument();
-    expect(coachDiscoveryApi.listCoaches).toHaveBeenLastCalledWith(0, 9, {
-      q: "matematik",
-      track: "NUMERICAL",
-      sort: "oldest",
-    });
+    await waitFor(() => expect(coachDiscoveryApi.listCoaches).toHaveBeenLastCalledWith(0, 9, { sort: "oldest" }));
+    expect(screen.queryByRole("button", { name: "Filtrele" })).not.toBeInTheDocument();
   });
 
   it("refreshes backend results immediately when the track select changes", async () => {
@@ -95,10 +109,48 @@ describe("Koçlarımız sayfası", () => {
     expect(await screen.findByText("Selin Demir")).toBeInTheDocument();
     expect(screen.queryByText("Ayşe Yılmaz")).not.toBeInTheDocument();
     expect(coachDiscoveryApi.listCoaches).toHaveBeenLastCalledWith(0, 9, {
-      q: "",
       track: "VERBAL",
       sort: "newest",
     });
+  });
+
+  it("applies quick track chips immediately through the backend", async () => {
+    vi.mocked(coachDiscoveryApi.listCoaches).mockResolvedValue(page);
+    renderPage();
+    await screen.findByText("Ayşe Yılmaz");
+
+    fireEvent.click(screen.getByRole("button", { name: "Sayısal" }));
+
+    expect(await screen.findByRole("button", { name: "Sayısal", pressed: true })).toBeInTheDocument();
+    await waitFor(() => expect(coachDiscoveryApi.listCoaches).toHaveBeenLastCalledWith(0, 9, {
+      track: "NUMERICAL",
+      sort: "newest",
+    }));
+  });
+
+  it("applies search through the backend after a short debounce", async () => {
+    vi.mocked(coachDiscoveryApi.listCoaches).mockResolvedValue(page);
+    renderPage();
+    await screen.findByText("Ayşe Yılmaz");
+
+    fireEvent.change(screen.getByPlaceholderText("İsim veya uzmanlık ara..."), { target: { value: "matematik" } });
+    expect(coachDiscoveryApi.listCoaches).toHaveBeenCalledTimes(1);
+
+    await waitFor(() => expect(coachDiscoveryApi.listCoaches).toHaveBeenLastCalledWith(0, 9, {
+      q: "matematik",
+      sort: "newest",
+    }));
+    expect(coachDiscoveryApi.listCoaches).toHaveBeenCalledTimes(2);
+  });
+
+  it("renders every real track returned for a multi-track coach", async () => {
+    vi.mocked(coachDiscoveryApi.listCoaches).mockResolvedValue({ ...page, content: [multiTrackCoach] });
+    renderPage();
+
+    const card = (await screen.findByText("Deniz Ak")).closest("article");
+    expect(card).not.toBeNull();
+    expect(within(card!).getByText("Sayısal")).toBeInTheDocument();
+    expect(within(card!).getByText("Sözel")).toBeInTheDocument();
   });
 
   it("shows loading, empty and safe retryable error states", async () => {
@@ -128,5 +180,18 @@ describe("Koçlarımız sayfası", () => {
     expect(screen.queryByText(/9\.8/)).not.toBeInTheDocument();
     expect(screen.getByText("Profil bilgilerini inceleyin")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Hemen Kayıt Ol/ })).toHaveAttribute("href", "/register");
+  });
+
+  it("routes authenticated users through the existing readiness destination", async () => {
+    authState.user = { role: "STUDENT", emailVerified: true, legalOnboardingCompleted: false };
+    authState.isAuthenticated = true;
+    vi.mocked(coachDiscoveryApi.listCoaches).mockResolvedValue(page);
+
+    renderPage();
+
+    const cta = screen.getByRole("heading", { name: "Koçunla Yola Çıkmaya Hazır mısın?" }).closest("section");
+    expect(cta).not.toBeNull();
+    expect(within(cta!).getByRole("link", { name: /Panele Git/ })).toHaveAttribute("href", "/legal-onboarding");
+    expect(within(cta!).queryByRole("link", { name: /Hemen Kayıt Ol/ })).not.toBeInTheDocument();
   });
 });

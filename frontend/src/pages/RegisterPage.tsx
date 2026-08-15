@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { FormError } from "../components/FormError";
@@ -7,13 +7,15 @@ import { LegalDocumentViewer } from "../legal/LegalDocumentViewer";
 import { useLegalDocuments } from "../legal/useLegalDocuments";
 import { isStaleLegalDocumentError, legalErrorMessage } from "../legal/legalErrors";
 import { readinessPathForUser } from "../auth/authNavigation";
+import { getApiBaseUrl } from "../api/httpClient";
+import { AuthPageShell } from "./AuthPageShell";
+import "./auth-page.css";
 
 const REGISTRATION_DOCUMENT_TYPES = ["TERMS_OF_USE", "EXPLICIT_CONSENT", "KVKK_NOTICE"] as const;
 
 export const RegisterPage: React.FC = () => {
   const { register, isAuthenticated, user, isSuspended } = useAuth();
   const navigate = useNavigate();
-
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -28,19 +30,14 @@ export const RegisterPage: React.FC = () => {
   const [marketingSmsOptIn, setMarketingSmsOptIn] = useState(false);
   const legalDocuments = useLegalDocuments([...REGISTRATION_DOCUMENT_TYPES]);
 
-  // Redirect users who are already logged in
   useEffect(() => {
-    if (isSuspended) {
-      navigate("/suspended");
-    } else if (isAuthenticated && user) {
-      navigate(readinessPathForUser(user));
-    }
+    if (isSuspended) navigate("/suspended");
+    else if (isAuthenticated && user) navigate(readinessPathForUser(user));
   }, [isAuthenticated, user, isSuspended, navigate]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError(null);
-
     if (!firstName.trim() || !lastName.trim()) {
       setError("Ad ve Soyad alanları gereklidir.");
       return;
@@ -58,14 +55,11 @@ export const RegisterPage: React.FC = () => {
         setError("Öğrenci kaydı için doğum tarihi zorunludur.");
         return;
       }
-      const birthDate = new Date(dateOfBirth);
-      const today = new Date();
-      if (birthDate > today) {
+      if (new Date(dateOfBirth) > new Date()) {
         setError("Doğum tarihi gelecekte olamaz.");
         return;
       }
     }
-
     if (!legalDocuments.ready) {
       setError("Hukuki metinler yüklenemedi. Lütfen yeniden deneyin.");
       return;
@@ -77,11 +71,10 @@ export const RegisterPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const fullName = `${firstName.trim()} ${lastName.trim()}`;
       await register({
         email,
         password,
-        fullName,
+        fullName: `${firstName.trim()} ${lastName.trim()}`,
         role,
         dateOfBirth: role === "STUDENT" ? dateOfBirth : undefined,
         acceptedTermsDocumentId: legalDocuments.documents.TERMS_OF_USE!.id,
@@ -89,7 +82,6 @@ export const RegisterPage: React.FC = () => {
         marketingEmailOptIn,
         marketingSmsOptIn,
       });
-      // Success auto-login redirects via useEffect
     } catch (err) {
       const message = legalErrorMessage(err);
       setError(message || (err as ApiError | Error));
@@ -104,137 +96,56 @@ export const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: "560px", margin: "4rem auto", padding: "2rem", border: "1px solid #ccc", borderRadius: "8px", backgroundColor: "#fff" }}>
-      <h2 style={{ marginTop: 0, marginBottom: "1.5rem" }}>Kayıt Ol</h2>
+    <AuthPageShell
+      title="Uniform'a Katıl"
+      lead="Hedeflerine uygun koçluk deneyimini oluşturmak için hesabını birkaç adımda tamamla."
+      icon="＋"
+      wide
+    >
+      <div className="auth-error-slot"><FormError error={error} /></div>
+      <a className="auth-google" href={`${getApiBaseUrl()}/oauth2/authorization/google`}>
+        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 18 18">
+          <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62Z" />
+          <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.81.54-1.84.86-3.06.86-2.35 0-4.34-1.58-5.05-3.71H.95v2.33A9 9 0 0 0 9 18Z" />
+          <path fill="#FBBC05" d="M3.95 10.71A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.71V4.96H.95A9 9 0 0 0 0 9c0 1.45.35 2.83.95 4.04l3-2.33Z" />
+          <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .95 4.96l3 2.33C4.66 5.16 6.65 3.58 9 3.58Z" />
+        </svg>
+        Google ile Kayıt Ol
+      </a>
+      <div className="auth-divider">veya</div>
+      <form className="auth-form auth-form--register" onSubmit={handleSubmit}>
+        <div className="auth-form__grid">
+          <label className="auth-field" htmlFor="first-name"><span>Ad:</span><input id="first-name" type="text" autoComplete="given-name" value={firstName} onChange={(event) => setFirstName(event.target.value)} required disabled={loading} /></label>
+          <label className="auth-field" htmlFor="last-name"><span>Soyad:</span><input id="last-name" type="text" autoComplete="family-name" value={lastName} onChange={(event) => setLastName(event.target.value)} required disabled={loading} /></label>
+        </div>
+        <label className="auth-field" htmlFor="register-email"><span>E-posta:</span><input id="register-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required disabled={loading} /></label>
+        <label className="auth-field" htmlFor="register-password"><span>Şifre (Min 8 karakter):</span><input id="register-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required disabled={loading} /></label>
+        <div className="auth-form__grid">
+          <label className="auth-field" htmlFor="register-role"><span>Rol Seçimi:</span><select id="register-role" value={role} onChange={(event) => setRole(event.target.value as "STUDENT" | "COACH")} disabled={loading}><option value="STUDENT">Öğrenci</option><option value="COACH">Koç</option></select></label>
+          {role === "STUDENT" && <label className="auth-field" htmlFor="date-of-birth"><span>Doğum Tarihi:</span><input id="date-of-birth" type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} required disabled={loading} /></label>}
+        </div>
 
-      <FormError error={error} />
-
-      <form onSubmit={handleSubmit}>
-        <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
-          <div style={{ flex: 1 }}>
-            <label htmlFor="first-name" style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>Ad:</label>
-            <input
-              id="first-name"
-              type="text"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              required
-              disabled={loading}
-              style={{ width: "100%", padding: "0.5rem", boxSizing: "border-box", borderRadius: "4px", border: "1px solid #ccc" }}
-            />
+        <fieldset className="auth-legal">
+          <legend>Hukuki Onaylar</legend>
+          {legalDocuments.loading && <p role="status">Hukuki metinler yükleniyor…</p>}
+          {legalDocuments.error && <div className="auth-legal__error" role="alert">Hukuki metinler yüklenemedi. <button type="button" onClick={() => void legalDocuments.reload()}>Yeniden Dene</button></div>}
+          <p className="auth-legal__notice">Kişisel verilerinizin işlenmesine ilişkin <LegalDocumentViewer label="KVKK Aydınlatma Metni" document={legalDocuments.documents.KVKK_NOTICE} loading={legalDocuments.loading} error={legalDocuments.error} onRetry={() => void legalDocuments.reload()} />’ni inceleyebilirsiniz.</p>
+          <div className="auth-consent">
+            <input id="accept-terms" type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} required disabled={loading || !legalDocuments.ready} />
+            <div><label htmlFor="accept-terms">Kullanım Koşulları’nı okudum ve kabul ediyorum. <strong>(Zorunlu)</strong></label> <LegalDocumentViewer label="Metni görüntüle" document={legalDocuments.documents.TERMS_OF_USE} loading={legalDocuments.loading} error={legalDocuments.error} onRetry={() => void legalDocuments.reload()} /></div>
           </div>
-          <div style={{ flex: 1 }}>
-            <label htmlFor="last-name" style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>Soyad:</label>
-            <input
-              id="last-name"
-              type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              required
-              disabled={loading}
-              style={{ width: "100%", padding: "0.5rem", boxSizing: "border-box", borderRadius: "4px", border: "1px solid #ccc" }}
-            />
+          <div className="auth-consent">
+            <input id="accept-explicit-consent" type="checkbox" checked={explicitConsentAccepted} onChange={(event) => setExplicitConsentAccepted(event.target.checked)} required disabled={loading || !legalDocuments.ready} />
+            <div><label htmlFor="accept-explicit-consent">Açık Rıza Metni’ni okudum ve kabul ediyorum. <strong>(Zorunlu)</strong></label> <LegalDocumentViewer label="Metni görüntüle" document={legalDocuments.documents.EXPLICIT_CONSENT} loading={legalDocuments.loading} error={legalDocuments.error} onRetry={() => void legalDocuments.reload()} /></div>
           </div>
-        </div>
-        <div style={{ marginBottom: "1rem" }}>
-          <label htmlFor="register-email" style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>E-posta:</label>
-          <input
-            id="register-email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            disabled={loading}
-            style={{ width: "100%", padding: "0.5rem", boxSizing: "border-box", borderRadius: "4px", border: "1px solid #ccc" }}
-          />
-        </div>
-        <div style={{ marginBottom: "1rem" }}>
-          <label htmlFor="register-password" style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>Şifre (Min 8 karakter):</label>
-          <input
-            id="register-password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            disabled={loading}
-            style={{ width: "100%", padding: "0.5rem", boxSizing: "border-box", borderRadius: "4px", border: "1px solid #ccc" }}
-          />
-        </div>
-        {role === "STUDENT" && (
-          <div style={{ marginBottom: "1rem" }}>
-            <label htmlFor="date-of-birth" style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>Doğum Tarihi:</label>
-            <input
-              id="date-of-birth"
-              type="date"
-              value={dateOfBirth}
-              onChange={(e) => setDateOfBirth(e.target.value)}
-              required
-              disabled={loading}
-              style={{ width: "100%", padding: "0.5rem", boxSizing: "border-box", borderRadius: "4px", border: "1px solid #ccc" }}
-            />
-          </div>
-        )}
-        <div style={{ marginBottom: "1.5rem" }}>
-          <label htmlFor="register-role" style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>Rol Seçimi:</label>
-          <select
-            id="register-role"
-            value={role}
-            onChange={(e) => setRole(e.target.value as "STUDENT" | "COACH")}
-            disabled={loading}
-            style={{ width: "100%", padding: "0.5rem", boxSizing: "border-box", borderRadius: "4px", border: "1px solid #ccc", backgroundColor: "#fff" }}
-          >
-            <option value="STUDENT">Öğrenci</option>
-            <option value="COACH">Koç</option>
-          </select>
-        </div>
-        <fieldset style={{ margin: "0 0 1.5rem", padding: "1rem", border: "1px solid #cbd5e1", borderRadius: "8px" }}>
-          <legend style={{ fontWeight: 700 }}>Hukuki onaylar</legend>
-          {legalDocuments.loading && <p role="status" style={{ color: "#475569" }}>Hukuki metinler yükleniyor…</p>}
-          {legalDocuments.error && (
-            <div role="alert" style={{ color: "#b91c1c", marginBottom: "0.75rem" }}>
-              Hukuki metinler yüklenemedi. Lütfen yeniden deneyin.{" "}
-              <button type="button" onClick={() => void legalDocuments.reload()}>Yeniden Dene</button>
-            </div>
-          )}
-          <p style={{ fontSize: "0.9rem" }}>
-            Kişisel verilerinizin işlenmesine ilişkin{" "}
-            <LegalDocumentViewer
-              label="KVKK Aydınlatma Metni"
-              document={legalDocuments.documents.KVKK_NOTICE}
-              loading={legalDocuments.loading}
-              error={legalDocuments.error}
-              onRetry={() => void legalDocuments.reload()}
-            />
-            ’ni inceleyebilirsiniz.
-          </p>
-          <div style={{ display: "flex", gap: "0.6rem", alignItems: "flex-start", marginBottom: "0.75rem" }}>
-            <input id="accept-terms" type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} disabled={loading || !legalDocuments.ready} />
-            <div><label htmlFor="accept-terms">Kullanım Koşulları’nı okudum ve kabul ediyorum. <strong>(Zorunlu)</strong></label>{" "}<LegalDocumentViewer label="Metni görüntüle" document={legalDocuments.documents.TERMS_OF_USE} loading={legalDocuments.loading} error={legalDocuments.error} onRetry={() => void legalDocuments.reload()} /></div>
-          </div>
-          <div style={{ display: "flex", gap: "0.6rem", alignItems: "flex-start", marginBottom: "0.75rem" }}>
-            <input id="accept-explicit-consent" type="checkbox" checked={explicitConsentAccepted} onChange={(event) => setExplicitConsentAccepted(event.target.checked)} disabled={loading || !legalDocuments.ready} />
-            <div><label htmlFor="accept-explicit-consent">Açık Rıza Metni’ni okudum ve kabul ediyorum. <strong>(Zorunlu)</strong></label>{" "}<LegalDocumentViewer label="Metni görüntüle" document={legalDocuments.documents.EXPLICIT_CONSENT} loading={legalDocuments.loading} error={legalDocuments.error} onRetry={() => void legalDocuments.reload()} /></div>
-          </div>
-          <label style={{ display: "flex", gap: "0.6rem", marginBottom: "0.75rem" }}>
-            <input type="checkbox" checked={marketingEmailOptIn} onChange={(event) => setMarketingEmailOptIn(event.target.checked)} disabled={loading} />
-            <span>Kampanya ve bilgilendirmeler için e-posta almak istiyorum. (İsteğe bağlı)</span>
-          </label>
-          <label style={{ display: "flex", gap: "0.6rem" }}>
-            <input type="checkbox" checked={marketingSmsOptIn} onChange={(event) => setMarketingSmsOptIn(event.target.checked)} disabled={loading} />
-            <span>Kampanya ve bilgilendirmeler için SMS almak istiyorum. (İsteğe bağlı)</span>
-          </label>
+          <label className="auth-consent"><input type="checkbox" checked={marketingEmailOptIn} onChange={(event) => setMarketingEmailOptIn(event.target.checked)} disabled={loading} /><span>Kampanya ve bilgilendirmeler için e-posta almak istiyorum. (İsteğe bağlı)</span></label>
+          <label className="auth-consent"><input type="checkbox" checked={marketingSmsOptIn} onChange={(event) => setMarketingSmsOptIn(event.target.checked)} disabled={loading} /><span>Kampanya ve bilgilendirmeler için SMS almak istiyorum. (İsteğe bağlı)</span></label>
         </fieldset>
-        <button
-          type="submit"
-          disabled={loading || !legalDocuments.ready || !termsAccepted || !explicitConsentAccepted}
-          style={{ width: "100%", padding: "0.75rem", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: "4px", cursor: loading || !legalDocuments.ready ? "not-allowed" : "pointer", fontSize: "1rem" }}
-        >
-          {loading ? "Kayıt Yapılıyor..." : "Kayıt Ol"}
-        </button>
+
+        <button className="auth-submit" type="submit" aria-label="Kayıt Ol" disabled={loading || !legalDocuments.ready || !termsAccepted || !explicitConsentAccepted}>{loading ? "Kayıt Yapılıyor…" : "Kayıt Ol →"}</button>
       </form>
-      <p style={{ marginTop: "1.5rem", textAlign: "center", marginBottom: 0 }}>
-        Zaten hesabınız var mı? <Link to="/login">Giriş Yap</Link>
-      </p>
-    </div>
+      <p className="auth-footer">Zaten hesabın var mı? <Link to="/login">Giriş Yap</Link></p>
+      <p className="auth-security"><span aria-hidden="true">♙</span> Hukuki tercihleriniz ayrı ayrı ve güvenli biçimde kaydedilir.</p>
+    </AuthPageShell>
   );
 };

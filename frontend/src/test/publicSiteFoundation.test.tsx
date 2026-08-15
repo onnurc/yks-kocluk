@@ -3,19 +3,22 @@ import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { PublicHeader } from "../public/PublicHeader";
 import { PublicLayout } from "../public/PublicLayout";
+import { TestAuthProvider } from "./TestAuthProvider";
 
 afterEach(cleanup);
 
 describe("public site foundation", () => {
   it("renders the shared header, outlet, and footer", () => {
     render(
-      <MemoryRouter>
-        <Routes>
-          <Route element={<PublicLayout />}>
-            <Route index element={<h1>Geçici sayfa içeriği</h1>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
+      <TestAuthProvider>
+        <MemoryRouter>
+          <Routes>
+            <Route element={<PublicLayout />}>
+              <Route index element={<h1>Geçici sayfa içeriği</h1>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </TestAuthProvider>,
     );
 
     expect(screen.getByRole("banner")).toBeInTheDocument();
@@ -26,9 +29,11 @@ describe("public site foundation", () => {
 
   it("opens and closes the keyboard-accessible mobile menu", () => {
     render(
-      <MemoryRouter>
-        <PublicHeader />
-      </MemoryRouter>,
+      <TestAuthProvider>
+        <MemoryRouter>
+          <PublicHeader />
+        </MemoryRouter>
+      </TestAuthProvider>,
     );
 
     const menuButton = screen.getByRole("button", { name: "Menüyü aç" });
@@ -47,9 +52,11 @@ describe("public site foundation", () => {
 
   it("closes the mobile menu after following an available route", () => {
     render(
-      <MemoryRouter>
-        <PublicHeader />
-      </MemoryRouter>,
+      <TestAuthProvider>
+        <MemoryRouter>
+          <PublicHeader />
+        </MemoryRouter>
+      </TestAuthProvider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Menüyü aç" }));
