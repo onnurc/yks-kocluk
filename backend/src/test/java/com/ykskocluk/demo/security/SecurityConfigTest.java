@@ -67,6 +67,7 @@ class SecurityConfigTest {
         mvc.perform(post("/api/v1/payments/iyzico/webhook")).andExpect(status().isOk());
         mvc.perform(get("/api/v1/health")).andExpect(status().isOk());
         mvc.perform(get("/api/v1/public/packages")).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/public/coaches")).andExpect(status().isOk());
     }
 
     @Test
@@ -109,6 +110,7 @@ class SecurityConfigTest {
         @PostMapping("/api/v1/payments/iyzico/webhook") String webhook() { return "ok"; }
         @GetMapping("/api/v1/health") String health() { return "ok"; }
         @GetMapping("/api/v1/public/packages") String publicPackages() { return "ok"; }
+        @GetMapping("/api/v1/public/coaches") String publicCoaches() { return "ok"; }
         @PostMapping("/api/v1/media/uploads/presign") String mediaPresign() { return "ok"; }
         @PostMapping("/api/v1/trial-consultations/probe") String trialWrite() { return "ok"; }
     }

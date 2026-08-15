@@ -74,8 +74,9 @@ public interface CoachProfileRepository extends JpaRepository<CoachProfile, Long
      */
     @Query(value = """
             select c from CoachProfile c
-              join c.user u
+             join c.user u
              where c.status = com.ykskocluk.demo.enums.CoachProfileStatus.APPROVED
+               and u.status = com.ykskocluk.demo.enums.UserStatus.ACTIVE
                and (:universityId is null or c.university.id = :universityId)
                and (:track is null or exists (
                       select 1 from CoachSubject cs where cs.coachProfile = c and cs.track = :track))
@@ -85,8 +86,9 @@ public interface CoachProfileRepository extends JpaRepository<CoachProfile, Long
             """,
             countQuery = """
             select count(c) from CoachProfile c
-              join c.user u
+             join c.user u
              where c.status = com.ykskocluk.demo.enums.CoachProfileStatus.APPROVED
+               and u.status = com.ykskocluk.demo.enums.UserStatus.ACTIVE
                and (:universityId is null or c.university.id = :universityId)
                and (:track is null or exists (
                       select 1 from CoachSubject cs where cs.coachProfile = c and cs.track = :track))
