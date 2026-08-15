@@ -4,19 +4,22 @@ import { afterEach, describe, expect, it } from "vitest";
 import { HomePage } from "../public/HomePage";
 import { AboutPage } from "../public/AboutPage";
 import { PublicLayout } from "../public/PublicLayout";
+import { TestAuthProvider } from "./TestAuthProvider";
 
 afterEach(cleanup);
 
 function renderPublicRoute(path = "/") {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route element={<PublicLayout />}>
-          <Route index element={<HomePage />} />
-          <Route path="biz-kimiz" element={<AboutPage />} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    <TestAuthProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route element={<PublicLayout />}>
+            <Route index element={<HomePage />} />
+            <Route path="biz-kimiz" element={<AboutPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </TestAuthProvider>,
   );
 }
 

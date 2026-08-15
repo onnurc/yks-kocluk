@@ -3,18 +3,21 @@ import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AboutPage } from "../public/AboutPage";
 import { PublicLayout } from "../public/PublicLayout";
+import { TestAuthProvider } from "./TestAuthProvider";
 
 afterEach(cleanup);
 
 function renderAboutPage() {
   return render(
-    <MemoryRouter initialEntries={["/biz-kimiz"]}>
-      <Routes>
-        <Route element={<PublicLayout />}>
-          <Route path="biz-kimiz" element={<AboutPage />} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    <TestAuthProvider>
+      <MemoryRouter initialEntries={["/biz-kimiz"]}>
+        <Routes>
+          <Route element={<PublicLayout />}>
+            <Route path="biz-kimiz" element={<AboutPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </TestAuthProvider>,
   );
 }
 

@@ -6,14 +6,13 @@
 .coaches-hero > p:last-child { max-width: 720px; margin: 34px auto 0; color: #4c4546; font-size: 18px; line-height: 1.65; }
 .coaches-content { width: min(100%, 1320px); margin: 0 auto; padding: 0 var(--public-gutter) 140px; }
 .coaches-filters { padding: 28px; border: 1px solid rgba(126,117,118,.08); border-radius: 26px; background: #fff; box-shadow: 0 12px 40px rgba(0,0,0,.04); }
-.coaches-filters__main { display: grid; grid-template-columns: minmax(260px,1fr) 170px 170px auto; gap: 16px; }
+.coaches-filters__main { display: grid; grid-template-columns: minmax(260px,1fr) 170px 170px; gap: 16px; }
 .coaches-search { min-height: 68px; padding: 0 18px; display: flex; align-items: center; gap: 12px; border-radius: 16px; background: #f5f3f3; }
 .coaches-search > span:first-child { color: #7e7576; font-size: 24px; }
 .coaches-search input { width: 100%; border: 0; outline: 0; color: #000; background: transparent; font: 500 16px var(--public-font-body); }
 .coaches-select { min-height: 68px; padding: 10px 16px; display: grid; align-content: center; border-radius: 16px; background: #f5f3f3; }
 .coaches-select span { color: #5e5758; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .coaches-select select { width: 100%; margin-top: 2px; border: 0; outline: 0; color: #000; background: transparent; font: 500 15px var(--public-font-body); }
-.coaches-filter-button { min-height: 68px; padding: 0 30px; border: 0; border-radius: 16px; color: #fff; background: #000; font: 700 16px var(--public-font-body); cursor: pointer; }
 .coaches-filter-chips { margin-top: 24px; padding-top: 22px; display: flex; gap: 12px; overflow-x: auto; border-top: 1px solid rgba(126,117,118,.12); scrollbar-width: none; }
 .coaches-filter-chips button { min-height: 38px; padding: 7px 18px; border: 0; border-radius: 999px; white-space: nowrap; color: #4c4546; background: #e9e8e7; font: 600 13px var(--public-font-body); cursor: pointer; }
 .coaches-filter-chips button[aria-pressed="true"] { color: var(--public-color-gold); background: rgba(255,212,138,.25); box-shadow: inset 0 0 0 1px rgba(120,89,27,.25); }
@@ -56,7 +55,6 @@
   .coaches-hero { padding-top: 100px; }
   .coaches-filters__main { grid-template-columns: minmax(0,1fr) minmax(150px,.45fr); }
   .coaches-search { grid-column: 1/-1; }
-  .coaches-filter-button { grid-column: 1/-1; min-height: 56px; }
   .coaches-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .coaches-card:last-child:nth-child(odd) { grid-column: 1/-1; width: calc(50% - 15px); justify-self: center; }
 }
@@ -68,7 +66,7 @@
   .coaches-content { padding: 0 20px 88px; }
   .coaches-filters { padding: 16px; border-radius: 22px; }
   .coaches-filters__main { grid-template-columns: 1fr; gap: 10px; }
-  .coaches-search,.coaches-select,.coaches-filter-button { grid-column: auto; min-height: 58px; }
+  .coaches-search,.coaches-select { grid-column: auto; min-height: 58px; }
   .coaches-filter-chips { margin-top: 16px; padding-top: 16px; }
   .coaches-grid { grid-template-columns: 1fr; gap: 24px; }
   .coaches-card,.coaches-card:last-child:nth-child(odd) { width: 100%; min-height: 440px; padding: 24px; grid-column: auto; }

@@ -6,6 +6,7 @@ import { coachDiscoveryApi } from "../coaches/coachDiscoveryApi";
 import { CoachProfilePage } from "../public/CoachProfilePage";
 import { CoachesPage } from "../public/CoachesPage";
 import { PublicLayout } from "../public/PublicLayout";
+import { TestAuthProvider } from "./TestAuthProvider";
 
 vi.mock("../coaches/coachDiscoveryApi", () => ({
   coachDiscoveryApi: { getPublicCoachDetail: vi.fn(), listCoaches: vi.fn() },
@@ -49,14 +50,16 @@ afterEach(() => {
 
 function renderRoute(path = "/coaches/42") {
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route element={<PublicLayout />}>
-          <Route path="coaches" element={<CoachesPage />} />
-          <Route path="coaches/:id" element={<CoachProfilePage />} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    <TestAuthProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route element={<PublicLayout />}>
+            <Route path="coaches" element={<CoachesPage />} />
+            <Route path="coaches/:id" element={<CoachProfilePage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </TestAuthProvider>,
   );
 }
 

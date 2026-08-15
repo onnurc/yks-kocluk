@@ -77,6 +77,12 @@ class CoachSearchRepositoryTest {
                 CoachProfileStatus.APPROVED, metu, Track.EQUAL_WEIGHT);
         CoachProfile language = coach("lang@x.com", "Lale Dil", "Dil koçu",
                 CoachProfileStatus.APPROVED, bogazici, Track.LANGUAGE);
+        CoachProfile multiTrack = coach("multi@x.com", "Mert Çokalan", "Sayısal ve sözel koçu",
+                CoachProfileStatus.APPROVED, metu, Track.NUMERICAL);
+        CoachSubject verbalSubject = new CoachSubject();
+        verbalSubject.setCoachProfile(multiTrack);
+        verbalSubject.setTrack(Track.VERBAL);
+        coachSubjectRepository.save(verbalSubject);
         coach("c@x.com", "Cem Demir", "Bekleyen koç",
                 CoachProfileStatus.PENDING, metu, Track.NUMERICAL); // must never appear
         CoachProfile suspended = coach("d@x.com", "Deniz Ak", "Askıdaki koç",
@@ -87,13 +93,13 @@ class CoachSearchRepositoryTest {
         // all approved
         assertThat(coachProfileRepository.search(null, null, null, page))
                 .extracting(CoachProfile::getId)
-                .containsExactlyInAnyOrder(a.getId(), b.getId(), equalWeight.getId(), language.getId());
+                .containsExactlyInAnyOrder(a.getId(), b.getId(), equalWeight.getId(), language.getId(), multiTrack.getId());
 
         // by track: exact enum equality, with no cross-category leakage
         assertThat(coachProfileRepository.search(null, Track.NUMERICAL, null, page))
-                .extracting(CoachProfile::getId).containsExactly(a.getId());
+                .extracting(CoachProfile::getId).containsExactlyInAnyOrder(a.getId(), multiTrack.getId());
         assertThat(coachProfileRepository.search(null, Track.VERBAL, null, page))
-                .extracting(CoachProfile::getId).containsExactly(b.getId());
+                .extracting(CoachProfile::getId).containsExactlyInAnyOrder(b.getId(), multiTrack.getId());
         assertThat(coachProfileRepository.search(null, Track.EQUAL_WEIGHT, null, page))
                 .extracting(CoachProfile::getId).containsExactly(equalWeight.getId());
         assertThat(coachProfileRepository.search(null, Track.LANGUAGE, null, page))

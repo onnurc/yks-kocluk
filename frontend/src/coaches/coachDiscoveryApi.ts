@@ -16,15 +16,27 @@ export interface CoachSearchFilters {
   sort?: "newest" | "oldest";
 }
 
+export interface CoachSearchParams {
+  page?: number;
+  size?: number;
+  q?: string;
+  track?: string;
+  sort?: "createdAt,desc" | "createdAt,asc";
+}
+
 export const coachDiscoveryApi = {
-  listCoaches: async (page = 0, size = 20, filters: CoachSearchFilters = {}): Promise<PageWrapper<CoachSummaryResponse>> => {
+  listCoaches: async (pageOrParams: number | CoachSearchParams = 0, size = 20, filters: CoachSearchFilters = {}): Promise<PageWrapper<CoachSummaryResponse>> => {
+    const legacyParams = typeof pageOrParams === "number" ? null : pageOrParams;
+    const page = legacyParams?.page ?? (typeof pageOrParams === "number" ? pageOrParams : 0);
+    const requestSize = legacyParams?.size ?? size;
+    const requestFilters = legacyParams ?? filters;
     const params = new URLSearchParams({
       page: String(page),
-      size: String(size),
-      sort: `createdAt,${filters.sort === "oldest" ? "asc" : "desc"}`,
+      size: String(requestSize),
+      sort: legacyParams?.sort ?? `createdAt,${filters.sort === "oldest" ? "asc" : "desc"}`,
     });
-    if (filters.q?.trim()) params.set("q", filters.q.trim());
-    if (filters.track) params.set("track", filters.track);
+    if (requestFilters.q?.trim()) params.set("q", requestFilters.q.trim());
+    if (requestFilters.track) params.set("track", requestFilters.track);
     return httpClient.get<PageWrapper<CoachSummaryResponse>>(`/api/v1/public/coaches?${params.toString()}`);
   },
   getCoachDetail: async (id: number): Promise<CoachDetailResponse> => {

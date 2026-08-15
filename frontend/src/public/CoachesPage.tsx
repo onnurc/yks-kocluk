@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../auth/AuthProvider";
+import { readinessPathForUser } from "../auth/authNavigation";
 import { coachDiscoveryApi, type CoachSearchFilters } from "../coaches/coachDiscoveryApi";
 import type { CoachSummaryResponse } from "../coaches/coachDiscoveryTypes";
 import "./coaches-page.css";
@@ -27,7 +28,7 @@ function CoachCard({ coach }: { coach: CoachSummaryResponse }) {
     <article className="coaches-card">
       <div className="coaches-card__badges">
         {coach.acceptingNewStudents && <span className="coaches-card__badge coaches-card__badge--gold">Yeni öğrenci kabul ediyor</span>}
-        {visibleTracks[0] && <span className="coaches-card__badge">{visibleTracks[0]}</span>}
+        {visibleTracks.map((track) => <span className="coaches-card__badge" key={track}>{track}</span>)}
       </div>
       <div className="coaches-card__portrait">
         {coach.profileImageUrl ? (
@@ -60,11 +61,12 @@ function CoachSkeleton() {
 }
 
 export function CoachesPage() {
+  const { isAuthenticated, user } = useAuth();
   const [coaches, setCoaches] = useState<CoachSummaryResponse[]>([]);
   const [searchDraft, setSearchDraft] = useState("");
   const [trackDraft, setTrackDraft] = useState("");
   const [sortDraft, setSortDraft] = useState<"newest" | "oldest">("newest");
-  const [filters, setFilters] = useState<CoachSearchFilters>({ sort: "newest" });
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
@@ -76,7 +78,23 @@ export function CoachesPage() {
   }, []);
 
   useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearch(searchDraft.trim());
+      setPage(0);
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [searchDraft]);
+
+  const filters = useMemo<CoachSearchFilters>(() => ({
+    ...(debouncedSearch ? { q: debouncedSearch } : {}),
+    ...(trackDraft ? { track: trackDraft } : {}),
+    sort: sortDraft,
+  }), [debouncedSearch, sortDraft, trackDraft]);
+
+  useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setError(false);
     coachDiscoveryApi.listCoaches(page, PAGE_SIZE, filters)
       .then((response) => {
         if (cancelled) return;
@@ -98,29 +116,20 @@ export function CoachesPage() {
     return totalElements === 1 ? "1 koç bulundu" : `${totalElements} koç bulundu`;
   }, [error, loading, totalElements]);
 
-  const applyFilters = (event?: FormEvent) => {
-    event?.preventDefault();
-    setLoading(true);
-    setError(false);
-    setPage(0);
-    setFilters({ q: searchDraft, track: trackDraft || undefined, sort: sortDraft });
-  };
-
   const chooseTrack = (track: string) => {
     const nextTrack = trackDraft === track ? "" : track;
-    setLoading(true);
-    setError(false);
     setTrackDraft(nextTrack);
     setPage(0);
-    setFilters({ q: searchDraft, track: nextTrack || undefined, sort: sortDraft });
   };
 
   const selectTrack = (track: string) => {
-    setLoading(true);
-    setError(false);
     setTrackDraft(track);
     setPage(0);
-    setFilters({ q: searchDraft, track: track || undefined, sort: sortDraft });
+  };
+
+  const selectSort = (sort: "newest" | "oldest") => {
+    setSortDraft(sort);
+    setPage(0);
   };
 
   const retry = () => {
@@ -151,7 +160,7 @@ export function CoachesPage() {
       </section>
 
       <div className="coaches-content">
-        <form className="coaches-filters" onSubmit={applyFilters} aria-label="Koç arama filtreleri">
+        <div className="coaches-filters" aria-label="Koç arama filtreleri">
           <div className="coaches-filters__main">
             <label className="coaches-search">
               <span aria-hidden="true">⌕</span>
@@ -167,12 +176,11 @@ export function CoachesPage() {
             </label>
             <label className="coaches-select">
               <span>Sıralama</span>
-              <select value={sortDraft} onChange={(event) => setSortDraft(event.target.value as "newest" | "oldest")}>
+              <select value={sortDraft} onChange={(event) => selectSort(event.target.value as "newest" | "oldest")}>
                 <option value="newest">En yeni</option>
                 <option value="oldest">En eski</option>
               </select>
             </label>
-            <button className="coaches-filter-button" type="submit"><span aria-hidden="true">☷</span> Filtrele</button>
           </div>
           <div className="coaches-filter-chips" aria-label="Alan hızlı filtreleri">
             {tracks.map((track) => (
@@ -181,7 +189,7 @@ export function CoachesPage() {
               </button>
             ))}
           </div>
-        </form>
+        </div>
 
         <div className="coaches-results-heading" aria-live="polite">{resultText}</div>
 
@@ -223,7 +231,9 @@ export function CoachesPage() {
           <span className="coaches-cta__icon" aria-hidden="true">♙</span>
           <h2 id="coaches-cta-title">Koçunla Yola Çıkmaya Hazır mısın?</h2>
           <p>Ücretsiz hesabını oluştur, sana uygun koçun profilini incelemeye devam et.</p>
-          <Link to="/register">Hemen Kayıt Ol <span aria-hidden="true">→</span></Link>
+          <Link to={isAuthenticated && user ? readinessPathForUser(user) : "/register"}>
+            {isAuthenticated && user ? "Panele Git" : "Hemen Kayıt Ol"} <span aria-hidden="true">→</span>
+          </Link>
         </section>
       </div>
     </div>
