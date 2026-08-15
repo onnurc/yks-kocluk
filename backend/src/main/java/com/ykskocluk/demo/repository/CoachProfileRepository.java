@@ -24,6 +24,9 @@ public interface CoachProfileRepository extends JpaRepository<CoachProfile, Long
 
     Optional<CoachProfile> findByIdAndStatus(Long id, CoachProfileStatus status);
 
+    Optional<CoachProfile> findByIdAndStatusAndUserStatus(
+            Long id, CoachProfileStatus status, UserStatus userStatus);
+
     @Query("""
             select count(c) from CoachProfile c
              where c.status = :profileStatus and c.user.status = :userStatus

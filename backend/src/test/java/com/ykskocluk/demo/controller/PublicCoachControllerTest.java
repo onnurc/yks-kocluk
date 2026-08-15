@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.controller;
 
 import com.ykskocluk.demo.dto.CoachSummaryResponse;
+import com.ykskocluk.demo.dto.CoachDetailResponse;
 import com.ykskocluk.demo.dto.PageResponse;
 import com.ykskocluk.demo.enums.Track;
 import com.ykskocluk.demo.security.JwtAuthenticationFilter;
@@ -51,5 +52,26 @@ class PublicCoachControllerTest {
                 .andExpect(jsonPath("$.content[0].phone").doesNotExist())
                 .andExpect(jsonPath("$.content[0].status").doesNotExist())
                 .andExpect(jsonPath("$.content[0].rejectionReason").doesNotExist());
+    }
+
+    @Test
+    void exposesApprovedActiveCoachDetailWithoutPrivateFields() throws Exception {
+        CoachDetailResponse coach = new CoachDetailResponse(11L, 22L, "Ayşe Yılmaz", "YKS Mentörü",
+                "Öğrencilerin planlı çalışmasına yardımcı olur.", "Boğaziçi Üniversitesi", "Matematik",
+                2025, Set.of(Track.NUMERICAL), null, 14, true,
+                "https://media.example/profile.jpg", "https://media.example/intro.mp4");
+        given(coachSearchService.getApprovedCoach(11L)).willReturn(coach);
+
+        mockMvc.perform(get("/api/v1/public/coaches/11"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(11))
+                .andExpect(jsonPath("$.fullName").value("Ayşe Yılmaz"))
+                .andExpect(jsonPath("$.totalSessions").value(14))
+                .andExpect(jsonPath("$.introVideoUrl").value("https://media.example/intro.mp4"))
+                .andExpect(jsonPath("$.email").doesNotExist())
+                .andExpect(jsonPath("$.phone").doesNotExist())
+                .andExpect(jsonPath("$.status").doesNotExist())
+                .andExpect(jsonPath("$.userId").doesNotExist())
+                .andExpect(jsonPath("$.rejectionReason").doesNotExist());
     }
 }
