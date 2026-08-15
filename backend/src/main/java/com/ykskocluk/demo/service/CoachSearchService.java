@@ -6,6 +6,7 @@ import com.ykskocluk.demo.dto.PageResponse;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.Track;
+import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.mapper.CoachSearchMapper;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
@@ -67,7 +68,8 @@ public class CoachSearchService {
 
     @Transactional(readOnly = true)
     public CoachDetailResponse getApprovedCoach(Long id) {
-        CoachProfile profile = coachProfileRepository.findByIdAndStatus(id, CoachProfileStatus.APPROVED)
+        CoachProfile profile = coachProfileRepository.findByIdAndStatusAndUserStatus(
+                        id, CoachProfileStatus.APPROVED, UserStatus.ACTIVE)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "COACH_NOT_FOUND", "Koç bulunamadı"));
         Set<Track> tracks = loadTracks(List.of(id)).getOrDefault(id, Set.of());
         CoachStats stats = coachStatsService.statsFor(List.of(id)).getOrDefault(id, CoachStats.empty());

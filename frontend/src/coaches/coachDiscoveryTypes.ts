@@ -24,7 +24,11 @@ export interface CoachDetailResponse {
   rating: number | null;
   totalSessions: number;
   acceptingNewStudents: boolean;
+  profileImageUrl: string | null;
+  introVideoUrl: string | null;
 }
+
+export type PublicCoachDetailResponse = Omit<CoachDetailResponse, "userId">;
 
 export interface PackageResponse {
   id: number;
