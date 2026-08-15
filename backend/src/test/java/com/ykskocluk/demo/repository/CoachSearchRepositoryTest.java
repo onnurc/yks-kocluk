@@ -73,6 +73,10 @@ class CoachSearchRepositoryTest {
                 CoachProfileStatus.APPROVED, metu, Track.NUMERICAL);
         CoachProfile b = coach("b@x.com", "Beste Kaya", "Edebiyat koçu",
                 CoachProfileStatus.APPROVED, bogazici, Track.VERBAL);
+        CoachProfile equalWeight = coach("ea@x.com", "Ece Arı", "Eşit ağırlık koçu",
+                CoachProfileStatus.APPROVED, metu, Track.EQUAL_WEIGHT);
+        CoachProfile language = coach("lang@x.com", "Lale Dil", "Dil koçu",
+                CoachProfileStatus.APPROVED, bogazici, Track.LANGUAGE);
         coach("c@x.com", "Cem Demir", "Bekleyen koç",
                 CoachProfileStatus.PENDING, metu, Track.NUMERICAL); // must never appear
         CoachProfile suspended = coach("d@x.com", "Deniz Ak", "Askıdaki koç",
@@ -82,11 +86,18 @@ class CoachSearchRepositoryTest {
 
         // all approved
         assertThat(coachProfileRepository.search(null, null, null, page))
-                .extracting(CoachProfile::getId).containsExactlyInAnyOrder(a.getId(), b.getId());
+                .extracting(CoachProfile::getId)
+                .containsExactlyInAnyOrder(a.getId(), b.getId(), equalWeight.getId(), language.getId());
 
-        // by track
+        // by track: exact enum equality, with no cross-category leakage
         assertThat(coachProfileRepository.search(null, Track.NUMERICAL, null, page))
                 .extracting(CoachProfile::getId).containsExactly(a.getId());
+        assertThat(coachProfileRepository.search(null, Track.VERBAL, null, page))
+                .extracting(CoachProfile::getId).containsExactly(b.getId());
+        assertThat(coachProfileRepository.search(null, Track.EQUAL_WEIGHT, null, page))
+                .extracting(CoachProfile::getId).containsExactly(equalWeight.getId());
+        assertThat(coachProfileRepository.search(null, Track.LANGUAGE, null, page))
+                .extracting(CoachProfile::getId).containsExactly(language.getId());
 
         // by university
         assertThat(coachProfileRepository.search(bogazici.getId(), null, null, page))

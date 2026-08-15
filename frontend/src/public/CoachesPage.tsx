@@ -115,6 +115,14 @@ export function CoachesPage() {
     setFilters({ q: searchDraft, track: nextTrack || undefined, sort: sortDraft });
   };
 
+  const selectTrack = (track: string) => {
+    setLoading(true);
+    setError(false);
+    setTrackDraft(track);
+    setPage(0);
+    setFilters({ q: searchDraft, track: track || undefined, sort: sortDraft });
+  };
+
   const retry = () => {
     setLoading(true);
     setError(false);
@@ -152,7 +160,7 @@ export function CoachesPage() {
             </label>
             <label className="coaches-select">
               <span>Alan</span>
-              <select value={trackDraft} onChange={(event) => setTrackDraft(event.target.value)}>
+              <select value={trackDraft} onChange={(event) => selectTrack(event.target.value)}>
                 <option value="">Tümü</option>
                 {tracks.map((track) => <option key={track.value} value={track.value}>{track.label}</option>)}
               </select>

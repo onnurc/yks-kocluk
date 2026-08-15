@@ -24,6 +24,14 @@ const coach = {
 
 const page = { content: [coach], page: 0, size: 9, totalElements: 1, totalPages: 1, last: true };
 
+const verbalCoach = {
+  ...coach,
+  id: 43,
+  fullName: "Selin Demir",
+  headline: "Türkçe ve edebiyat mentörü",
+  tracks: ["VERBAL"],
+};
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -72,6 +80,24 @@ describe("Koçlarımız sayfası", () => {
       q: "matematik",
       track: "NUMERICAL",
       sort: "oldest",
+    });
+  });
+
+  it("refreshes backend results immediately when the track select changes", async () => {
+    vi.mocked(coachDiscoveryApi.listCoaches)
+      .mockResolvedValueOnce(page)
+      .mockResolvedValueOnce({ ...page, content: [verbalCoach] });
+    renderPage();
+    expect(await screen.findByText("Ayşe Yılmaz")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Alan"), { target: { value: "VERBAL" } });
+
+    expect(await screen.findByText("Selin Demir")).toBeInTheDocument();
+    expect(screen.queryByText("Ayşe Yılmaz")).not.toBeInTheDocument();
+    expect(coachDiscoveryApi.listCoaches).toHaveBeenLastCalledWith(0, 9, {
+      q: "",
+      track: "VERBAL",
+      sort: "newest",
     });
   });
 
