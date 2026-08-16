@@ -3,6 +3,10 @@ target/
 *.class
 .mvn/wrapper/maven-wrapper.jar
 
+### Node / OS noise (scripts/ has its own package.json — never commit its deps) ###
+node_modules/
+.DS_Store
+
 ### Secrets — never commit real local config (use application-local.yml.example as the template) ###
 application-local*.yml
 src/main/resources/application-local*.yml
