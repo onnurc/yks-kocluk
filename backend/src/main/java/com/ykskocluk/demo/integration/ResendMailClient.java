@@ -158,6 +158,19 @@ public class ResendMailClient implements MailClient {
     }
 
     @Override
+    public void sendNewMessageNotification(String toEmail, String senderName, String conversationLink) {
+        // Sender name + link only. No message text, no preview snippet — see MailClient's javadoc.
+        send(toEmail, "Yeni mesajınız var", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Yeni mesajınız var</h2>
+                  <p><strong>%s</strong> size yeni bir mesaj gönderdi.</p>
+                  <p>Mesajınızı okumak için platforma giriş yapın:</p>
+                  <p><a href="%s">Mesajı görüntüle</a></p>
+                </div>
+                """.formatted(senderName, conversationLink));
+    }
+
+    @Override
     public void sendRenewalSucceeded(String toEmail, String coachName, Instant nextEndAt, BigDecimal amount) {
         String next = DATE_FORMAT.format(nextEndAt.atZone(ISTANBUL));
         send(toEmail, "Aboneliğiniz yenilendi", """

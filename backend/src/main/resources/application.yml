@@ -178,6 +178,14 @@ app:
     pending-checkout-timeout-minutes: ${PAYMENT_PENDING_CHECKOUT_TIMEOUT_MINUTES:30}
     # Renewal job schedule — daily 03:00 Europe/Istanbul (zone set on the @Scheduled).
     renewal-cron: ${PAYMENT_RENEWAL_CRON:0 0 3 * * *}
+  message-notification:
+    # "New message" email debounce, per (conversation, recipient). One email, then silence for
+    # this long no matter how many messages follow — the recipient is offline, so a burst would
+    # otherwise become a burst of mail. Only applies when the recipient has no live WebSocket
+    # session; connected users get the in-app badge and no mail at all.
+    debounce: ${MESSAGE_NOTIFICATION_DEBOUNCE:30m}
+    # Same origin as password-security's, deliberately bound separately (see the properties record).
+    frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
   session-reminder:
     # How far before a session's start the reminder becomes eligible. Actual delivery jitters by
     # up to the job's poll interval (cron below), since a session is caught on whichever run first
