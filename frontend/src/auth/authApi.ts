@@ -20,6 +20,9 @@ export const authApi = {
     return httpClient.get<CurrentUser>("/api/v1/auth/me");
   },
 
+  refresh: (refreshToken: string): Promise<AuthResponse> =>
+    httpClient.post<AuthResponse>("/api/v1/auth/refresh", { refreshToken }),
+
   logout: async (): Promise<void> => {
     const refreshToken = getRefreshToken() || "";
     if (!refreshToken) return;

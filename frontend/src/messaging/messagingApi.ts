@@ -33,4 +33,8 @@ export const messagingApi = {
       { content }
     );
   },
+
+  markRead: async (conversationId: number): Promise<void> => {
+    return httpClient.post<void>(`/api/v1/conversations/${conversationId}/read`);
+  },
 };

@@ -27,7 +27,7 @@ export interface MessageResponse {
   senderId: number;
   senderName: string;
   content: string;
-  createdAt: string;
+  sentAt: string;
   readAt: string | null;
 }
 

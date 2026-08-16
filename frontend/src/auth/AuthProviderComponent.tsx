@@ -125,13 +125,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const handleLegalOnboardingRequired = () => { void refreshCurrentUser(); };
     const handleEmailVerificationRequired = () => { void refreshCurrentUser(); };
+    // Dispatched by httpClient's central 401/refresh handling (and the WebSocket reconnect
+    // loop, which shares that same refresh mechanism) once the refresh token itself is dead.
+    const handleSessionExpired = () => { clearSession(); };
     window.addEventListener("legal-onboarding-required", handleLegalOnboardingRequired);
     window.addEventListener("email-verification-required", handleEmailVerificationRequired);
+    window.addEventListener("session-expired", handleSessionExpired);
     return () => {
       window.removeEventListener("legal-onboarding-required", handleLegalOnboardingRequired);
       window.removeEventListener("email-verification-required", handleEmailVerificationRequired);
+      window.removeEventListener("session-expired", handleSessionExpired);
     };
-  }, [refreshCurrentUser]);
+  }, [refreshCurrentUser, clearSession]);
 
   return (
     <AuthContext.Provider
