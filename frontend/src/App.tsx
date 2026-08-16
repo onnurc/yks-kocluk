@@ -13,8 +13,7 @@ import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminSafetyPage } from "./pages/admin/AdminSafetyPage";
 import { AdminFinancePage } from "./pages/admin/AdminFinancePage";
 import { BookingsPage } from "./pages/BookingsPage";
-import { MessagesPage } from "./pages/MessagesPage";
-import { ConversationPage } from "./pages/ConversationPage";
+import { ChatPage } from "./pages/ChatPage";
 import { OAuthCallbackPage } from "./pages/OAuthCallbackPage";
 import { LegalOnboardingPage } from "./pages/LegalOnboardingPage";
 import { PrivacySettingsPage } from "./pages/PrivacySettingsPage";
@@ -72,8 +71,8 @@ const App: React.FC = () => {
 
               {/* Messaging: students and coaches both participate in conversations */}
               <Route element={<RoleRoute allowedRoles={["STUDENT", "COACH"]} />}>
-                <Route path="/messages" element={<MessagesPage />} />
-                <Route path="/messages/:conversationId" element={<ConversationPage />} />
+                <Route path="/messages" element={<ChatPage />} />
+                <Route path="/messages/:conversationId" element={<ChatPage />} />
               </Route>
               </Route>
 
@@ -82,6 +81,8 @@ const App: React.FC = () => {
                 <Route path="/admin" element={<AdminDashboardPage />} />
                 <Route path="/admin/safety" element={<AdminSafetyPage />} />
                 <Route path="/admin/finance" element={<AdminFinancePage />} />
+                <Route path="/admin/messages" element={<ChatPage />} />
+                <Route path="/admin/messages/:conversationId" element={<ChatPage />} />
               </Route>
               </Route>
             </Route>

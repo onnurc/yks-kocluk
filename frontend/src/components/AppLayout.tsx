@@ -66,9 +66,9 @@ export const AppLayout: React.FC = () => {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", fontFamily: "sans-serif" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem 2rem", backgroundColor: "#343a40", color: "white" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
+    <div className="app-layout" style={{ display: "flex", flexDirection: "column", minHeight: "100vh", fontFamily: "sans-serif" }}>
+      <header className="app-layout__header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem 2rem", backgroundColor: "#343a40", color: "white" }}>
+        <div className="app-layout__header-primary" style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
           <h2 style={{ margin: 0 }}>
             <Link to="/dashboard" style={{ color: "white", textDecoration: "none" }}>YKS Koçluk</Link>
           </h2>
@@ -94,15 +94,18 @@ export const AppLayout: React.FC = () => {
                 </Link>
               )}
               {user?.role === "ADMIN" && (
-                <Link to="/admin" style={{ color: "#ffc107", textDecoration: "none", fontWeight: "bold" }}>Admin Paneli</Link>
+                <>
+                  <Link to="/admin" style={{ color: "#ffc107", textDecoration: "none", fontWeight: "bold" }}>Admin Paneli</Link>
+                  <Link to="/admin/messages" style={{ color: "#ccc", textDecoration: "none" }}>Mesaj Gözlemi</Link>
+                </>
               )}
             </nav>
           )}
         </div>
         <div>
           {isAuthenticated ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-              <span>{user?.fullName} ({user?.role})</span>
+            <div className="app-layout__account" style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+              <span className="app-layout__account-name">{user?.fullName} ({user?.role})</span>
               <button onClick={handleLogout} style={{ padding: "0.5rem 1rem", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>
                 Çıkış Yap
               </button>
@@ -113,11 +116,11 @@ export const AppLayout: React.FC = () => {
         </div>
       </header>
 
-      <main style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
+      <main className="app-layout__main" style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
         <Outlet />
       </main>
 
-      <footer style={{ textAlign: "center", padding: "1rem", backgroundColor: "#e9ecef", borderTop: "1px solid #dee2e6" }}>
+      <footer className="app-layout__footer" style={{ textAlign: "center", padding: "1rem", backgroundColor: "#e9ecef", borderTop: "1px solid #dee2e6" }}>
         <p style={{ margin: "0 0 .5rem", fontSize: "0.9rem", color: "#6c757d" }}>
           &copy; {new Date().getFullYear()} YKS Koçluk Platformu. Phase 0 Temelleri.
         </p>

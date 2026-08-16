@@ -4,7 +4,6 @@ export interface ConversationCreateRequest {
 
 export interface ConversationResponse {
   id: number;
-  studentId: number;
   studentName: string;
   coachProfileId: number;
   coachName: string;
@@ -33,9 +32,18 @@ export interface MessageResponse {
 
 export interface PageResponse<T> {
   content: T[];
-  pageNumber: number;
-  pageSize: number;
+  page: number;
+  size: number;
   totalElements: number;
   totalPages: number;
   last: boolean;
+}
+
+export interface AdminConversationSummary {
+  conversationId: number;
+  student: { id: number; fullName: string };
+  coach: { id: number; fullName: string; universityName: string };
+  lastMessageAt: string;
+  messageCount: number;
+  observer: { type: "ADMIN"; displayName: string; readOnly: true };
 }
