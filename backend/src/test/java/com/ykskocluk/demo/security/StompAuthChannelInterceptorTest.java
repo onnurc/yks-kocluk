@@ -6,6 +6,7 @@ import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.service.MessageService;
 import com.ykskocluk.demo.service.AdminConversationService;
+import com.ykskocluk.demo.service.StompUserDestinations;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.impl.DefaultClaims;
@@ -29,6 +30,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.Mockito.*;
 
@@ -128,6 +130,27 @@ class StompAuthChannelInterceptorTest {
         assertThat(auth).isNotNull();
         assertThat(auth.getPrincipal()).isEqualTo(3L);
         assertThat(auth.getAuthorities()).extracting("authority").containsExactly("ROLE_STUDENT");
+        // The user-scoped notification channel is addressed by Principal.getName(), which for this
+        // token type falls through to principal.toString(). Nothing else enforces that, and if it
+        // ever stops matching the user id, convertAndSendToUser silently delivers to nobody — so
+        // it is pinned here, against the shared helper both the send and presence sides use.
+        assertThat(auth.getName()).isEqualTo(StompUserDestinations.userName(3L));
+    }
+
+    @Test
+    void preSend_subscribeToRawBrokerQueue_throwsMessagingException() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        accessor.setLeaveMutable(true);
+        // What Spring resolves "/user/queue/notifications" to internally. Reaching it directly
+        // would mean reading a channel addressed to someone else's session.
+        accessor.setDestination("/queue/notifications-userabc123");
+        Authentication auth = mock(Authentication.class);
+        accessor.setUser(auth);
+        Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+
+        assertThatThrownBy(() -> interceptor.preSend(message, null))
+                .isInstanceOf(MessagingException.class);
+        verifyNoInteractions(messageService);
     }
 
     @Test

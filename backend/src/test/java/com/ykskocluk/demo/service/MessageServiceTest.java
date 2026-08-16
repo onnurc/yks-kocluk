@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -45,6 +46,7 @@ class MessageServiceTest {
     @Mock ConversationMapper conversationMapper;
     @Mock MessageMapper messageMapper;
     @Mock AccountReadinessService accountReadinessService;
+    @Mock ApplicationEventPublisher eventPublisher;
 
     MessageService service;
 
@@ -60,7 +62,8 @@ class MessageServiceTest {
     @BeforeEach
     void setUp() {
         service = new MessageService(conversationRepository, messageRepository, subscriptionRepository,
-                coachProfileRepository, userRepository, conversationMapper, messageMapper, accountReadinessService);
+                coachProfileRepository, userRepository, conversationMapper, messageMapper, accountReadinessService,
+                eventPublisher);
 
         User coachUser = new User();
         ReflectionTestUtils.setField(coachUser, "id", COACH_USER_ID);
