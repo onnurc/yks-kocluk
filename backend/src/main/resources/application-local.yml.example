@@ -1,36 +1,76 @@
 # ============================================================================
-# TEMPLATE — copy to application-local.yml (which is gitignored) and fill in.
-# Documents the keys local dev expects. NEVER commit the real application-local.yml.
+# TEMPLATE — copy to application-local.yml (gitignored) and fill in the <...> values.
+# NEVER commit the real application-local.yml.
 #
+#   cd backend/src/main/resources
 #   cp application-local.yml.example application-local.yml
+#   cd ../../../..            # back to backend/
 #   ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 #
-# Use the Neon POOLED connection string. sslmode=require is mandatory for Neon.
+# App on http://localhost:8080, Swagger at /swagger-ui.html.
+# (If WebSockets misbehave on 8080, see docs/handoff.md "Port 8080 is intercepted by a local
+# proxy" — run with --server.port=8081 and point frontend/.env at it.)
+#
+# These are plain top-level properties, not env vars: application.yml reads them as
+# ${NEON_DATABASE_URL} etc., so defining them here resolves those placeholders without
+# exporting anything into your shell. Deployed environments set the same names as real env vars.
 # ============================================================================
-spring:
-  datasource:
-    url: jdbc:postgresql://<NEON_POOLED_HOST>/<DATABASE>?sslmode=require
-    username: <NEON_USER>
-    password: <NEON_PASSWORD>
+
+# --- Database: Neon PostgreSQL ---------------------------------------------
+# Where: https://console.neon.tech -> your project -> Connection Details.
+# Pick the POOLED connection (host contains "-pooler") and the "JDBC" format.
+# sslmode=require is mandatory for Neon. channelBinding is pgjdbc's camelCase spelling of
+# libpq's channel_binding. Keep user/password OUT of the URL — set them separately below,
+# since pgjdbc does not accept "user:pass@host" in the URL authority anyway.
+NEON_DATABASE_URL: jdbc:postgresql://<YOUR-ENDPOINT>-pooler.<REGION>.aws.neon.tech/<DATABASE>?sslmode=require&channelBinding=require
+NEON_DATABASE_USERNAME: <NEON_USER>          # e.g. neondb_owner
+NEON_DATABASE_PASSWORD: <NEON_PASSWORD>      # from the same Connection Details panel
+
+# --- JWT --------------------------------------------------------------------
+# Any random string >= 32 bytes (HS256). Generate one with:
+#   openssl rand -base64 48
+# Local-only value; deployed environments set JWT_SECRET as a real env var.
+JWT_SECRET: <JWT_SECRET>
+
+# --- Resend (transactional email) ------------------------------------------
+# Where: https://resend.com/api-keys -> create a key (starts with "re_").
+# A send-only key is enough. NEVER commit the real value.
+# Without it the app fails to start (application.yml has no default for this one).
+RESEND_API_KEY: <RESEND_API_KEY>
+
+# --- Google OAuth2 (optional) ----------------------------------------------
+# Leave commented out to skip Google sign-in: application.yml falls back to dummy defaults and
+# the Google button is simply inert (the app still boots and email/password login works).
+# To enable: https://console.cloud.google.com -> APIs & Services -> Credentials ->
+# OAuth 2.0 Client ID (Web application), with redirect URI
+#   http://localhost:8080/login/oauth2/code/google
+#GOOGLE_CLIENT_ID: <GOOGLE_CLIENT_ID>
+#GOOGLE_CLIENT_SECRET: <GOOGLE_CLIENT_SECRET>
+
+# --- Demo accounts ----------------------------------------------------------
+# The seeded demo logins (student.active.demo@example.com, coach.demo@example.com, ...
+# all with password "Password123!" — see V14/V15/V28 in db/demo-seed) need BOTH settings below.
+# Without them you will have no account to log in with.
+#   DEMO_SEED_ENABLED=false (the default) makes DemoSeedCleanupComponent DELETE these rows on
+#   every boot, and application.yml's flyway.locations deliberately excludes db/demo-seed for
+#   everything except local dev (there is no dedicated prod Spring profile to gate it on).
+DEMO_SEED_ENABLED: true
 
 app:
-  jwt:
-    secret: <JWT_SECRET>            # HS256 signing key, >= 32 bytes
   resend:
-    api-key: <RESEND_API_KEY>       # Resend secret key (re_...). NEVER commit the real value.
-    # uniformakademi.com is verified in Resend (2026-08-15) — use the real sender/reply-to below.
-    # Swap back to onboarding@resend.dev only if you want sandbox behavior for local testing.
+    # uniformakademi.com is verified in Resend (2026-08-15). noreply@ is a send-only sender
+    # label, not a real mailbox; merhaba@ is the company inbox, used only as reply-to.
+    # Swap to "onboarding@resend.dev" if you want Resend's sandbox sender instead — that only
+    # delivers to the Resend account owner's own address.
     from: "Uniform Akademi <noreply@uniformakademi.com>"
-    reply-to: "merhaba@uniformakademi.com"  # company Google Workspace inbox; noreply@ is send-only
-  # Keep disabled until a real Cloudflare bucket and scoped credentials exist.
+    reply-to: "merhaba@uniformakademi.com"
+  # Keep disabled until a real Cloudflare R2 bucket and scoped credentials exist; the app
+  # falls back to StubStorageService, which is fine for everything except file upload work.
   r2:
     enabled: false
 
-# Demo accounts (student.active.demo@example.com etc., password Password123! — see V14/V15/V28
-# in db/demo-seed) need BOTH of these to actually show up locally:
-DEMO_SEED_ENABLED: true            # otherwise DemoSeedCleanupComponent deletes them on every boot
 spring:
   flyway:
-    # application.yml's default excludes db/demo-seed everywhere (prod has no dedicated Spring
-    # profile to gate it on otherwise). Local dev opts back in here.
+    # Opts local dev back into the demo-seed migrations. Must be paired with DEMO_SEED_ENABLED
+    # above: this makes the rows exist, that keeps them from being deleted on the next boot.
     locations: classpath:db/migration,classpath:db/demo-seed

@@ -3,6 +3,12 @@ target/
 *.class
 .mvn/wrapper/maven-wrapper.jar
 
+### Build output / OS cruft (repo-wide) ###
+# frontend/.gitignore covers these under frontend/ only — scripts/node_modules and a
+# repo-root .DS_Store fall outside it, so they are caught here for every directory.
+node_modules/
+.DS_Store
+
 ### Node / OS noise (scripts/ has its own package.json — never commit its deps) ###
 node_modules/
 .DS_Store
