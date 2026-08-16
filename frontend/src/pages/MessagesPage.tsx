@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { messagingApi } from "../messaging/messagingApi";
+import { MESSAGE_NOTIFICATION_EVENT } from "../messaging/useNotificationSocket";
 import type { ConversationResponse } from "../messaging/messagingTypes";
 import { studentDashboardApi } from "../studentDashboard/studentDashboardApi";
 import type { StudentDashboardResponse } from "../studentDashboard/studentDashboardTypes";
@@ -17,8 +18,12 @@ export const MessagesPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<any | null>(null);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async ({ silent = false }: { silent?: boolean } = {}) => {
+    // A live refresh must not flash the "yükleniyor" state over a list the user is reading, so
+    // background refetches keep the current rows on screen and swap them when the data lands.
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       // The subscription-gated access banner below only applies to students — a coach's
@@ -40,6 +45,20 @@ export const MessagesPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Live inbox. AppLayout holds the notification socket (it outlives this page); it re-broadcasts
+  // each push as a window event, and refetching is enough here — the payload deliberately carries
+  // no message text, and the list needs recomputed unread counts and ordering anyway.
+  useEffect(() => {
+    const refresh = () => void loadData({ silent: true });
+    window.addEventListener(MESSAGE_NOTIFICATION_EVENT, refresh);
+    // Reading a conversation elsewhere clears its unread count — same reason AppLayout listens.
+    window.addEventListener("messages-read", refresh);
+    return () => {
+      window.removeEventListener(MESSAGE_NOTIFICATION_EVENT, refresh);
+      window.removeEventListener("messages-read", refresh);
+    };
+  }, [isStudent]);
 
   const formatTimestamp = (isoString: string | null) => {
     if (!isoString) return "";
@@ -116,7 +135,16 @@ export const MessagesPage: React.FC = () => {
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#fff")}
             >
               <div>
-                <h3 style={{ margin: "0 0 0.25rem 0", color: "#333" }}>{isStudent ? conv.coachName : conv.studentName}</h3>
+                <h3
+                  style={{
+                    margin: "0 0 0.25rem 0",
+                    color: "#333",
+                    // Unread threads read as unread at a glance, the way every inbox behaves.
+                    fontWeight: conv.unreadCount > 0 ? 700 : 400,
+                  }}
+                >
+                  {isStudent ? conv.coachName : conv.studentName}
+                </h3>
                 <span style={{ fontSize: "0.8rem", color: "#6c757d" }}>
                   Son Mesajlaşma: {formatTimestamp(conv.lastMessageAt)}
                 </span>
@@ -125,6 +153,21 @@ export const MessagesPage: React.FC = () => {
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                {conv.unreadCount > 0 && (
+                  <span
+                    aria-label={`${conv.unreadCount} okunmamış mesaj`}
+                    style={{
+                      backgroundColor: "#dc3545",
+                      color: "white",
+                      borderRadius: "999px",
+                      padding: "0.1rem 0.5rem",
+                      fontSize: "0.75rem",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {conv.unreadCount}
+                  </span>
+                )}
                 <span style={{ color: "#ccc", fontSize: "1.25rem" }}>&rsaquo;</span>
               </div>
             </div>

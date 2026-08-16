@@ -31,6 +31,17 @@ export interface MessageResponse {
   readAt: string | null;
 }
 
+/**
+ * Pushed on /user/queue/notifications. `unreadTotal` is computed server-side on every push, so
+ * it is assigned to the badge rather than added to it. Carries no message text by design — see
+ * MailClient.sendNewMessageNotification's javadoc for the same reasoning applied to email.
+ */
+export interface UserNotificationResponse {
+  type: "NEW_MESSAGE";
+  conversationId: number;
+  unreadTotal: number;
+}
+
 export interface PageResponse<T> {
   content: T[];
   pageNumber: number;
