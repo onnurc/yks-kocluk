@@ -1,4 +1,5 @@
-import { getAccessToken } from "../auth/tokenStorage";
+import { getAccessToken, getRefreshToken, setAccessToken, setRefreshToken, clearAllTokens } from "../auth/tokenStorage";
+import { authApi } from "../auth/authApi";
 import { ApiError } from "./ApiError";
 import type { FieldError } from "./ApiError";
 
@@ -6,9 +7,41 @@ export const getApiBaseUrl = (): string => {
   return (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080").replace(/\/$/, "");
 };
 
+// Central 401 handling: a single in-flight refresh is shared by every caller (REST requests
+// here and the WebSocket reconnect loop in useConversationSocket) so concurrent 401s don't
+// each fire their own /auth/refresh call. On refresh failure the session is torn down here,
+// once, and "session-expired" notifies the rest of the app (AuthProvider clears its state,
+// ProtectedRoute redirects to /login) rather than each caller handling it separately.
+let refreshPromise: Promise<string | null> | null = null;
+
+const performTokenRefresh = async (): Promise<string | null> => {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+  try {
+    const response = await authApi.refresh(refreshToken);
+    setAccessToken(response.accessToken);
+    setRefreshToken(response.refreshToken);
+    return response.accessToken;
+  } catch {
+    clearAllTokens();
+    window.dispatchEvent(new Event("session-expired"));
+    return null;
+  }
+};
+
+export const ensureFreshToken = (): Promise<string | null> => {
+  if (!refreshPromise) {
+    refreshPromise = performTokenRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+};
+
 export const request = async <T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  isRetry = false
 ): Promise<T> => {
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
   const url = `${getApiBaseUrl()}${cleanPath}`;
@@ -19,6 +52,7 @@ export const request = async <T>(
   }
 
   const token = getAccessToken();
+  const hadAuthHeader = !!token || headers.has("Authorization");
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
   }
@@ -27,6 +61,22 @@ export const request = async <T>(
     ...options,
     headers,
   });
+
+  // Only retry requests that were actually authenticated — a 401 on login/register means
+  // wrong credentials, not an expired session, and must not trigger a refresh loop.
+  if (response.status === 401 && hadAuthHeader && !isRetry && cleanPath !== "/api/v1/auth/refresh") {
+    const newToken = await ensureFreshToken();
+    if (newToken) {
+      const retryHeaders = new Headers(options.headers);
+      if (options.body && !retryHeaders.has("Content-Type")) {
+        retryHeaders.set("Content-Type", "application/json");
+      }
+      retryHeaders.set("Authorization", `Bearer ${newToken}`);
+      return request<T>(path, { ...options, headers: retryHeaders }, true);
+    }
+    // ensureFreshToken already cleared the session and dispatched "session-expired" — fall
+    // through so this call still surfaces its original 401 as an ApiError to the caller.
+  }
 
   if (!response.ok) {
     let errorData: Record<string, unknown> = {};

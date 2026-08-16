@@ -148,6 +148,24 @@ class WebSocketAuthTest {
         })).isInstanceOf(ExecutionException.class);
     }
 
+    @Test
+    void connect_suspendedUser_rejected() {
+        User suspendedUser = persistUser(Role.STUDENT);
+        suspendedUser.setStatus(com.ykskocluk.demo.enums.UserStatus.SUSPENDED);
+        userRepository.save(suspendedUser);
+        assertThatThrownBy(() -> connect(jwtService.generateAccessToken(suspendedUser), new StompSessionHandlerAdapter() {
+        })).isInstanceOf(ExecutionException.class);
+    }
+
+    @Test
+    void connect_deletedUser_rejected() {
+        User deletedUser = persistUser(Role.STUDENT);
+        deletedUser.setStatus(com.ykskocluk.demo.enums.UserStatus.DELETED);
+        userRepository.save(deletedUser);
+        assertThatThrownBy(() -> connect(jwtService.generateAccessToken(deletedUser), new StompSessionHandlerAdapter() {
+        })).isInstanceOf(ExecutionException.class);
+    }
+
     // --- Valid round-trip (also confirms the shared send path/gate) ---
 
     @Test

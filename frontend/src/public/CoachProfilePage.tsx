@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError } from "../api/ApiError";
 import { coachDiscoveryApi } from "../coaches/coachDiscoveryApi";
 import type { CoachSummaryResponse, PublicCoachDetailResponse } from "../coaches/coachDiscoveryTypes";
+import { useAuth } from "../auth/AuthProvider";
+import { studentDashboardApi } from "../studentDashboard/studentDashboardApi";
+import type { StudentDashboardResponse } from "../studentDashboard/studentDashboardTypes";
+import { canMessageWithSubscription } from "../access/subscriptionAccess";
+import { messagingApi } from "../messaging/messagingApi";
 import "./coach-profile-page.css";
 
 const trackLabels: Record<string, string> = {
@@ -46,6 +51,40 @@ export function CoachProfilePage() {
   const [similar, setSimilar] = useState<CoachSummaryResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
+
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [dashboardData, setDashboardData] = useState<StudentDashboardResponse | null>(null);
+  const [msgLoading, setMsgLoading] = useState(false);
+
+  // Only a logged-in student can already be subscribed to this coach, so the "message" CTA
+  // (below, in place of the public trial-consultation CTA) only applies to that case.
+  useEffect(() => {
+    if (user?.role !== "STUDENT") return;
+    let active = true;
+    studentDashboardApi
+      .getDashboardData()
+      .then((data) => { if (active) setDashboardData(data); })
+      .catch(() => { /* Trial CTA remains the fallback if this fails. */ });
+    return () => { active = false; };
+  }, [user?.role]);
+
+  const sub = dashboardData?.subscription;
+  const isSubscribedToThisCoach = sub?.coachId === coachId;
+  const isMessageAllowed = isSubscribedToThisCoach && canMessageWithSubscription(sub?.status);
+
+  const handleOpenConversation = async () => {
+    if (msgLoading) return;
+    setMsgLoading(true);
+    try {
+      const response = await messagingApi.openConversation(coachId);
+      navigate(`/messages/${response.id}`);
+    } catch {
+      alert("Mesajlaşma başlatılamadı.");
+    } finally {
+      setMsgLoading(false);
+    }
+  };
 
   const loadProfile = () => {
     if (!Number.isInteger(coachId) || coachId <= 0) {
@@ -149,12 +188,22 @@ export function CoachProfilePage() {
               <li><span aria-hidden="true">⌛</span><div><strong>Süre</strong><small>20-30 dakika</small></div></li>
               <li><span aria-hidden="true">▣</span><div><strong>Uygun saatler</strong><small>Kayıt sonrası görüntülenir</small></div></li>
             </ul>
-            {coach.acceptingNewStudents ? (
+            {isSubscribedToThisCoach ? (
+              isMessageAllowed ? (
+                <button type="button" onClick={handleOpenConversation} disabled={msgLoading}>
+                  {msgLoading ? "Sohbet Açılıyor…" : "Mesaj Gönder"}
+                </button>
+              ) : (
+                <span className="coach-profile-trial__disabled" aria-disabled="true">
+                  Mesaj gönderebilmek için aktif veya geçmiş bir aboneliğiniz olmalı
+                </span>
+              )
+            ) : coach.acceptingNewStudents ? (
               <Link to={`/register?coachId=${coach.id}`}>Ücretsiz Görüşme İçin Kayıt Ol</Link>
             ) : (
               <span className="coach-profile-trial__disabled" aria-disabled="true">Kontenjan Şu Anda Dolu</span>
             )}
-            <small>Deneme görüşmesi ve rezervasyon işlemleri giriş gerektirir.</small>
+            {!isSubscribedToThisCoach && <small>Deneme görüşmesi ve rezervasyon işlemleri giriş gerektirir.</small>}
           </section>
 
           <section className="coach-profile-about" aria-labelledby="coach-profile-about-title">

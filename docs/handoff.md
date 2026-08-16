@@ -1,5 +1,265 @@
 # Handoff — YKS Coaching Platform (Backend)
 
+## Port 8080 is intercepted by a local proxy — WebSocket breaks, HTTP does not (2026-08-16)
+
+**If chat "doesn't connect" on your machine, check this before touching any code.** On the
+owner's Mac, everything on `localhost:8080` is transparently routed through a proxy listening on
+`127.0.0.1:10011`. That proxy passes plain HTTP through untouched but corrupts the WebSocket byte
+stream *after* the upgrade. The application code is fine — the exact same build works on any other
+port.
+
+**Symptom.** REST works, `GET /ws/info` returns 200, the handshake completes with `101 Switching
+Protocols` — and then the first client→server frame dies:
+
+```
+CloseStatus[code=1002, reason=A WebSocket frame was sent with an unrecognised opCode of [7]]
+CloseStatus[code=1002, reason=The client frame set the reserved bits to [4] for a message with opCode [7] ...]
+```
+
+No STOMP `CONNECTED`, no STOMP `ERROR` frame, and `WebSocketMessageBrokerStats` reports
+`stompSubProtocol[processed CONNECT(0)-CONNECTED(0)]` — the frame never reaches the STOMP layer.
+In Chrome DevTools (Network → WS → Messages) it looks like the CONNECT frame goes out and the
+server simply never answers; Chrome does not surface the close frame there, which is what makes
+this so confusing. The frontend just sits on "Bağlanıyor…" and retries with backoff forever.
+
+**Quickest check — one command, no app needed.** If the source port the server sees differs from
+the port the client bound, something is proxying:
+
+```bash
+node -e 'const n=require("net"),p=+process.argv[1];let c;const s=n.createServer(k=>{console.log("client port:",c.localPort,"server sees:",k.remotePort,c.localPort===k.remotePort?"-> direct":"-> PROXY IN THE MIDDLE");process.exit(0)});s.listen(p,()=>{c=n.connect(p,"127.0.0.1",()=>c.write("x"))})' 8080
+```
+
+**How it was tracked down** (each step ruled out a whole class of cause):
+
+1. All three clients — Chrome, Node `ws`, and the Tomcat Java client the tests use — failed
+   identically on 8080. Not a client bug.
+2. Raw WebSocket and SockJS both failed; `permessage-deflate` off, Origin removed, frame sizes
+   36/241/313 bytes, delayed sends — no change. Not framing, compression, or timing.
+3. `forward-headers-strategy=none`, plain `java -cp` instead of `spring-boot:run` (so no
+   `-XX:TieredStopAtLevel=1`), browser traffic stopped — no change. Not app or JVM config.
+4. Two instances of the same build running **simultaneously** on 8080 and 8099: 8099 completed a
+   full STOMP round trip, 8080 failed. Only the port differed.
+5. A bare Node `ws` echo server — no Tomcat, no Spring, no Java — also broke on 8080 and worked on
+   8082. Proved the corruption is external to the application entirely.
+6. Plain TCP bytes on 8080 arrive intact and the 101 response headers are byte-identical to what
+   the server emitted, so the interceptor is HTTP-aware and only mangles the upgraded stream.
+7. The source-port check above showed a mismatch on 8080 and a match on 8082, and `lsof` showed
+   the client socket connected to `127.0.0.1:10011` rather than to 8080.
+
+**What the proxy is.** **macOS Screen Time's web content filter**, identified by the project owner
+after the investigation narrowed it to a listener on port 10011. It is a system-level content
+filter, which is why it intercepts every process on the machine (Node, Java and Chrome alike),
+survives killing every browser, and cannot be attributed with a plain `lsof` — the listener shows
+up in `netstat -an | grep 10011` but needs elevated privileges to attribute:
+
+```bash
+sudo lsof -nP -i :10011 | grep LISTEN
+```
+
+Ruled out along the way: Antigravity's Chrome (`--remote-debugging-port=9222`) was killed outright
+and made no difference, and there are no `pf` redirects, system extensions, `scutil` proxy settings
+or Docker port bindings involved.
+
+**To make port 8080 usable again**, turn off the Screen Time web content filter (System Settings →
+Screen Time → Content & Privacy → Content Restrictions), or keep the backend on another port for
+local dev. Note this is not specific to this project: any local WebSocket server on port 8080 on
+this machine will break the same way, which is worth remembering on unrelated work.
+
+**How to avoid it.** Nothing in this repo needs to change. Either stop/reconfigure whatever owns
+port 10011, or run the backend on another port for local dev (`--server.port=8081`, and update
+`frontend/.env`'s `VITE_API_BASE_URL` plus the `/ws` proxy target in `frontend/vite.config.ts`
+together, or the frontend will talk to the wrong place). Ports 8081, 8082 and 8099 were all
+verified clean. Do not "fix" this by changing WebSocket, Security or SockJS configuration — that
+is how the false leads below got written.
+
+**Two corrections to earlier notes in this file:**
+
+- `scripts/ws_test.mjs` used to claim it used the SockJS URL format "to avoid a known Tomcat 11 +
+  Node ws opCode compatibility quirk". That was wrong — the SockJS format bypasses nothing, and
+  the failure is not Node-specific or Tomcat-specific. The comment has been removed and the script
+  now takes the port as a parameter instead of hard-coding 8080.
+- **RESOLVED (2026-08-16):** the `/ws/**` `WebSecurityCustomizer.ignoring()` in `SecurityConfig`
+  had been introduced to fix this 1002 error. It never was a Spring Security problem, so that
+  change rested on a false premise, and Spring Security warned about it at every boot ("You are
+  asking Spring Security to ignore PathPattern [/ws/**]. This is not recommended -- please use
+  permitAll via HttpSecurity#authorizeHttpRequests instead."). Reverted to
+  `.requestMatchers("/ws/**").permitAll()` inside the filter chain and re-verified on a clean port
+  (8081): full STOMP round trip OK, browser badge "Bağlı", `WebSocketAuthTest` 7/7, and the
+  Spring warning is gone. `/ws/**` is back under the filter chain — no unnecessary security
+  surface — while STOMP auth continues to happen in the CONNECT frame via
+  `StompAuthChannelInterceptor`.
+
+**Verified working** on 8081 with the same build, over the SockJS transport the browser uses —
+CONNECT accepted, SUBSCRIBE authorized, SEND broadcast back over
+`/topic/conversations/{id}` (`scripts/ws_roundtrip_probe.mjs <port>` reproduces this in one shot).
+
+**Browser E2E, two live sessions (2026-08-16).** Student and coach in the same conversation, each
+in its own origin so the two `localStorage` token sets don't collide (`localhost:5173` and a second
+dev server on `localhost:5174`; the backend needs both in `CORS_ALLOWED_ORIGINS`). Confirmed:
+connection badge "Bağlı" on both sides; student→coach and coach→student messages appear **without
+a page reload**; the "Gönderiliyor…" pending indicator appears and clears when the broadcast
+returns; timestamps render correctly; killing and restarting the backend flips the badge to
+"Yeniden bağlanıyor…" and back to "Bağlı" on its own, and messages sent after the restart arrive
+live. Two findings from that run:
+
+- **The unread badge does not update live.** `AppLayout` fetches the count on mount and on the
+  `messages-read` event only, so a message arriving while the user is on another page does not
+  bump "Mesajlarım" until a full page reload (verified: badge stayed bare, then showed `1` after
+  reload). The WS subscription is per-conversation, so a layout-level live count would need either
+  a user-scoped topic or a refetch on any incoming message. Not a regression, just never wired.
+- `POST /api/v1/conversations/{id}/read` shows as `204 [FAILED: net::ERR_ABORTED]` in dev. React
+  StrictMode double-mounts the page and the first call is aborted; the second succeeds. Dev-only
+  noise, no user-visible effect.
+
+**`/api/v1/auth/me` 401s in the console are not a bug.** With an expired access token the sequence
+is: two parallel `GET /auth/me` → both `401` (StrictMode double-invoke), one shared
+`POST /auth/refresh` → `200`, then both retries → `200`. That is `httpClient.ts`'s single-flight
+`ensureFreshToken` working as designed — the browser logs the 401s as console errors regardless.
+The `"Unable to handle the Spring Security Exception because the response is already committed"`
+error previously seen in the backend log was a symptom of the port-8080 corruption above (an async
+SockJS transport request erroring after its response had started, while `/ws/**` was outside the
+filter chain). It does not reproduce on a clean port with `permitAll`.
+
+## OPEN — must resolve before prod: sockjs-client's withCredentials vs CORS allowCredentials=false (2026-08-15)
+
+While wiring the frontend chat UI to the existing STOMP/WebSocket layer (`WebSocketConfig`,
+`ChatStompController`), the SockJS transport (`sockjs-client`, used for the SockJS fallback
+`WebSocketConfig` already registers) could not connect cross-origin at all:
+
+- `sockjs-client`'s capability-check request (`GET /ws/info`) **unconditionally** sets
+  `xhr.withCredentials = true` whenever it detects a cross-origin target
+  (`abstract-xhr.js`: `if ((!opts || !opts.noCredentials) && AbstractXHRObject.supportsCORS)`).
+  There is no public SockJS constructor option to turn this off — confirmed by reading the
+  library source; `InfoReceiver` doesn't thread any such flag through to the XHR driver.
+- The backend's CORS config (`SecurityConfig.corsConfigurationSource`) deliberately sets
+  `configuration.setAllowCredentials(false)` (comment there: "OAuth2 uses top-level redirects,
+  so cross-origin cookie credentials are unnecessary" — true for the REST/OAuth2 traffic that
+  comment was written for, but SockJS's own precheck wasn't part of that reasoning).
+- Result: the browser blocks the response — `Access-Control-Allow-Credentials` must be `true`
+  when the request's credentials mode is `include`, and the server always sends `''`/omits it.
+  SockJS never gets past `/info`, so the WebSocket layer never connects at all when frontend and
+  backend are on different origins.
+
+**Local dev workaround shipped (dev-only, does not fix prod):** `frontend/vite.config.ts` proxies
+`/ws` through the Vite dev server so the browser's request is same-origin (no CORS involved at
+all), and `useConversationSocket.ts` connects to `window.location.origin` instead of
+`VITE_API_BASE_URL` when `import.meta.env.DEV`. This has no effect on a production build — there
+is no dev proxy in the built static bundle, so `useConversationSocket.ts` falls back to
+`VITE_API_BASE_URL` there, which is genuinely cross-origin in any real deployment (frontend and
+backend on different domains, per the existing `CORS_ALLOWED_ORIGINS`/prod setup elsewhere in
+this file).
+
+**Must be resolved before shipping chat to prod**, by one of:
+- Flip `allowCredentials` to `true` on the CORS config path(s) SockJS actually hits (broader
+  surface than just `/ws` unless scoped carefully — needs a deliberate decision, not a reflexive
+  flip, since the existing `false` was itself a deliberate choice for the REST/OAuth2 traffic).
+- Serve frontend and backend from the same origin in prod (reverse proxy / same domain), making
+  this moot the same way the dev proxy does.
+- Any other approach that gets `/ws/info` responded to with matching `Allow-Credentials: true` +
+  a specific (non-wildcard) `Allow-Origin`, which CORS requires together.
+
+## Demo-seed accounts: manual DB recovery, the Flyway run-once trap, and closing the prod-exposure gap (2026-08-15)
+
+**If you share the local/dev Neon DB with the owner: the six `*.demo@example.com` accounts
+(`Password123!`) were manually re-inserted directly against that database today, 2026-08-15.**
+If your app was already running against it, your `users`/`subscriptions`/`payments` rows for
+these accounts may be stale relative to what's below — re-pull and restart, or just trust `V28`
+(next point) to reconcile them correctly on your own next migration run once you also update
+`application.yml`/`application-local.yml` per this section.
+
+**What happened:** `DemoSeedCleanupComponent` deletes the demo-seed rows on every boot where
+`app.demo-seed-enabled=false` (the default — see its own file for the full delete cascade). It
+ran that way at some point before `DEMO_SEED_ENABLED: true` was added to
+`application-local.yml`, deleting all six demo users and everything hanging off them
+(conversations, messages, subscriptions, payments). Login for `student.active.demo@example.com`
+then failed outright — the account simply didn't exist.
+
+**Why flipping `DEMO_SEED_ENABLED` back to `true` didn't fix it:** Flyway migrations run exactly
+once per database, tracked in `flyway_schema_history`. `V14`/`V15` were already recorded there as
+`success` (2026-07-11) from the very first boot. No number of restarts — with any value of
+`app.demo-seed-enabled` — makes Flyway re-run an already-applied migration. **This is the trap:**
+a Flyway-seeded row that a runtime component can delete has no automatic path back. The fix has
+to be either a fresh migration (which only helps future/other databases, not the one already
+missing rows) or a manual write against the specific database that lost them — both were done
+here.
+
+**Fixes landed:**
+- **`V28__reseed_demo_users.sql`** (`db/demo-seed/`) — idempotent version of the same seed
+  (`ON CONFLICT DO NOTHING` where a unique constraint exists, `WHERE NOT EXISTS` where it
+  doesn't), and it explicitly re-asserts `email_verified`/`legal_onboarding_completed` on
+  existing rows rather than trusting the column default — the manual recovery today initially
+  missed `legal_onboarding_completed` (defaults to `false`) because the accounts were re-inserted
+  *after* `V19`'s one-time backfill `UPDATE` had already run; a plain re-insert doesn't get swept
+  up in a backfill that already happened. `V28` closes that gap for good.
+- **Closed an unrelated, pre-existing prod-exposure gap found while fixing this**:
+  `application.yml`'s `spring.flyway.locations` included `classpath:db/demo-seed` in the
+  **default** (profile-less) config. This project has no dedicated `prod` Spring profile —
+  Railway runs the bare/default profile (see the Resend section below: `"prod" is detected as
+  *not* local/test/stub`). So `db/demo-seed` (`V14`, `V15`, now `V28`) was never actually excluded
+  from a real prod deploy — only `application-test.yml` opted out. A real deploy would have
+  silently seeded a known-password `ADMIN` account into production. Fixed by flipping the
+  approach to an **allowlist**: `application.yml`'s default is now `classpath:db/migration` only;
+  `application-local.yml` (gitignored) and its committed `.example` template both explicitly add
+  `classpath:db/migration,classpath:db/demo-seed` back for local dev. `stub` was left on the new,
+  safer default (excluded) — it wasn't previously documented as needing demo-seed; flag if that's
+  wrong.
+- **Deploy-safety check, resolved 2026-08-15**: confirmed with the project owner that no Railway
+  prod deploy and no separate prod database exist yet — the only database in use is this Neon
+  dev DB. So there's no environment anywhere with `V14`/`V15` applied against a database this
+  `flyway.locations` change would now hide them from; the flip is clean, nothing to migrate
+  around. (The reasoning that made this worth checking first — Flyway's `validate` step failing
+  with "detected applied migration not resolved locally" if a database already has rows for
+  migrations that later drop out of the resolved location list — still applies in general and is
+  worth remembering whenever `flyway.locations` changes on a database that's actually been
+  deployed to.) See the next section for what's still needed before a *real* prod exists.
+
+## Production readiness checklist: before the first real deploy
+
+Written 2026-08-15, prompted by the demo-seed/prod-exposure fix above — this is not yet an
+exhaustive go-live list, just what's been surfaced concretely by working on auth/messaging/OAuth
+in this handoff so far.
+
+- **Provision a separate Neon database for prod. Do not point a real deploy at this dev DB.**
+  Beyond the general bad practice, it's now a concrete leak: this DB carries the
+  `*.demo@example.com` accounts (`Password123!`, one of them `ADMIN`) plus whatever manual
+  test data accumulates in it. `flyway.locations`'s allowlist (this section, above) stops
+  `db/demo-seed` from *re-seeding* those rows on a fresh prod database — it does nothing about
+  a prod deploy that's simply handed the dev database's connection string.
+- **On that prod database, `spring.flyway.locations` resolves to `classpath:db/migration` only**
+  — confirmed by the allowlist change above: Railway's bare/default profile (no `local`/`stub`
+  override) gets `application.yml`'s default, and `db/demo-seed` is no longer part of it.
+  Nothing further to do here as long as prod stays on the bare profile and doesn't set
+  `spring.flyway.locations` itself.
+- **Env vars to set before that first deploy** (each currently has a dev-only default or
+  fallback that silently produces wrong-for-prod behavior rather than failing loudly — worth
+  double-checking as a group right before cutover):
+  - `RESEND_FROM` — `ResendConfig`'s fail-fast guard (`!local & !stub`) already throws at
+    startup if this is unset, so this one *can't* be silently missed; listed here for
+    completeness. See "Resend sender hardening" below for the guard's exact shape.
+  - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — `application.yml` defaults to
+    `dummy-client-id`/`dummy-client-secret` (boots fine, Google login just silently doesn't
+    work) rather than failing fast. No startup guard exists for these the way Resend has one.
+  - `FRONTEND_BASE_URL`, `OAUTH2_FRONTEND_REDIRECT_URI`, `CORS_ALLOWED_ORIGINS` — all default to
+    `localhost` origins/paths (see `application.yml`); already called out further down this file
+    ("`/api/v1/health` remains public for Railway health checks…" section) but repeating here
+    since they're easy to forget in the same pass as the items above.
+  - `IYZICO_CALLBACK_URL` — `application.yml` defaults it to
+    `http://localhost:8080/api/v1/payments/iyzico/webhook`, and `RealIyzicoClient.initializeCheckout`
+    (`RealIyzicoClient.java:78`) falls back to that same hard-coded `localhost:8080` URL a
+    *second* time if `properties.callbackUrl()` is ever blank — so even a misconfigured/blank env
+    var doesn't fail loudly, it just quietly sends Iyzico a callback URL prod can never receive.
+    Set it to the real public backend URL's `/api/v1/payments/iyzico/webhook` path, and consider
+    whether that double localhost fallback is worth hardening to fail-fast instead (it currently
+    isn't, unlike the Resend guard).
+
+**General lesson for the next person touching demo/reference seed data:** Flyway's ledger
+(run-once, checksummed) and a runtime component that conditionally deletes rows by a boolean flag
+are a bad combination unless the seed migration is written to be safely re-runnable by hand (or
+via a fresh migration) from the start. If you add another `DemoSeed*Component`-style cleanup or
+another `db/demo-seed` migration, write it idempotent (`ON CONFLICT` / `WHERE NOT EXISTS`,
+explicit field values, never a blind counter increment) the first time — see `V28` as the
+reference shape.
+
 ## Resend domain verification landed: real from/reply-to (2026-08-15)
 
 `uniformakademi.com` is now **Verified** in Resend (DNS/SPF/DKIM done). Closes the gap the two
@@ -845,3 +1105,20 @@ decisions below were all honored; kept here as the rationale record.
 - Email verification and `legalOnboardingCompleted` are separate readiness flags. Checkout, booking/session creation, conversation creation, and message sending require both; failures remain distinct as `EMAIL_VERIFICATION_REQUIRED` and `LEGAL_ONBOARDING_REQUIRED`.
 - Frontend route priority is `/verify-email`, then `/legal-onboarding`, then the role home. `/privacy`, `/security`, verification, onboarding, and session-management auth calls remain reachable for limited accounts.
 - Verification mail uses the existing best-effort Resend/stub transport and ignores marketing opt-in state. Production `RESEND_API_KEY`, verified sender/domain, and deployment configuration remain external work.
+
+## WebSocket /ws Endpoint Security & Node.js Test Script (2026-08-16)
+
+To permanently resolve the CORS issue with `sockjs-client` pre-flight requests in production, the `/ws/**` endpoint has been explicitly ignored from the Spring Security filter chain (`WebSecurityCustomizer.ignoring()`). 
+Security regression tests in `WebSocketAuthTest` confirm that `StompAuthChannelInterceptor` correctly validates JWTs, rejects missing/invalid tokens, enforces suspended/deleted user bans, and authorizes `SUBSCRIBE` actions based on conversation membership at the STOMP message level.
+
+Because `WebSocketStompClient` in Java tests bypasses browser-level network constraints, a Node.js verification script is provided to test the STOMP connection under realistic conditions.
+
+**Running the manual verification script:**
+A Node.js script located at `scripts/ws_test.mjs` acts as an external client using `ws` and `@stomp/stompjs`. It verifies that the `/ws` endpoint accepts raw WebSocket STOMP connections without HTTP-level filter chain interference.
+
+```bash
+# From the project root
+npm install ws @stomp/stompjs
+node scripts/ws_test.mjs <jwt_token> <conversation_id>
+```
+The script will connect to `ws://localhost:8080/ws`, subscribe to the given conversation topic, and send a test message.

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { studentDashboardApi } from "../studentDashboard/studentDashboardApi";
 import type { StudentDashboardResponse } from "../studentDashboard/studentDashboardTypes";
@@ -64,6 +64,13 @@ export const DashboardPage: React.FC = () => {
           <p><strong>E-posta:</strong> {user.email}</p>
           <p><strong>Rol:</strong> Koç (COACH)</p>
         </div>
+        <Link
+          to="/messages"
+          style={{ display: "block", padding: "1.25rem", border: "1px solid #dee2e6", borderRadius: "8px", backgroundColor: "#fff", marginBottom: "2rem", textDecoration: "none", color: "#333" }}
+        >
+          <h4 style={{ margin: "0 0 0.25rem 0" }}>Mesajlarım</h4>
+          <span style={{ color: "#6c757d", fontSize: "0.9rem" }}>Öğrencilerinizle olan konuşmalarınızı görüntüleyin</span>
+        </Link>
         <div style={{ padding: "2rem", border: "1px solid #ffeeba", borderRadius: "8px", backgroundColor: "#fff3cd", color: "#856404", textAlign: "center" }}>
           <h4>Koç Paneli Henüz Yayında Değil</h4>
           <p style={{ margin: 0 }}>Koç arayüzü sonraki aşamalarda aktif edilecektir.</p>
@@ -84,6 +91,14 @@ export const DashboardPage: React.FC = () => {
           <span><strong>E-posta:</strong> {user?.email}</span>
         </div>
       </div>
+
+      <Link
+        to="/messages"
+        style={{ display: "block", padding: "1.25rem", border: "1px solid #dee2e6", borderRadius: "8px", backgroundColor: "#fff", marginBottom: "2rem", textDecoration: "none", color: "#333" }}
+      >
+        <h4 style={{ margin: "0 0 0.25rem 0" }}>Mesajlarım</h4>
+        <span style={{ color: "#6c757d", fontSize: "0.9rem" }}>Koçunuzla olan konuşmalarınızı görüntüleyin</span>
+      </Link>
 
       <FormError error={error} />
 

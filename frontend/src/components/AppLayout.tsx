@@ -1,13 +1,64 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { LegalDocumentViewer } from "../legal/LegalDocumentViewer";
 import { useLegalDocuments } from "../legal/useLegalDocuments";
+import { messagingApi } from "../messaging/messagingApi";
+
+const UnreadBadge: React.FC<{ count: number }> = ({ count }) => {
+  if (count <= 0) return null;
+  return (
+    <span
+      style={{
+        marginLeft: "0.4rem",
+        backgroundColor: "#dc3545",
+        color: "white",
+        borderRadius: "999px",
+        padding: "0.05rem 0.45rem",
+        fontSize: "0.72rem",
+        fontWeight: "bold",
+      }}
+    >
+      {count}
+    </span>
+  );
+};
 
 export const AppLayout: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const footerDocuments = useLegalDocuments(["KVKK_NOTICE", "PRIVACY_POLICY", "TERMS_OF_USE"]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const canSeeMessages = isAuthenticated && (user?.role === "STUDENT" || user?.role === "COACH");
+
+  useEffect(() => {
+    if (!canSeeMessages) {
+      setUnreadCount(0);
+      return;
+    }
+    let cancelled = false;
+    const fetchUnreadCount = () => {
+      messagingApi
+        .listConversations()
+        .then((list) => {
+          if (!cancelled) {
+            setUnreadCount((list || []).reduce((sum, c) => sum + (c.unreadCount || 0), 0));
+          }
+        })
+        .catch(() => {
+          // Badge is a nice-to-have; leave it at its last known value on failure.
+        });
+    };
+    fetchUnreadCount();
+    // Dispatched by ConversationPage after it successfully marks a conversation read (on
+    // open, and whenever a live message arrives while it's being viewed) — refetch so the
+    // badge reflects it immediately instead of waiting for the next full page load.
+    window.addEventListener("messages-read", fetchUnreadCount);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("messages-read", fetchUnreadCount);
+    };
+  }, [canSeeMessages]);
 
   const handleLogout = async () => {
     await logout();
@@ -30,8 +81,17 @@ export const AppLayout: React.FC = () => {
                 <>
                   <Link to="/coaches" style={{ color: "#ccc", textDecoration: "none" }}>Koç Keşfet</Link>
                   <Link to="/bookings" style={{ color: "#ccc", textDecoration: "none" }}>Randevularım</Link>
-                  <Link to="/messages" style={{ color: "#ccc", textDecoration: "none" }}>Mesajlarım</Link>
+                  <Link to="/messages" style={{ color: "#ccc", textDecoration: "none", display: "flex", alignItems: "center" }}>
+                    Mesajlarım
+                    <UnreadBadge count={unreadCount} />
+                  </Link>
                 </>
+              )}
+              {user?.role === "COACH" && (
+                <Link to="/messages" style={{ color: "#ccc", textDecoration: "none", display: "flex", alignItems: "center" }}>
+                  Mesajlarım
+                  <UnreadBadge count={unreadCount} />
+                </Link>
               )}
               {user?.role === "ADMIN" && (
                 <Link to="/admin" style={{ color: "#ffc107", textDecoration: "none", fontWeight: "bold" }}>Admin Paneli</Link>

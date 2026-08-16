@@ -28,10 +28,13 @@ spring:
 
   flyway:
     enabled: true
-    # db/demo-seed holds demo/manual-testing-only data (V14, V15 — see their own headers).
-    # Excluded from the test profile (application-test.yml) so Testcontainers-backed
-    # repository tests never see this data; kept here for local/dev/demo use.
-    locations: classpath:db/migration,classpath:db/demo-seed
+    # db/demo-seed holds demo/manual-testing-only data (V14, V15, V28 — see their headers).
+    # Deliberately an ALLOWLIST, not excluded-per-profile: this project has no dedicated
+    # "prod" Spring profile (Railway runs the bare/default profile — see handoff.md's Resend
+    # section), so if demo-seed were included here by default, prod would silently run it too
+    # and seed a known-password ADMIN account. Only application-local.yml opts back in.
+    # See handoff.md "Demo-seed Flyway location + DemoSeedCleanupComponent trap" (2026-08-15).
+    locations: classpath:db/migration
     placeholders:
       # Dev-only default = BCrypt of "admin1234". Override in prod via ADMIN_PASSWORD_HASH
       # (a pre-computed BCrypt hash, not plaintext). Used by V3__seed_admin.sql.

@@ -226,7 +226,7 @@ export const AdminSafetyPage: React.FC = () => {
                     <strong style={{ fontSize: "0.9rem", color: "#495057" }}>{msg.senderName}</strong>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                       <span style={{ fontSize: "0.75rem", color: "#6c757d" }}>
-                        {new Date(msg.createdAt).toLocaleString("tr-TR")}
+                        {new Date(msg.sentAt).toLocaleString("tr-TR")}
                       </span>
                       <button
                         onClick={() => setSuspendUserId(msg.senderId)}

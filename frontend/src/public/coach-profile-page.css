@@ -30,7 +30,8 @@
 .coach-profile-trial li div { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .coach-profile-trial li strong { color: #1b1c1c; }
 .coach-profile-trial li small { color: #625c5d; text-align: right; }
-.coach-profile-trial > a,.coach-profile-trial__disabled { min-height: 54px; display: flex; align-items: center; justify-content: center; border-radius: 14px; color: #fff !important; background: #000; text-decoration: none; font-weight: 800; text-align: center; }
+.coach-profile-trial > a,.coach-profile-trial > button,.coach-profile-trial__disabled { width: 100%; min-height: 54px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 14px; color: #fff !important; background: #000; text-decoration: none; font: inherit; font-weight: 800; text-align: center; cursor: pointer; }
+.coach-profile-trial > button:disabled { cursor: not-allowed; opacity: .7; }
 .coach-profile-trial__disabled { color: #625c5d !important; background: #e4e2e2; }
 .coach-profile-trial > small { margin-top: 15px; display: block; color: #625c5d; text-align: center; }
 .coach-profile-about { grid-area: about; padding-top: 12px; border-top: 1px solid rgba(126,117,118,.14); }

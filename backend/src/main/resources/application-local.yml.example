@@ -25,3 +25,12 @@ app:
   # Keep disabled until a real Cloudflare bucket and scoped credentials exist.
   r2:
     enabled: false
+
+# Demo accounts (student.active.demo@example.com etc., password Password123! — see V14/V15/V28
+# in db/demo-seed) need BOTH of these to actually show up locally:
+DEMO_SEED_ENABLED: true            # otherwise DemoSeedCleanupComponent deletes them on every boot
+spring:
+  flyway:
+    # application.yml's default excludes db/demo-seed everywhere (prod has no dedicated Spring
+    # profile to gate it on otherwise). Local dev opts back in here.
+    locations: classpath:db/migration,classpath:db/demo-seed

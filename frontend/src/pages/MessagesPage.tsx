@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/AuthProvider";
 import { messagingApi } from "../messaging/messagingApi";
 import type { ConversationResponse } from "../messaging/messagingTypes";
 import { studentDashboardApi } from "../studentDashboard/studentDashboardApi";
@@ -9,6 +10,8 @@ import { FormError } from "../components/FormError";
 
 export const MessagesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isStudent = user?.role === "STUDENT";
   const [conversations, setConversations] = useState<ConversationResponse[]>([]);
   const [dashboardData, setDashboardData] = useState<StudentDashboardResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -18,9 +21,12 @@ export const MessagesPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      // The subscription-gated access banner below only applies to students — a coach's
+      // ability to read/send isn't tied to a subscription (MessageService.sendMessage only
+      // checks it for the student sender), so skip the student-only dashboard call for coaches.
       const [convList, dash] = await Promise.all([
         messagingApi.listConversations(),
-        studentDashboardApi.getDashboardData(),
+        isStudent ? studentDashboardApi.getDashboardData() : Promise.resolve(null),
       ]);
       setConversations(convList || []);
       setDashboardData(dash);
@@ -46,7 +52,7 @@ export const MessagesPage: React.FC = () => {
     });
   };
 
-  const hasAccess = canMessageWithSubscription(dashboardData?.subscription?.status);
+  const hasAccess = isStudent ? canMessageWithSubscription(dashboardData?.subscription?.status) : true;
 
   return (
     <div style={{ padding: "2rem", maxWidth: "800px", margin: "0 auto" }}>
@@ -72,14 +78,22 @@ export const MessagesPage: React.FC = () => {
           <p style={{ margin: 0, color: "#6c757d", fontSize: "1.1rem" }}>
             Henüz başlatılmış bir mesajlaşmanız bulunmuyor.
           </p>
-          {hasAccess && (
+          {isStudent ? (
+            <>
+              {hasAccess && (
+                <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.95rem" }}>
+                  Mesaj göndermek için abonesi olduğunuz koçun detay sayfasına giderek <strong>"Mesaj Gönder"</strong> butonunu kullanabilirsiniz.
+                </p>
+              )}
+              <Link to="/coaches" style={{ display: "inline-block", marginTop: "1rem", color: "#007bff", fontWeight: "bold" }}>
+                Koçları Listele &rarr;
+              </Link>
+            </>
+          ) : (
             <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.95rem" }}>
-              Mesaj göndermek için abonesi olduğunuz koçun detay sayfasına giderek <strong>"Mesaj Gönder"</strong> butonunu kullanabilirsiniz.
+              Bir öğrenci size mesaj gönderdiğinde konuşma burada görünecek.
             </p>
           )}
-          <Link to="/coaches" style={{ display: "inline-block", marginTop: "1rem", color: "#007bff", fontWeight: "bold" }}>
-            Koçları Listele &rarr;
-          </Link>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -102,7 +116,7 @@ export const MessagesPage: React.FC = () => {
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#fff")}
             >
               <div>
-                <h3 style={{ margin: "0 0 0.25rem 0", color: "#333" }}>{conv.coachName}</h3>
+                <h3 style={{ margin: "0 0 0.25rem 0", color: "#333" }}>{isStudent ? conv.coachName : conv.studentName}</h3>
                 <span style={{ fontSize: "0.8rem", color: "#6c757d" }}>
                   Son Mesajlaşma: {formatTimestamp(conv.lastMessageAt)}
                 </span>
