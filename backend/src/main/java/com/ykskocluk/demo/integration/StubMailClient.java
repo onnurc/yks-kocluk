@@ -68,6 +68,14 @@ public class StubMailClient implements MailClient {
     }
 
     @Override
+    public void sendNewMessageNotification(String toEmail, String senderName, String conversationLink) {
+        // Logs the sender and the link, never any message content — same reason the real mail
+        // carries none (see MailClient's javadoc); logs are not a loophole around that.
+        log.info("[STUB MailClient] new-message mail to {} (from {}, link {})",
+                toEmail, senderName, conversationLink);
+    }
+
+    @Override
     public void sendRenewalSucceeded(String toEmail, String coachName, Instant nextEndAt, BigDecimal amount) {
         log.info("[STUB MailClient] renewal-succeeded mail to {} (coach {}, nextEnd {}, amount {})",
                 toEmail, coachName, nextEndAt, amount);

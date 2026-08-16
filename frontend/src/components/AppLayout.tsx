@@ -4,6 +4,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { LegalDocumentViewer } from "../legal/LegalDocumentViewer";
 import { useLegalDocuments } from "../legal/useLegalDocuments";
 import { messagingApi } from "../messaging/messagingApi";
+import { useNotificationSocket } from "../messaging/useNotificationSocket";
 
 const UnreadBadge: React.FC<{ count: number }> = ({ count }) => {
   if (count <= 0) return null;
@@ -59,6 +60,16 @@ export const AppLayout: React.FC = () => {
       window.removeEventListener("messages-read", fetchUnreadCount);
     };
   }, [canSeeMessages]);
+
+  // The other half of the badge: the fetch above only covers messages that already existed when
+  // the page loaded (and re-runs on a read). This makes it live — the server pushes an updated
+  // total whenever a message arrives, from whatever page the user happens to be on.
+  useNotificationSocket({
+    enabled: canSeeMessages,
+    // Assign, never increment: the server recomputes the authoritative total per push, so two
+    // open tabs and a reconnect all converge on the same number instead of drifting apart.
+    onNotification: (notification) => setUnreadCount(notification.unreadTotal),
+  });
 
   const handleLogout = async () => {
     await logout();

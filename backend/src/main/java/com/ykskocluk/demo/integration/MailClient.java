@@ -62,6 +62,21 @@ public interface MailClient {
     /** Cancellation confirmed — auto-renew is off; access continues until {@code accessUntil}. */
     void sendCancellationConfirmed(String toEmail, String coachName, Instant accessUntil);
 
+    /**
+     * "You have a new message" — sent only when the recipient has no live WebSocket session and
+     * hasn't already been emailed about this conversation inside the debounce window (see
+     * {@code MessageNotificationListener.shouldSendEmail}).
+     *
+     * <p><strong>Carries no message text, not even a preview — deliberately.</strong> Three
+     * reasons: the platform serves minors whose inboxes are frequently shared with or readable by
+     * a parent; the whole messaging design routes conversations through an in-platform,
+     * admin-observable channel with its own retention and anonymization rules, which mailing the
+     * content would quietly bypass; and copying message bodies to a third-party mail provider is
+     * exactly the kind of unnecessary spreading of personal data KVKK data minimization asks us
+     * not to do. Sender name plus a link back is enough to bring someone to the app.
+     */
+    void sendNewMessageNotification(String toEmail, String senderName, String conversationLink);
+
     /** Confirm to the reporter that their safety report was received. */
     void sendReportReceived(String toEmail);
 

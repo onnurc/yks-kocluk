@@ -1,22 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Client, ReconnectionTimeMode } from "@stomp/stompjs";
-import SockJS from "sockjs-client";
-import { getApiBaseUrl, ensureFreshToken } from "../api/httpClient";
-import { getAccessToken } from "../auth/tokenStorage";
+import { Client } from "@stomp/stompjs";
+import { createStompClient } from "./stompClient";
 import type { MessageResponse } from "./messagingTypes";
 
 export type SocketStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
-
-const INITIAL_RECONNECT_DELAY_MS = 1000;
-const MAX_RECONNECT_DELAY_MS = 30000;
-
-// In dev, go through the Vite proxy (same origin as the page) rather than straight to
-// VITE_API_BASE_URL — see the proxy comment in vite.config.ts for why: sockjs-client's /info
-// precheck can't be made to skip withCredentials on a cross-origin URL, which the backend's
-// CORS config (deliberately allowCredentials=false) then rejects. A production build has no
-// dev proxy, so it connects directly; that deployment's CORS/origin setup is a separate,
-// deliberate decision for whoever configures it, not something to route around here.
-const getSocketBaseUrl = (): string => (import.meta.env.DEV ? window.location.origin : getApiBaseUrl());
 
 interface UseConversationSocketOptions {
   conversationId: number | null;
@@ -40,6 +27,9 @@ interface UseConversationSocketResult {
  * broadcast, and exposes a publish helper for /app/conversations/{id}/send. Auth travels in
  * the STOMP CONNECT frame's native Authorization header (StompAuthChannelInterceptor reads it
  * there only — not on SUBSCRIBE/SEND, and not as a query param).
+ *
+ * Connection lifecycle (transport, backoff, token refresh) lives in createStompClient, shared
+ * with useNotificationSocket.
  */
 export function useConversationSocket({
   conversationId,
@@ -59,50 +49,25 @@ export function useConversationSocket({
   useEffect(() => {
     if (!conversationId) return;
 
-    let hasConnectedOnce = false;
-
-    const client = new Client({
-      webSocketFactory: () => new SockJS(`${getSocketBaseUrl()}/ws`),
-      // stompjs's own exponential backoff (doubles reconnectDelay up to maxReconnectDelay)
-      // rather than a hand-rolled timer.
-      reconnectDelay: INITIAL_RECONNECT_DELAY_MS,
-      maxReconnectDelay: MAX_RECONNECT_DELAY_MS,
-      reconnectTimeMode: ReconnectionTimeMode.EXPONENTIAL,
-      // Runs before the initial connect and every automatic reconnect — re-reads the token
-      // from storage each time so a refresh (triggered below, or by any unrelated REST call
-      // going through httpClient's central 401 handling) is picked up on the next attempt.
-      beforeConnect: () => {
-        client.connectHeaders = { Authorization: `Bearer ${getAccessToken() ?? ""}` };
-      },
-      onConnect: () => {
+    const client = createStompClient({
+      onConnect: (activeClient, isReconnect) => {
         setStatus("connected");
-        client.subscribe(`/topic/conversations/${conversationId}`, (frame) => {
+        activeClient.subscribe(`/topic/conversations/${conversationId}`, (frame) => {
           try {
             onMessageRef.current(JSON.parse(frame.body) as MessageResponse);
           } catch {
             // Malformed frame — ignore rather than crash the page.
           }
         });
-        if (hasConnectedOnce) {
+        if (isReconnect) {
           onReconnectedRef.current();
         }
-        hasConnectedOnce = true;
       },
-      onWebSocketClose: () => {
+      onWebSocketClose: (hasConnectedOnce) => {
         setStatus(hasConnectedOnce ? "reconnecting" : "connecting");
       },
-      onStompError: () => {
-        // The most likely cause of a rejected CONNECT is an expired access token — refresh
-        // through the same shared mechanism httpClient's 401 handling uses (a single in-flight
-        // refresh serves every caller). If the refresh token itself is dead, ensureFreshToken
-        // tears down the session and fires "session-expired" (AuthProvider redirects to
-        // /login) — stop retrying here rather than spinning against a permanently dead session.
-        void ensureFreshToken().then((token) => {
-          if (!token) {
-            void client.deactivate();
-            setStatus("disconnected");
-          }
-        });
+      onAuthFailure: () => {
+        setStatus("disconnected");
       },
     });
 

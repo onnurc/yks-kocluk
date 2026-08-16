@@ -46,6 +46,35 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
             """)
     long countUnreadForCoach(@Param("coachUserId") Long coachUserId);
 
+    /**
+     * Total unread across every conversation the user can actually open — the authoritative
+     * number behind the nav badge, pushed to {@code /user/queue/notifications} so the client
+     * never has to increment (and drift) a count of its own across tabs and reconnects.
+     *
+     * <p>The student branch repeats {@code SubscriptionRepository.existsHistoryAccessSubscription}
+     * as an EXISTS rather than counting every row: {@code MessageService.myConversations} hides
+     * conversations the student has no history access to, so counting them here would show a badge
+     * for a thread that isn't in the list. Coaches have no such gate — their side is unconditional.
+     * Deliberately ONE aggregate; the per-conversation counts stay in
+     * {@link #countUnreadByConversationIds}.
+     */
+    @Query("""
+            select count(m) from Message m
+             where m.sender.id <> :userId
+               and m.readAt is null
+               and (m.conversation.coachProfile.user.id = :userId
+                    or (m.conversation.student.id = :userId
+                        and exists (select s.id from Subscription s
+                                     where s.student.id = :userId
+                                       and s.coachProfile.id = m.conversation.coachProfile.id
+                                       and s.status in (
+                                            com.ykskocluk.demo.enums.SubscriptionStatus.ACTIVE,
+                                            com.ykskocluk.demo.enums.SubscriptionStatus.PAST_DUE,
+                                            com.ykskocluk.demo.enums.SubscriptionStatus.EXPIRED,
+                                            com.ykskocluk.demo.enums.SubscriptionStatus.CANCELLED))))
+            """)
+    long countUnreadForUser(@Param("userId") Long userId);
+
     Optional<Message> findFirstByConversationIdOrderByCreatedAtDesc(Long conversationId);
 
     @Query("""

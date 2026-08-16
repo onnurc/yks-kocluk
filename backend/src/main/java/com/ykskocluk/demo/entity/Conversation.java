@@ -37,4 +37,18 @@ public class Conversation extends BaseEntity {
 
     @Column(name = "last_message_at", nullable = false)
     private Instant lastMessageAt;
+
+    /**
+     * When a "you have a new message" email was last sent to each participant. Null = never.
+     * Claimed atomically by {@code ConversationRepository.claimStudentNotification} /
+     * {@code claimCoachNotification} — the same set-once-under-a-predicate guard
+     * {@code Session.reminderSentAt} uses, except the predicate is a moving window rather than
+     * "is null", which makes one column serve as both the debounce and the idempotency guard.
+     * Per-recipient (not per-conversation) so the two directions never silence each other.
+     */
+    @Column(name = "student_notified_at")
+    private Instant studentNotifiedAt;
+
+    @Column(name = "coach_notified_at")
+    private Instant coachNotifiedAt;
 }
