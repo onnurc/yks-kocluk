@@ -68,6 +68,10 @@ const App: React.FC = () => {
               {/* Student-only Routes */}
               <Route element={<RoleRoute allowedRoles={["STUDENT"]} />}>
                 <Route path="/bookings" element={<BookingsPage />} />
+              </Route>
+
+              {/* Messaging: students and coaches both participate in conversations */}
+              <Route element={<RoleRoute allowedRoles={["STUDENT", "COACH"]} />}>
                 <Route path="/messages" element={<MessagesPage />} />
                 <Route path="/messages/:conversationId" element={<ConversationPage />} />
               </Route>
