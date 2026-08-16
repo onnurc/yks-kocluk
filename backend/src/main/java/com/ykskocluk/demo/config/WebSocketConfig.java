@@ -36,9 +36,17 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.addEndpoint("/ws").setAllowedOrigins(allowedOrigins).withSockJS();
     }
 
+    /**
+     * {@code /topic} carries per-conversation broadcast; {@code /queue} carries the user-scoped
+     * notification channel ({@code /user/queue/notifications} — nav badge and inbox updates from
+     * any page). {@code /queue} is not optional there: Spring rewrites a {@code /user/**}
+     * subscription into {@code /queue/notifications-user{sessionId}} and hands it to the broker,
+     * so without {@code /queue} in this list the simple broker owns no such destination and the
+     * push is silently dropped. The default {@code /user} prefix is left as-is.
+     */
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/topic");
+        registry.enableSimpleBroker("/topic", "/queue");
         registry.setApplicationDestinationPrefixes("/app");
     }
 

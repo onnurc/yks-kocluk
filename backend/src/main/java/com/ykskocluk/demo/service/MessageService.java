@@ -16,9 +16,11 @@ import com.ykskocluk.demo.repository.ConversationRepository;
 import com.ykskocluk.demo.repository.MessageRepository;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
 import com.ykskocluk.demo.repository.UserRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -45,6 +47,7 @@ public class MessageService {
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
     private final AccountReadinessService accountReadinessService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public MessageService(ConversationRepository conversationRepository,
                           MessageRepository messageRepository,
@@ -53,7 +56,8 @@ public class MessageService {
                           UserRepository userRepository,
                           ConversationMapper conversationMapper,
                           MessageMapper messageMapper,
-                          AccountReadinessService accountReadinessService) {
+                          AccountReadinessService accountReadinessService,
+                          ApplicationEventPublisher eventPublisher) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.subscriptionRepository = subscriptionRepository;
@@ -62,6 +66,7 @@ public class MessageService {
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
         this.accountReadinessService = accountReadinessService;
+        this.eventPublisher = eventPublisher;
     }
 
     /** Student opens (or re-fetches) the conversation with a coach. Gate enforced here. */
@@ -117,7 +122,64 @@ public class MessageService {
         Message saved = messageRepository.saveAndFlush(message);
         conversation.setLastMessageAt(saved.getCreatedAt()); // Decision #3: same tx as the insert
 
-        return messageMapper.toResponse(saved);
+        MessageResponse response = messageMapper.toResponse(saved);
+        // Fan-out (topic broadcast + badge push + email) happens AFTER_COMMIT in
+        // MessageNotificationListener, for both this and the REST send path. Built here, inside
+        // the transaction, because the listener runs with the entities already detached.
+        eventPublisher.publishEvent(buildSentEvent(conversation, sender, response));
+        return response;
+    }
+
+    /**
+     * Snapshots what the after-commit listener needs. The recipient is simply "the participant who
+     * isn't the sender"; a student recipient's access is re-checked here because the inbox hides
+     * threads without history access, and notifying about a hidden thread would badge something
+     * the user cannot open.
+     */
+    private MessageSentEvent buildSentEvent(Conversation conversation, User sender,
+                                            MessageResponse response) {
+        User student = conversation.getStudent();
+        User coach = conversation.getCoachProfile().getUser();
+        boolean senderIsStudent = student.getId().equals(sender.getId());
+        User recipient = senderIsStudent ? coach : student;
+        boolean recipientHasAccess = !senderIsStudent
+                ? subscriptionRepository.existsHistoryAccessSubscription(
+                        student.getId(), conversation.getCoachProfile().getId())
+                : true; // the coach side is never subscription-gated
+        return new MessageSentEvent(response, recipient.getId(), recipient.getEmail(),
+                !senderIsStudent, recipientHasAccess, sender.getFullName());
+    }
+
+    /**
+     * Authoritative unread total for the nav badge, pushed on every notification.
+     *
+     * <p>REQUIRES_NEW for the same reason as {@link #claimEmailNotification} — see there.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public long unreadTotal(Long userId) {
+        return messageRepository.countUnreadForUser(userId);
+    }
+
+    /**
+     * Claims the right to email {@code recipient} about this conversation, returning false if a
+     * mail already went out inside the debounce window (or a concurrent send just won the claim).
+     * Committed before the mail is dispatched — a crash mid-send costs one notification rather
+     * than risking a duplicate, the same trade {@code SessionService.claimReminder} makes.
+     *
+     * <p><strong>REQUIRES_NEW, not the default.</strong> The caller is an AFTER_COMMIT listener,
+     * and during that phase the original transaction is still bound to the thread even though it
+     * has already committed — so a plain {@code @Transactional} would silently join a dead
+     * transaction and the UPDATE fails with "No active transaction". {@code claimReminder} gets
+     * away with the default only because its caller is a scheduled job with no ambient
+     * transaction. A fresh one is needed here.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean claimEmailNotification(Long conversationId, boolean recipientIsStudent,
+                                          Instant now, Instant threshold) {
+        int claimed = recipientIsStudent
+                ? conversationRepository.claimStudentNotification(conversationId, now, threshold)
+                : conversationRepository.claimCoachNotification(conversationId, now, threshold);
+        return claimed > 0;
     }
 
     @Transactional(readOnly = true)

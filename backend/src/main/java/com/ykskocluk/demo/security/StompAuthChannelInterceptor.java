@@ -30,7 +30,9 @@ import java.util.List;
  *       and valid — otherwise the connection is rejected. The authenticated user is bound
  *       to the STOMP session.</li>
  *   <li><b>SUBSCRIBE</b> to {@code /topic/conversations/{id}}: STUDENT/COACH must be a
- *       participant; authenticated ADMIN may observe an existing conversation read-only.</li>
+ *       participant; authenticated ADMIN may observe an existing conversation read-only.
+ *       {@code /user/queue/**} needs no check — Spring resolves it to the caller's own session —
+ *       but a raw {@code /queue/**} subscription is refused outright.</li>
  *   <li><b>SEND</b>: ADMIN is rejected at the channel boundary. Participant sends still pass
  *       through {@code MessageService.sendMessage} for membership/subscription enforcement.</li>
  * </ul>
@@ -43,6 +45,9 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private static final String TOPIC_PREFIX = "/topic/conversations/";
     private static final String SEND_PREFIX = "/app/conversations/";
+    // Broker-side user destination. Clients subscribe to "/user/queue/..."; Spring resolves that
+    // to "/queue/...-user{sessionId}" internally — see rejectRawUserQueue.
+    private static final String QUEUE_PREFIX = "/queue/";
 
     private final JwtService jwtService;
     private final MessageService messageService;
@@ -114,6 +119,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     /** A user may only subscribe to a conversation topic they participate in. */
     private void authorizeSubscribe(StompHeaderAccessor accessor) {
+        rejectRawUserQueue(accessor.getDestination());
         Long conversationId = conversationIdFromDestination(accessor.getDestination());
         if (conversationId == null) {
             return; // not a conversation topic — nothing to authorize here
@@ -134,6 +140,21 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         if (destination != null && destination.startsWith(SEND_PREFIX)
                 && destination.endsWith("/send") && authentication != null && isAdmin(authentication)) {
             throw new MessagingException("ADMIN konuşma gözlemcisi mesaj gönderemez");
+        }
+    }
+
+    /**
+     * Blocks a client from subscribing straight to the broker-side user queue. Enabling
+     * {@code /queue} on the simple broker (WebSocketConfig) makes
+     * {@code /queue/notifications-user{sessionId}} a real destination; only the {@code /user}
+     * prefix resolves it to the caller's own session, so a raw {@code /queue/**} subscription is
+     * an attempt to read someone else's channel. Session ids are unguessable, which makes this
+     * defence in depth rather than a live hole — but a legitimate client has no reason to
+     * subscribe below {@code /user}, so refusing by construction costs nothing.
+     */
+    private void rejectRawUserQueue(String destination) {
+        if (destination != null && destination.startsWith(QUEUE_PREFIX)) {
+            throw new MessagingException("Bu kanala doğrudan abone olunamaz");
         }
     }
 

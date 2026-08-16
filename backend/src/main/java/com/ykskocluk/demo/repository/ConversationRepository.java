@@ -6,9 +6,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -48,4 +50,33 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
 
     @EntityGraph(attributePaths = {"student"})
     Page<Conversation> findByCoachProfileId(Long coachProfileId, Pageable pageable);
+
+    /**
+     * Claims the right to email the STUDENT about a new message in this conversation. Mirrors
+     * {@code SessionRepository.claimReminder}: an atomic conditional UPDATE whose 0-rows result
+     * means "already notified inside the debounce window" (or a concurrent send won the race), so
+     * the caller simply skips. {@code threshold} = now - debounce window; a null column means the
+     * student has never been notified about this conversation and always wins the claim.
+     *
+     * <p>Returns rows-affected rather than a boolean so it composes with the {@code > 0} idiom
+     * the reminder job already uses.
+     */
+    @Modifying
+    @Query("""
+            update Conversation c set c.studentNotifiedAt = :now
+             where c.id = :id
+               and (c.studentNotifiedAt is null or c.studentNotifiedAt < :threshold)
+            """)
+    int claimStudentNotification(@Param("id") Long id, @Param("now") Instant now,
+                                 @Param("threshold") Instant threshold);
+
+    /** Coach-side twin of {@link #claimStudentNotification}. */
+    @Modifying
+    @Query("""
+            update Conversation c set c.coachNotifiedAt = :now
+             where c.id = :id
+               and (c.coachNotifiedAt is null or c.coachNotifiedAt < :threshold)
+            """)
+    int claimCoachNotification(@Param("id") Long id, @Param("now") Instant now,
+                               @Param("threshold") Instant threshold);
 }
