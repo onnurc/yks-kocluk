@@ -1,0 +1,13 @@
+{
+  "name": "ws-test-scripts",
+  "version": "1.0.0",
+  "description": "Manual WebSocket verification scripts for the YKS coaching platform",
+  "type": "module",
+  "scripts": {
+    "ws-test": "node ws_test.mjs"
+  },
+  "dependencies": {
+    "@stomp/stompjs": "^7.0.0",
+    "ws": "^8.18.0"
+  }
+}
