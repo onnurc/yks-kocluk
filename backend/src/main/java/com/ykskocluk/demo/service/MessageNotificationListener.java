@@ -6,7 +6,6 @@ import com.ykskocluk.demo.integration.MailClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.messaging.simp.user.SimpUserRegistry;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -40,20 +39,20 @@ public class MessageNotificationListener {
     private static final Logger log = LoggerFactory.getLogger(MessageNotificationListener.class);
 
     private final SimpMessagingTemplate messagingTemplate;
-    private final SimpUserRegistry userRegistry;
+    private final ChatPresenceService presenceService;
     private final MessageService messageService;
     private final MailClient mailClient;
     private final MessageNotificationProperties properties;
     private final ObjectMapper objectMapper;
 
     public MessageNotificationListener(SimpMessagingTemplate messagingTemplate,
-                                       SimpUserRegistry userRegistry,
+                                       ChatPresenceService presenceService,
                                        MessageService messageService,
                                        MailClient mailClient,
                                        MessageNotificationProperties properties,
                                        ObjectMapper objectMapper) {
         this.messagingTemplate = messagingTemplate;
-        this.userRegistry = userRegistry;
+        this.presenceService = presenceService;
         this.messageService = messageService;
         this.mailClient = mailClient;
         this.properties = properties;
@@ -152,6 +151,6 @@ public class MessageNotificationListener {
 
     /** True if the recipient has at least one live STOMP session on this instance. */
     private boolean isConnected(Long userId) {
-        return userRegistry.getUser(StompUserDestinations.userName(userId)) != null;
+        return presenceService.isOnline(userId);
     }
 }

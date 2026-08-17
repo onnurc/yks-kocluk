@@ -213,6 +213,34 @@ class StompAuthChannelInterceptorTest {
     }
 
     @Test
+    void preSend_presenceSubscribe_reusesConversationMembershipAuthorization() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        accessor.setLeaveMutable(true);
+        accessor.setDestination("/topic/conversations/50/presence");
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(3L);
+        accessor.setUser(auth);
+        when(messageService.isParticipant(3L, 50L)).thenReturn(true);
+
+        assertThat(interceptor.preSend(message(accessor), null)).isNotNull();
+        verify(messageService).isParticipant(3L, 50L);
+    }
+
+    @Test
+    void preSend_nonParticipantPresenceSubscribe_isRejected() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        accessor.setLeaveMutable(true);
+        accessor.setDestination("/topic/conversations/50/presence");
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(3L);
+        accessor.setUser(auth);
+        when(messageService.isParticipant(3L, 50L)).thenReturn(false);
+
+        assertThat(catchThrowableOfType(MessagingException.class,
+                () -> interceptor.preSend(message(accessor), null))).isNotNull();
+    }
+
+    @Test
     void preSend_subscribeNonParticipant_throwsMessagingException() {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
         accessor.setLeaveMutable(true);

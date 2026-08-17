@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ApiError } from "../api/ApiError";
 import { useAuth } from "../auth/AuthProvider";
 import { messagingApi } from "../messaging/messagingApi";
-import type { AdminConversationSummary, ConversationResponse, MessageResponse } from "../messaging/messagingTypes";
+import type { AdminConversationSummary, ConversationResponse, MessageResponse, PresenceResponse } from "../messaging/messagingTypes";
 import { useConversationSocket } from "../messaging/useConversationSocket";
 import "./chat.css";
 
@@ -13,9 +13,12 @@ type ChatListItem = {
   id: number;
   name: string;
   detail?: string;
-  lastMessageAt: string;
+  lastMessage: string;
+  lastMessageAt: string | null;
   unreadCount: number;
   messageCount?: number;
+  counterpartUserId?: number;
+  counterpartOnline?: boolean;
 };
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toLocaleUpperCase("tr-TR");
@@ -28,7 +31,8 @@ const safeError = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-const formatListTime = (value: string) => {
+const formatListTime = (value: string | null) => {
+  if (!value) return "";
   const date = new Date(value);
   const now = new Date();
   if (date.toDateString() === now.toDateString()) return date.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
@@ -89,6 +93,7 @@ export const ChatPage: React.FC = () => {
           id: conversation.conversationId,
           name: `${conversation.student.fullName} — ${conversation.coach.fullName}`,
           detail: conversation.coach.universityName,
+          lastMessage: `${conversation.messageCount} mesaj`,
           lastMessageAt: conversation.lastMessageAt,
           unreadCount: 0,
           messageCount: conversation.messageCount,
@@ -98,8 +103,11 @@ export const ChatPage: React.FC = () => {
         setConversations(list.map((conversation: ConversationResponse) => ({
           id: conversation.id,
           name: user?.role === "COACH" ? conversation.studentName : conversation.coachName,
+          lastMessage: conversation.lastMessage?.trim() || "Henüz mesaj yok",
           lastMessageAt: conversation.lastMessageAt,
           unreadCount: conversation.unreadCount,
+          counterpartUserId: conversation.counterpartUserId,
+          counterpartOnline: conversation.counterpartOnline,
         })));
       }
     } catch (error) { setListError(safeError(error, "Konuşmalar yüklenemedi. Lütfen tekrar deneyin.")); }
@@ -141,18 +149,29 @@ export const ChatPage: React.FC = () => {
       sendTimeoutRef.current = null;
       setInput(""); setSending(false);
     }
-    setConversations((items) => items.map((item) => item.id === message.conversationId ? { ...item, lastMessageAt: message.sentAt, unreadCount: message.senderId === user?.id || item.id === selectedId ? 0 : item.unreadCount + 1 } : item));
+    setConversations((items) => items.map((item) => item.id === message.conversationId ? { ...item, lastMessage: message.content, lastMessageAt: message.sentAt, unreadCount: message.senderId === user?.id || item.id === selectedId ? 0 : item.unreadCount + 1 } : item));
     if (!isAdmin && message.senderId !== user?.id && message.conversationId === selectedId) {
       void messagingApi.markRead(message.conversationId).then(() => window.dispatchEvent(new Event("messages-read"))).catch(() => undefined);
     }
   }, [isAdmin, mergeMessages, selectedId, user?.id]);
 
+  const handlePresence = useCallback((presence: PresenceResponse) => {
+    setConversations((items) => items.map((item) =>
+      item.counterpartUserId === presence.userId
+        ? { ...item, counterpartOnline: presence.online }
+        : item));
+  }, []);
+
   useEffect(() => () => { if (sendTimeoutRef.current) clearTimeout(sendTimeoutRef.current); }, []);
 
-  const { status, sendViaSocket } = useConversationSocket({
+  const { sendViaSocket } = useConversationSocket({
     conversationId: selectedId && (!isAdmin || !!approvedReason) ? selectedId : null,
     onMessage: handleLiveMessage,
-    onReconnected: () => { if (selectedId) void loadHistory(0, true); },
+    onPresence: handlePresence,
+    onReconnected: () => {
+      if (selectedId) void loadHistory(0, true);
+      void loadList();
+    },
   });
 
   useEffect(() => {
@@ -202,7 +221,7 @@ export const ChatPage: React.FC = () => {
           {!listLoading && !listError && filtered.length === 0 && <div className="chat-state">{query ? "Aramanızla eşleşen konuşma yok." : "Henüz bir konuşmanız bulunmuyor."}</div>}
           {filtered.map((conversation) => <button key={conversation.id} className={`chat-list-item ${selectedId === conversation.id ? "is-active" : ""}`} onClick={() => navigate(`${basePath}/${conversation.id}`)}>
             <span className="chat-avatar" aria-hidden="true">{initials(conversation.name)}</span>
-            <span className="chat-list-item__body"><span className="chat-list-item__top"><strong>{conversation.name}</strong><time>{formatListTime(conversation.lastMessageAt)}</time></span><span className="chat-list-item__preview">{conversation.detail ?? (conversation.messageCount !== undefined ? `${conversation.messageCount} mesaj` : "Konuşmayı aç")}</span></span>
+            <span className="chat-list-item__body"><span className="chat-list-item__top"><strong>{conversation.name}</strong><time>{formatListTime(conversation.lastMessageAt)}</time></span><span className="chat-list-item__preview" title={conversation.lastMessage}>{conversation.lastMessage}</span></span>
             {conversation.unreadCount > 0 && <span className="chat-unread" aria-label={`${conversation.unreadCount} okunmamış mesaj`}>{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span>}
           </button>)}
         </div>
@@ -214,13 +233,13 @@ export const ChatPage: React.FC = () => {
             <button className="chat-back" onClick={() => navigate(basePath)} aria-label="Konuşma listesine dön">←</button>
             <span className="chat-avatar">{initials(active.name)}</span>
             <div><h2>{active.name}</h2>{active.detail && <p>{active.detail}</p>}{isAdmin && <p>Uniform Akademi Admin · görünmez gözlemci</p>}</div>
-            {!isAdmin && <span className={`chat-connection chat-connection--${status}`}>{status === "connected" ? "Bağlı" : status === "reconnecting" ? "Yeniden bağlanıyor…" : status === "connecting" ? "Bağlanıyor…" : "Bağlantı kesik"}</span>}
+            {!isAdmin && <span className={`chat-presence ${active.counterpartOnline ? "chat-presence--online" : "chat-presence--offline"}`}>{active.counterpartOnline ? "Çevrim içi" : "Çevrim dışı"}</span>}
           </header>
 
           <div className={`chat-moderation-notice ${isAdmin ? "chat-moderation-notice--admin" : ""}`} role="note">
             {isAdmin
               ? "Yönetici görünümü — Salt okunur. Bu görüşmeyi inceleyebilirsiniz ancak mesaj gönderemezsiniz."
-              : "Gizlilik bilgisi: Bu görüşme, güvenlik ve hizmet kalitesi amacıyla yetkili Uniform Akademi yöneticileri tarafından gerektiğinde incelenebilir."}
+              : "Mesajlar yöneticiler tarafından görüntülenebilir."}
           </div>
 
           {isAdmin && !approvedReason ? <form className="chat-admin-gate" onSubmit={openAdminHistory}><span className="chat-readonly-chip">Salt okunur gözlem</span><h2>Denetim gerekçesi gerekli</h2><p>Mesaj içerikleri açılmadan önce erişim gerekçeniz güvenlik kaydına yazılır.</p><label htmlFor="admin-chat-reason">Erişim gerekçesi</label><textarea id="admin-chat-reason" value={adminReason} onChange={(event) => setAdminReason(event.target.value)} maxLength={500} /><button disabled={!adminReason.trim() || historyLoading}>{historyLoading ? "Açılıyor…" : "Gerekçeyi kaydet ve aç"}</button>{historyError && <p role="alert" className="chat-error">{historyError}</p>}</form> : <>

@@ -16,7 +16,7 @@ vi.mock("../auth/tokenStorage", () => ({ getAccessToken: () => "token" }));
 vi.mock("../api/httpClient", () => ({ getApiBaseUrl: () => "http://localhost:8080", ensureFreshToken: vi.fn() }));
 
 const Harness = ({ id }: { id: number | null }) => {
-  useConversationSocket({ conversationId: id, onMessage: vi.fn(), onReconnected: vi.fn() });
+  useConversationSocket({ conversationId: id, onMessage: vi.fn(), onPresence: vi.fn(), onReconnected: vi.fn() });
   return null;
 };
 
@@ -44,5 +44,6 @@ describe("conversation socket lifecycle", () => {
     config.beforeConnect(); config.onConnect();
     expect((mocks.clients[0] as unknown as { connectHeaders: unknown }).connectHeaders).toEqual({ Authorization: "Bearer token" });
     expect(mocks.clients[0].subscribe).toHaveBeenCalledWith("/topic/conversations/12", expect.any(Function));
+    expect(mocks.clients[0].subscribe).toHaveBeenCalledWith("/topic/conversations/12/presence", expect.any(Function));
   });
 });

@@ -31,9 +31,9 @@
 .chat-moderation-notice { flex:0 0 auto; margin:12px 28px 0; padding:9px 13px; border-left:3px solid var(--gold); border-radius:8px; background:#faf5e9; color:#5e4203; font-size:13px; line-height:1.4; overflow-wrap:anywhere; }
 .chat-moderation-notice--admin { border-left-color:#7583ac; background:#f1f3f8; color:#38466b; }
 .chat-back { display:none; width:42px; height:42px; border:0; border-radius:50%; background:var(--soft); color:var(--muted); font-size:25px; cursor:pointer; }
-.chat-connection { margin-left:auto; color:var(--muted); font-size:13px; white-space:nowrap; }
-.chat-connection::before { content:""; display:inline-block; width:7px; height:7px; margin-right:7px; border-radius:50%; background:#75777f; }
-.chat-connection--connected::before { background:#209b53; }.chat-connection--reconnecting::before { background:#c9a25d; }.chat-connection--disconnected::before { background:#ba1a1a; }
+.chat-presence { margin-left:auto; color:var(--muted); font-size:13px; white-space:nowrap; }
+.chat-presence::before { content:""; display:inline-block; width:7px; height:7px; margin-right:7px; border-radius:50%; background:#8a8b91; }
+.chat-presence--online::before { background:#209b53; }
 .chat-empty-selection { display:grid; place-content:center; justify-items:center; height:100%; padding:40px; color:var(--muted); text-align:center; }
 .chat-empty-selection__icon { display:grid; place-items:center; width:72px; height:72px; border-radius:50%; background:var(--soft); color:var(--gold); font-size:30px; }
 .chat-empty-selection h2 { margin:18px 0 6px; font:400 28px "Righteous",sans-serif; color:var(--ink); }
@@ -81,7 +81,7 @@
   .chat-conversation__header h2 { font-size:21px; }
   .chat-conversation__header p { max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
   .chat-moderation-notice { margin:10px 16px 0; padding:8px 11px; font-size:12px; }
-  .chat-connection { font-size:0; }.chat-connection::before { margin:0; }
+  .chat-presence { font-size:12px; }.chat-presence::before { margin-right:5px; }
   .chat-history { padding:20px 16px; }
   .chat-bubble { max-width:86%; }
   .chat-composer { margin:0 16px max(14px,env(safe-area-inset-bottom)); padding-left:17px; }

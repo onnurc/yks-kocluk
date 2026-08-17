@@ -7,8 +7,11 @@ public record ConversationResponse(
         Long coachProfileId,
         String coachName,
         String studentName,
+        String lastMessage,
         Instant lastMessageAt,
         long unreadCount,
+        Long counterpartUserId,
+        boolean counterpartOnline,
         ConversationObserverResponse observer
 ) {
 }

@@ -12,8 +12,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.messaging.simp.user.SimpUser;
-import org.springframework.messaging.simp.user.SimpUserRegistry;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
@@ -45,16 +43,15 @@ class MessageNotificationListenerTest {
     private static final String SECRET_CONTENT = "gizli mesaj icerigi";
 
     @Mock SimpMessagingTemplate messagingTemplate;
-    @Mock SimpUserRegistry userRegistry;
+    @Mock ChatPresenceService presenceService;
     @Mock MessageService messageService;
     @Mock MailClient mailClient;
-    @Mock SimpUser connectedUser;
 
     MessageNotificationListener listener;
 
     @BeforeEach
     void setUp() {
-        listener = new MessageNotificationListener(messagingTemplate, userRegistry, messageService,
+        listener = new MessageNotificationListener(messagingTemplate, presenceService, messageService,
                 mailClient, new MessageNotificationProperties(DEBOUNCE, "https://app.test"),
                 JsonMapper.builder().build());
         when(messageService.unreadTotal(RECIPIENT_ID)).thenReturn(3L);
@@ -146,11 +143,11 @@ class MessageNotificationListenerTest {
     }
 
     private void offline() {
-        when(userRegistry.getUser(String.valueOf(RECIPIENT_ID))).thenReturn(null);
+        when(presenceService.isOnline(RECIPIENT_ID)).thenReturn(false);
     }
 
     private void online() {
-        when(userRegistry.getUser(String.valueOf(RECIPIENT_ID))).thenReturn(connectedUser);
+        when(presenceService.isOnline(RECIPIENT_ID)).thenReturn(true);
     }
 
     private MessageSentEvent event(boolean recipientHasAccess) {

@@ -162,10 +162,17 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         if (destination == null || !destination.startsWith(TOPIC_PREFIX)) {
             return null;
         }
+        String remainder = destination.substring(TOPIC_PREFIX.length());
+        String idPart = remainder.endsWith("/presence")
+                ? remainder.substring(0, remainder.length() - "/presence".length())
+                : remainder;
+        if (idPart.isBlank() || idPart.contains("/")) {
+            throw new MessagingException("Geçersiz konuşma kanalı");
+        }
         try {
-            return Long.valueOf(destination.substring(TOPIC_PREFIX.length()));
+            return Long.valueOf(idPart);
         } catch (NumberFormatException e) {
-            return null;
+            throw new MessagingException("Geçersiz konuşma kanalı");
         }
     }
 
