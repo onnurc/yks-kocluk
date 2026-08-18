@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Client } from "@stomp/stompjs";
 import { createStompClient } from "./stompClient";
-import type { MessageResponse } from "./messagingTypes";
+import type { MessageResponse, PresenceResponse } from "./messagingTypes";
 
 export type SocketStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
 
 interface UseConversationSocketOptions {
   conversationId: number | null;
   onMessage: (message: MessageResponse) => void;
+  onPresence: (presence: PresenceResponse) => void;
   /** Called after a successful *re*connect (not the initial connect) — the caller should
    * re-sync history, since the in-memory broker doesn't buffer/replay anything missed
    * while disconnected. */
@@ -34,6 +35,7 @@ interface UseConversationSocketResult {
 export function useConversationSocket({
   conversationId,
   onMessage,
+  onPresence,
   onReconnected,
 }: UseConversationSocketOptions): UseConversationSocketResult {
   const [status, setStatus] = useState<SocketStatus>("disconnected");
@@ -43,6 +45,8 @@ export function useConversationSocket({
   // conversation actually changes, not on every render that passes a new callback identity.
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
+  const onPresenceRef = useRef(onPresence);
+  onPresenceRef.current = onPresence;
   const onReconnectedRef = useRef(onReconnected);
   onReconnectedRef.current = onReconnected;
 
@@ -57,6 +61,13 @@ export function useConversationSocket({
             onMessageRef.current(JSON.parse(frame.body) as MessageResponse);
           } catch {
             // Malformed frame — ignore rather than crash the page.
+          }
+        });
+        activeClient.subscribe(`/topic/conversations/${conversationId}/presence`, (frame) => {
+          try {
+            onPresenceRef.current(JSON.parse(frame.body) as PresenceResponse);
+          } catch {
+            // Malformed frame — ignore rather than corrupt presence state.
           }
         });
         if (isReconnect) {

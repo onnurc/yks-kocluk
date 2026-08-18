@@ -119,6 +119,7 @@ export const ConversationPage: React.FC = () => {
   const { status: socketStatus, sendViaSocket } = useConversationSocket({
     conversationId: id || null,
     onMessage: handleSocketMessage,
+    onPresence: () => undefined,
     onReconnected: handleReconnected,
   });
 

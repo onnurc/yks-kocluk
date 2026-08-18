@@ -47,6 +47,7 @@ class MessageServiceTest {
     @Mock MessageMapper messageMapper;
     @Mock AccountReadinessService accountReadinessService;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock ChatPresenceService presenceService;
 
     MessageService service;
 
@@ -63,7 +64,7 @@ class MessageServiceTest {
     void setUp() {
         service = new MessageService(conversationRepository, messageRepository, subscriptionRepository,
                 coachProfileRepository, userRepository, conversationMapper, messageMapper, accountReadinessService,
-                eventPublisher);
+                eventPublisher, presenceService);
 
         User coachUser = new User();
         ReflectionTestUtils.setField(coachUser, "id", COACH_USER_ID);
@@ -84,9 +85,13 @@ class MessageServiceTest {
         conversation.setCoachProfile(coach);
         conversation.setLastMessageAt(Instant.now().minusSeconds(3600));
 
-        lenient().when(conversationMapper.toResponse(any(), org.mockito.ArgumentMatchers.anyLong()))
+        lenient().when(conversationMapper.toResponse(any(), org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.nullable(String.class),
+                        org.mockito.ArgumentMatchers.nullable(Instant.class),
+                        org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyBoolean()))
                 .thenReturn(new ConversationResponse(CONVERSATION_ID, COACH_PROFILE_ID, "Coach", "Student",
-                        Instant.now(), 0, com.ykskocluk.demo.dto.ConversationObserverResponse.platformAdmin()));
+                        null, null, 0, COACH_USER_ID, false,
+                        com.ykskocluk.demo.dto.ConversationObserverResponse.platformAdmin()));
     }
 
     // --- gate (checkpoints 1 & 2) ---
@@ -274,6 +279,7 @@ class MessageServiceTest {
     @Test
     void myConversations_inactiveStudent_returnsEmptyList() {
         User student = new User();
+        ReflectionTestUtils.setField(student, "id", STUDENT_ID);
         student.setRole(com.ykskocluk.demo.enums.Role.STUDENT);
         when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
         when(conversationRepository.findForUser(STUDENT_ID)).thenReturn(java.util.List.of(conversation));
@@ -286,6 +292,7 @@ class MessageServiceTest {
     @Test
     void myConversations_studentWithOneActiveAndOneExpired_returnsBoth() {
         User student = new User();
+        ReflectionTestUtils.setField(student, "id", STUDENT_ID);
         student.setRole(com.ykskocluk.demo.enums.Role.STUDENT);
         when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
 
@@ -297,6 +304,7 @@ class MessageServiceTest {
         CoachProfile coachB = new CoachProfile();
         ReflectionTestUtils.setField(coachB, "id", 202L);
         User coachUserB = new User();
+        ReflectionTestUtils.setField(coachUserB, "id", 302L);
         coachUserB.setFullName("Coach B");
         coachB.setUser(coachUserB);
         expiredConv.setCoachProfile(coachB);
@@ -319,6 +327,30 @@ class MessageServiceTest {
 
         java.util.List<ConversationResponse> res = service.myConversations(STUDENT_ID);
         assertThat(res).isNotEmpty();
+    }
+
+    @Test
+    void myConversations_usesOneBulkLatestMessageQueryForPreviewAndPresence() {
+        User student = conversation.getStudent();
+        student.setRole(com.ykskocluk.demo.enums.Role.STUDENT);
+        when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
+        when(conversationRepository.findForUser(STUDENT_ID)).thenReturn(java.util.List.of(conversation));
+        when(subscriptionRepository.existsHistoryAccessSubscription(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(true);
+        Instant sentAt = Instant.parse("2026-08-17T10:15:00Z");
+        Message latest = new Message();
+        latest.setConversation(conversation);
+        latest.setContent("Gerçek son mesaj");
+        ReflectionTestUtils.setField(latest, "createdAt", sentAt);
+        when(messageRepository.findLatestByConversationIds(java.util.List.of(CONVERSATION_ID)))
+                .thenReturn(java.util.List.of(latest));
+        when(presenceService.isOnline(COACH_USER_ID)).thenReturn(true);
+
+        service.myConversations(STUDENT_ID);
+
+        verify(messageRepository).findLatestByConversationIds(java.util.List.of(CONVERSATION_ID));
+        verify(conversationMapper).toResponse(conversation, 0L, "Gerçek son mesaj", sentAt,
+                COACH_USER_ID, true);
+        verify(messageRepository, never()).findFirstByConversationIdOrderByCreatedAtDesc(any());
     }
 
     @Test

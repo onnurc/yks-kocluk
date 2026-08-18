@@ -7,8 +7,11 @@ export interface ConversationResponse {
   studentName: string;
   coachProfileId: number;
   coachName: string;
-  lastMessageAt: string;
+  lastMessage: string | null;
+  lastMessageAt: string | null;
   unreadCount: number;
+  counterpartUserId: number;
+  counterpartOnline: boolean;
   observer: {
     type: "ADMIN";
     displayName: string;
@@ -28,6 +31,11 @@ export interface MessageResponse {
   content: string;
   sentAt: string;
   readAt: string | null;
+}
+
+export interface PresenceResponse {
+  userId: number;
+  online: boolean;
 }
 
 /**

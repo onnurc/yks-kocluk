@@ -24,7 +24,11 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Messaging core — transport-agnostic so both the REST controller and the Phase 5b
@@ -48,6 +52,7 @@ public class MessageService {
     private final MessageMapper messageMapper;
     private final AccountReadinessService accountReadinessService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ChatPresenceService presenceService;
 
     public MessageService(ConversationRepository conversationRepository,
                           MessageRepository messageRepository,
@@ -57,7 +62,8 @@ public class MessageService {
                           ConversationMapper conversationMapper,
                           MessageMapper messageMapper,
                           AccountReadinessService accountReadinessService,
-                          ApplicationEventPublisher eventPublisher) {
+                          ApplicationEventPublisher eventPublisher,
+                          ChatPresenceService presenceService) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.subscriptionRepository = subscriptionRepository;
@@ -67,6 +73,7 @@ public class MessageService {
         this.messageMapper = messageMapper;
         this.accountReadinessService = accountReadinessService;
         this.eventPublisher = eventPublisher;
+        this.presenceService = presenceService;
     }
 
     /** Student opens (or re-fetches) the conversation with a coach. Gate enforced here. */
@@ -94,7 +101,8 @@ public class MessageService {
                     c.setLastMessageAt(Instant.now());
                     return conversationRepository.save(c);
                 });
-        return toResponse(conversation, studentUserId);
+        return toResponse(conversation, studentUserId,
+                messageRepository.findFirstByConversationIdOrderByCreatedAtDesc(conversation.getId()).orElse(null));
     }
 
     /** Sends a message. Sender must be a participant. Bumps last_message_at in the same tx. */
@@ -193,8 +201,15 @@ public class MessageService {
                     .filter(conversation -> subscriptionRepository.existsHistoryAccessSubscription(userId, conversation.getCoachProfile().getId()))
                     .toList();
         }
+        List<Long> conversationIds = list.stream().map(Conversation::getId).toList();
+        Map<Long, Message> latestByConversation = conversationIds.isEmpty()
+                ? Map.of()
+                : messageRepository.findLatestByConversationIds(conversationIds).stream()
+                        .collect(Collectors.toMap(message -> message.getConversation().getId(),
+                                Function.identity(), (newest, ignored) -> newest, LinkedHashMap::new));
+
         return list.stream()
-                .map(c -> toResponse(c, userId))
+                .map(c -> toResponse(c, userId, latestByConversation.get(c.getId())))
                 .toList();
     }
 
@@ -250,9 +265,17 @@ public class MessageService {
         return conversation;
     }
 
-    private ConversationResponse toResponse(Conversation conversation, Long viewerUserId) {
+    private ConversationResponse toResponse(Conversation conversation, Long viewerUserId,
+                                            Message lastMessage) {
         long unread = messageRepository.countByConversationIdAndSenderIdNotAndReadAtIsNull(
                 conversation.getId(), viewerUserId);
-        return conversationMapper.toResponse(conversation, unread);
+        Long studentId = conversation.getStudent().getId();
+        Long counterpartUserId = studentId.equals(viewerUserId)
+                ? conversation.getCoachProfile().getUser().getId()
+                : studentId;
+        return conversationMapper.toResponse(conversation, unread,
+                lastMessage == null ? null : lastMessage.getContent(),
+                lastMessage == null ? null : lastMessage.getCreatedAt(),
+                counterpartUserId, presenceService.isOnline(counterpartUserId));
     }
 }

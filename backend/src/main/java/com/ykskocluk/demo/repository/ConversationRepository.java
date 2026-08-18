@@ -26,6 +26,13 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
             """)
     List<Conversation> findForUser(@Param("userId") Long userId);
 
+    /** Conversation-scoped presence fan-out targets for one authenticated participant. */
+    @Query("""
+            select c.id from Conversation c
+             where c.student.id = :userId or c.coachProfile.user.id = :userId
+            """)
+    List<Long> findIdsForUser(@Param("userId") Long userId);
+
     @EntityGraph(attributePaths = {"student"})
     List<Conversation> findByCoachProfileIdOrderByLastMessageAtDesc(Long coachProfileId);
 

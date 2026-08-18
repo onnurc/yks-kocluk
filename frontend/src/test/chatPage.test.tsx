@@ -12,6 +12,8 @@ const chatStyles = readFileSync(resolve(process.cwd(), "src/pages/chat.css"), "u
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(), list: vi.fn(), history: vi.fn(), send: vi.fn(), read: vi.fn(),
   adminList: vi.fn(), adminHistory: vi.fn(), socket: vi.fn(), socketMessage: undefined as ((message: unknown) => void) | undefined,
+  socketPresence: undefined as ((presence: unknown) => void) | undefined,
+  socketReconnect: undefined as (() => void) | undefined,
 }));
 
 vi.mock("../auth/AuthProvider", () => ({ useAuth: () => mocks.auth() }));
@@ -20,15 +22,18 @@ vi.mock("../messaging/messagingApi", () => ({ messagingApi: {
   listAdminConversations: mocks.adminList, listAdminMessages: mocks.adminHistory,
 } }));
 vi.mock("../messaging/useConversationSocket", () => ({
-  useConversationSocket: (options: { conversationId: number | null; onMessage: (message: unknown) => void }) => {
+  useConversationSocket: (options: { conversationId: number | null; onMessage: (message: unknown) => void; onPresence: (presence: unknown) => void; onReconnected: () => void }) => {
     mocks.socket(options.conversationId);
     mocks.socketMessage = options.onMessage;
+    mocks.socketPresence = options.onPresence;
+    mocks.socketReconnect = options.onReconnected;
     return { status: "connected", sendViaSocket: vi.fn(() => false) };
   },
 }));
 
 const user = { id: 7, fullName: "Gerçek Öğrenci", role: "STUDENT" as const };
-const conversation = { id: 12, coachProfileId: 3, coachName: "Ayşe Koç", studentName: "Gerçek Öğrenci", lastMessageAt: "2026-08-16T10:00:00Z", unreadCount: 2, observer: { type: "ADMIN", displayName: "Uniform Akademi Admin", readOnly: true } };
+const conversation = { id: 12, coachProfileId: 3, coachName: "Ayşe Koç", studentName: "Gerçek Öğrenci", lastMessage: "Gerçek son mesaj", lastMessageAt: "2026-08-16T10:00:00Z", unreadCount: 2, counterpartUserId: 9, counterpartOnline: false, observer: { type: "ADMIN", displayName: "Uniform Akademi Admin", readOnly: true } };
+const emptyConversation = { ...conversation, id: 13, coachName: "Boş Koç", lastMessage: null, lastMessageAt: null, unreadCount: 0, counterpartUserId: 10 };
 const otherMessage = { id: 21, conversationId: 12, senderId: 9, senderName: "Ayşe Koç", content: "Bugünkü plan hazır.", sentAt: "2026-08-16T10:01:00Z", readAt: null };
 const mine = { id: 22, conversationId: 12, senderId: 7, senderName: "Gerçek Öğrenci", content: "Teşekkür ederim.", sentAt: "2026-08-16T10:02:00Z", readAt: null };
 const page = { content: [mine, otherMessage], page: 0, size: 30, totalElements: 2, totalPages: 1, last: true };
@@ -47,7 +52,7 @@ afterEach(cleanup);
 
 describe("real responsive chat page", () => {
   beforeEach(() => {
-    vi.clearAllMocks(); mocks.socketMessage = undefined;
+    vi.clearAllMocks(); mocks.socketMessage = undefined; mocks.socketPresence = undefined; mocks.socketReconnect = undefined;
     mocks.auth.mockReturnValue({ user });
     mocks.list.mockResolvedValue([conversation]);
     mocks.history.mockResolvedValue(page);
@@ -61,6 +66,18 @@ describe("real responsive chat page", () => {
     expect(await screen.findByText("Ayşe Koç")).toBeInTheDocument();
     expect(mocks.list).toHaveBeenCalledOnce();
     expect(screen.getByLabelText("2 okunmamış mesaj")).toBeInTheDocument();
+    expect(screen.getByText("Gerçek son mesaj")).toBeInTheDocument();
+    expect(screen.queryByText("Konuşmayı aç")).not.toBeInTheDocument();
+  });
+
+  it("renders the empty preview fallback and keeps long previews in the truncating element", async () => {
+    const longPreview = "Bu, konuşma kartının genişliğini bozmaması gereken oldukça uzun bir gerçek son mesaj önizlemesidir.";
+    mocks.list.mockResolvedValue([emptyConversation, { ...conversation, id: 14, coachName: "Uzun Koç", lastMessage: longPreview }]);
+    renderChat();
+    expect(await screen.findByText("Henüz mesaj yok")).toBeInTheDocument();
+    const preview = screen.getByTitle(longPreview);
+    expect(preview).toHaveClass("chat-list-item__preview");
+    expect(chatStyles).toMatch(/\.chat-list-item__preview\s*\{[^}]*text-overflow:ellipsis/);
   });
 
   it("selects a conversation, loads paged history, marks read, and supports mobile back navigation", async () => {
@@ -71,7 +88,8 @@ describe("real responsive chat page", () => {
     expect(await screen.findByText("Bugünkü plan hazır.")).toBeInTheDocument();
     expect(screen.getByText("Teşekkür ederim.").closest(".chat-message")).toHaveClass("chat-message--mine");
     expect(screen.getByText("Bugünkü plan hazır.").closest(".chat-message")).not.toHaveClass("chat-message--mine");
-    expect(screen.getByRole("note")).toHaveTextContent("Gizlilik bilgisi: Bu görüşme, güvenlik ve hizmet kalitesi amacıyla yetkili Uniform Akademi yöneticileri tarafından gerektiğinde incelenebilir.");
+    expect(screen.getByRole("note")).toHaveTextContent(/^Mesajlar yöneticiler tarafından görüntülenebilir\.$/);
+    expect(screen.queryByText(/Gizlilik bilgisi:/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Konuşma listesine dön" }));
     expect(screen.getByTestId("location")).toHaveTextContent("/messages");
   });
@@ -93,8 +111,38 @@ describe("real responsive chat page", () => {
     await screen.findByText("Bugünkü plan hazır.");
     mocks.read.mockClear();
     mocks.socketMessage?.({ ...otherMessage, id: 99, content: "Canlı mesaj" });
-    expect(await screen.findByText("Canlı mesaj")).toBeInTheDocument();
+    expect((await screen.findAllByText("Canlı mesaj")).length).toBeGreaterThanOrEqual(2);
     await waitFor(() => expect(mocks.read).toHaveBeenCalledWith(12));
+  });
+
+  it("updates the real preview and timestamp from the existing live message event", async () => {
+    renderChat("/messages/12");
+    await screen.findByText("Gerçek son mesaj");
+    const sentAt = new Date().toISOString();
+    mocks.socketMessage?.({ ...otherMessage, id: 100, content: "Yeni gerçek önizleme", sentAt });
+    const previews = await screen.findAllByText("Yeni gerçek önizleme");
+    expect(previews.some((node) => node.classList.contains("chat-list-item__preview"))).toBe(true);
+    expect(document.querySelector(".chat-list-item time")).toHaveTextContent(
+      new Date(sentAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
+    );
+  });
+
+  it("shows counterpart presence from backend state, not own socket connection, and updates live", async () => {
+    renderChat("/messages/12");
+    expect(await screen.findByText("Çevrim dışı")).toBeInTheDocument();
+    expect(screen.queryByText("Bağlı")).not.toBeInTheDocument();
+    mocks.socketPresence?.({ userId: 9, online: true });
+    expect(await screen.findByText("Çevrim içi")).toBeInTheDocument();
+    mocks.socketPresence?.({ userId: 7, online: false });
+    expect(screen.getByText("Çevrim içi")).toBeInTheDocument();
+  });
+
+  it("resynchronizes backend presence on reconnect instead of assuming online", async () => {
+    renderChat("/messages/12");
+    await screen.findByText("Çevrim dışı");
+    mocks.list.mockResolvedValue([{ ...conversation, counterpartOnline: true }]);
+    mocks.socketReconnect?.();
+    expect(await screen.findByText("Çevrim içi")).toBeInTheDocument();
   });
 
   it("turns a backend-denied historical conversation into read-only mode", async () => {
