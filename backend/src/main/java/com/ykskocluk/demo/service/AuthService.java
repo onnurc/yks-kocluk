@@ -77,7 +77,7 @@ public class AuthService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         ensureIdentityWasNotDeleted(request.email(), null);
-        if (request.role() == Role.ADMIN) {
+        if (request.role() == Role.ADMIN || request.role() == Role.COACH) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "ROLE_NOT_ALLOWED",
                     "Bu rol ile kayıt olunamaz");
         }

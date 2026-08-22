@@ -85,7 +85,7 @@ describe("auth page family", () => {
     fireEvent.change(screen.getByLabelText("Soyad:"), { target: { value: "Yılmaz" } });
     fireEvent.change(screen.getByLabelText("E-posta:"), { target: { value: "ada@example.com" } });
     fireEvent.change(screen.getByLabelText(/Şifre/), { target: { value: "Password123!" } });
-    fireEvent.change(screen.getByLabelText("Rol Seçimi:"), { target: { value: "COACH" } });
+    fireEvent.change(screen.getByLabelText("Doğum Tarihi:"), { target: { value: "2008-05-01" } });
     fireEvent.click(screen.getByLabelText(/Kullanım Koşulları.*Zorunlu/));
     fireEvent.click(screen.getByLabelText(/Açık Rıza Metni.*Zorunlu/));
     fireEvent.click(screen.getByRole("button", { name: "Kayıt Ol" }));
@@ -93,7 +93,8 @@ describe("auth page family", () => {
     await waitFor(() => expect(mocks.register).toHaveBeenCalledWith(expect.objectContaining({
       email: "ada@example.com",
       fullName: "Ada Yılmaz",
-      role: "COACH",
+      role: "STUDENT",
+      dateOfBirth: "2008-05-01",
       acceptedTermsDocumentId: 3,
       acceptedExplicitConsentDocumentId: 2,
       marketingEmailOptIn: false,

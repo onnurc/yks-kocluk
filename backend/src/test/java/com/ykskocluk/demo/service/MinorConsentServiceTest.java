@@ -131,14 +131,12 @@ class MinorConsentServiceTest {
     }
 
     @Test
-    void register_coachNullDob_succeeds() {
+    void register_coachRole_rejected() {
+        // Coaches no longer self-register; accounts are created by an admin from an approved
+        // CoachApplication (see CoachApplicationService.approve).
         RegisterRequest req = new RegisterRequest("coach@example.com", "pass1234", "Coach", Role.COACH, null);
-        
-        when(userRepository.existsByEmail(req.email())).thenReturn(false);
-        when(passwordEncoder.encode(req.password())).thenReturn("hashed");
-        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        authService.register(req);
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> authService.register(req));
+        assertThat(ex.getErrorCode()).isEqualTo("ROLE_NOT_ALLOWED");
     }
 
     // --- Consent enforcement gate tests ---

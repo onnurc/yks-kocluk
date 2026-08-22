@@ -4,6 +4,7 @@ import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * Single place to build a "ready" {@link User} for Testcontainers integration tests — ACTIVE,
@@ -40,6 +41,22 @@ final class TestUsers {
         u.setStatus(status);
         u.setEmailVerified(true);
         u.setLegalOnboardingCompleted(true);
+        return repo.save(u);
+    }
+
+    /**
+     * Same as {@link #create(UserRepository, Role, String)} but with a real, usable password —
+     * for tests that need to actually log the fixture in via {@code POST /api/v1/auth/login}
+     * (e.g. to drive a coach through {@code MockMvc} with a real access token). Needed since
+     * {@code AuthService.register} now rejects {@code role=COACH} outright (coaches are
+     * onboarded only via an admin-approved {@code CoachApplication}, see
+     * {@code CoachApplicationService}) — tests that used to register a coach through the real
+     * endpoint as a fixture must build the account directly instead.
+     */
+    static User createWithPassword(UserRepository repo, PasswordEncoder encoder, Role role,
+                                   String email, String rawPassword) {
+        User u = create(repo, role, email);
+        u.setPasswordHash(encoder.encode(rawPassword));
         return repo.save(u);
     }
 

@@ -1,12 +1,15 @@
 package com.ykskocluk.demo;
 
 import com.jayway.jsonpath.JsonPath;
+import com.ykskocluk.demo.enums.Role;
+import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -19,12 +22,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class AdminDashboardIntegrationTest {
     @Autowired MockMvc mvc;
+    @Autowired UserRepository userRepository;
+    @Autowired PasswordEncoder passwordEncoder;
 
     @Test
     void adminReadModelsLoadAgainstPostgresAndNonAdminsAreDenied() throws Exception {
         String admin = login("admin@yks.local", "admin1234");
         String student = register("admin-dashboard-auth-student@example.com", "STUDENT");
-        String coach = register("admin-dashboard-auth-coach@example.com", "COACH");
+        // Coaches no longer self-register (see AuthService.register) — build the fixture
+        // directly and log it in for a real token, same as every other case here.
+        String coachEmail = "admin-dashboard-auth-coach@example.com";
+        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, coachEmail, "password123");
+        String coach = login(coachEmail, "password123");
 
         mvc.perform(get("/api/v1/admin/dashboard/summary").header("Authorization", "Bearer " + admin))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalStudentCount").isNumber())
