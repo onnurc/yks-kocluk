@@ -1,6 +1,7 @@
 package com.ykskocluk.demo;
 
 import com.jayway.jsonpath.JsonPath;
+import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.repository.PaymentRepository;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
 import com.ykskocluk.demo.repository.UserRepository;
@@ -10,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -28,6 +30,7 @@ class CoachDashboardTrialIntegrationTest {
     @Autowired SubscriptionRepository subscriptions;
     @Autowired PaymentRepository payments;
     @Autowired UserRepository userRepository;
+    @Autowired PasswordEncoder passwordEncoder;
 
     @Test
     void coachSelfAuthorizationAndTrialLifecycle() throws Exception {
@@ -102,7 +105,10 @@ class CoachDashboardTrialIntegrationTest {
     }
 
     private Object[] approvedCoach(String email, String admin) throws Exception {
-        String token = register(email, "COACH");
+        // Coaches no longer self-register (see AuthService.register) — build the fixture
+        // directly and log it in for a real token.
+        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, email, "password123");
+        String token = login(email, "password123");
         Number university = JsonPath.read(mockMvc.perform(get("/api/v1/universities")
                         .header("Authorization", "Bearer " + admin)).andReturn().getResponse().getContentAsString(), "$[0].id");
         String profile = mockMvc.perform(post("/api/v1/coach/profile").header("Authorization", "Bearer " + token)

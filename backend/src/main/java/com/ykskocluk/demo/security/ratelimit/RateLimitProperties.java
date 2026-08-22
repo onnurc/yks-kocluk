@@ -20,6 +20,7 @@ public class RateLimitProperties {
     private LimitRule changePassword = new LimitRule(10, 5, 900);
     private LimitRule emailVerification = new LimitRule(30, 10, 600);
     private LimitRule emailVerificationResend = new LimitRule(20, 5, 3600);
+    private LimitRule coachApplication = new LimitRule(10, 3, 3600);
 
     @Getter
     @Setter

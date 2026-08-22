@@ -48,6 +48,24 @@ export const AdminDashboardPage: React.FC = () => {
             Ödemeleri Yönet
           </button>
         </div>
+        <div style={{ padding: "1.5rem", border: "1px solid #ccc", borderRadius: "8px", backgroundColor: "#fff" }}>
+          <h3>Koç Başvuruları</h3>
+          <p>Koç adaylarının başvurularını inceleyip onaylayabilir veya reddedebilirsiniz.</p>
+          <button
+            onClick={() => navigate("/admin/coach-applications")}
+            style={{
+              padding: "0.5rem 1rem",
+              backgroundColor: "#1a7f37",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              fontWeight: "600",
+            }}
+          >
+            Başvuruları İncele
+          </button>
+        </div>
       </div>
     </div>
   );

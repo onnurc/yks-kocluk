@@ -138,6 +138,10 @@ app:
       ip-limit: ${RATE_LIMIT_EMAIL_VERIFICATION_RESEND_IP_LIMIT:20}
       identifier-limit: ${RATE_LIMIT_EMAIL_VERIFICATION_RESEND_USER_LIMIT:5}
       window-seconds: ${RATE_LIMIT_EMAIL_VERIFICATION_RESEND_WINDOW_SECONDS:3600}
+    coach-application:
+      ip-limit: ${RATE_LIMIT_COACH_APPLICATION_IP_LIMIT:10}
+      identifier-limit: ${RATE_LIMIT_COACH_APPLICATION_EMAIL_LIMIT:3}
+      window-seconds: ${RATE_LIMIT_COACH_APPLICATION_WINDOW_SECONDS:3600}
   demo-seed-enabled: ${DEMO_SEED_ENABLED:false}
   jwt:
     # HS256 signing key (>= 32 bytes). Supplied via JWT_SECRET (application-local.yml / env).

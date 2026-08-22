@@ -24,6 +24,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -53,6 +54,18 @@ class SubscriptionCheckoutIntegrationTest {
     @Autowired SubscriptionRepository subscriptionRepository;
     @Autowired PaymentRepository paymentRepository;
     @Autowired LegalAcceptanceRepository legalAcceptanceRepository;
+    @Autowired PasswordEncoder passwordEncoder;
+
+    /** Coaches no longer self-register (see AuthService.register) — build the fixture directly and log it in. */
+    private String registerCoach(String email) throws Exception {
+        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, email, "password123");
+        String json = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"password123\"}".formatted(email)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(json, "$.accessToken");
+    }
 
     private String register(String email, String role) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
@@ -76,7 +89,7 @@ class SubscriptionCheckoutIntegrationTest {
     }
 
     private int approvedCoachProfileId(String email, String admin) throws Exception {
-        String coachToken = register(email, "COACH");
+        String coachToken = registerCoach(email);
         long universityId = ((Number) JsonPath.read(
                 mockMvc.perform(get("/api/v1/universities").header("Authorization", "Bearer " + admin))
                         .andReturn().getResponse().getContentAsString(), "$[0].id")).longValue();
@@ -167,7 +180,7 @@ class SubscriptionCheckoutIntegrationTest {
 
     @Test
     void checkout_nonStudent_forbidden() throws Exception {
-        String coach = register("coach-checkout-authz@example.com", "COACH");
+        String coach = registerCoach("coach-checkout-authz@example.com");
 
         // Full body (checkoutBody helper): a partial body no longer reaches @PreAuthorize at all —
         // Jackson 3 (Spring Boot 4.0.6) rejects a record with missing properties during argument

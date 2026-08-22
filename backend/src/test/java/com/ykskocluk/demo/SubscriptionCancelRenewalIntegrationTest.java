@@ -5,6 +5,7 @@ import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Package;
 import com.ykskocluk.demo.entity.Subscription;
 import com.ykskocluk.demo.entity.User;
+import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PackageRepository;
@@ -17,6 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -41,6 +43,18 @@ class SubscriptionCancelRenewalIntegrationTest {
     @Autowired CoachProfileRepository coachProfileRepository;
     @Autowired PackageRepository packageRepository;
     @Autowired SubscriptionRepository subscriptionRepository;
+    @Autowired PasswordEncoder passwordEncoder;
+
+    /** Coaches no longer self-register (see AuthService.register) — build the fixture directly and log it in. */
+    private String registerCoach(String email) throws Exception {
+        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, email, "password123");
+        String json = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"password123\"}".formatted(email)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(json, "$.accessToken");
+    }
 
     private String register(String email, String role) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
@@ -64,7 +78,7 @@ class SubscriptionCancelRenewalIntegrationTest {
     }
 
     private int approvedCoachProfileId(String email, String admin) throws Exception {
-        String coachToken = register(email, "COACH");
+        String coachToken = registerCoach(email);
         long universityId = ((Number) JsonPath.read(
                 mockMvc.perform(get("/api/v1/universities").header("Authorization", "Bearer " + admin))
                         .andReturn().getResponse().getContentAsString(), "$[0].id")).longValue();
@@ -134,7 +148,7 @@ class SubscriptionCancelRenewalIntegrationTest {
 
     @Test
     void cancelRenewal_nonStudent_forbiddenBySecurity() throws Exception {
-        String coach = register("coach-cancel-authz@example.com", "COACH");
+        String coach = registerCoach("coach-cancel-authz@example.com");
 
         mockMvc.perform(post("/api/v1/subscriptions/1/cancel")
                         .header("Authorization", "Bearer " + coach))

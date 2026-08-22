@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Local env. .env holds machine-specific values (API base URL, feature flags) and is where a
+# secret would land first, so it is ignored by default — .env.example is the tracked template.
+.env
+.env.*
+!.env.example
+
 # Local env — machine-specific (ports, feature flags). Use .env.example as the template.
 .env
 .env.*

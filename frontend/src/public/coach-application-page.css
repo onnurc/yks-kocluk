@@ -1,0 +1,93 @@
+.coach-application-page {
+  width: 100%;
+  min-height: 60vh;
+  padding: 96px var(--public-gutter) 120px;
+  color: var(--public-color-text);
+  background: var(--public-color-surface);
+}
+
+.coach-application-page__inner {
+  width: min(100%, 640px);
+  margin-inline: auto;
+}
+
+.coach-application-page h1 {
+  margin: 0 0 16px;
+  color: var(--public-color-ink);
+  font: 400 clamp(32px, 3.5vw, 44px)/1.15 var(--public-font-display);
+  letter-spacing: -0.02em;
+}
+
+.coach-application-page__lead {
+  margin: 0 0 40px;
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.coach-application-page__success p {
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.coach-application-page__error {
+  margin-bottom: 24px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: #7a1f1f;
+  background: rgba(200, 60, 60, 0.1);
+  font-size: 14px;
+}
+
+.coach-application-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.coach-application-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-color-ink);
+}
+
+.coach-application-field input,
+.coach-application-field textarea {
+  padding: 12px 14px;
+  border: 1px solid var(--public-color-border);
+  border-radius: 8px;
+  color: var(--public-color-ink);
+  background: #fff;
+  font: inherit;
+  font-weight: 400;
+  resize: vertical;
+}
+
+.coach-application-field input:focus,
+.coach-application-field textarea:focus {
+  outline: 2px solid var(--public-color-gold);
+  outline-offset: 1px;
+}
+
+.coach-application-submit {
+  align-self: flex-start;
+  padding: 12px 28px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--public-color-gold);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.coach-application-submit:hover:not(:disabled) {
+  background: var(--public-color-gold-hover);
+}
+
+.coach-application-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

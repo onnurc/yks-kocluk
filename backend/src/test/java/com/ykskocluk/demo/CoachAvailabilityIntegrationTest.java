@@ -1,12 +1,15 @@
 package com.ykskocluk.demo;
 
 import com.jayway.jsonpath.JsonPath;
+import com.ykskocluk.demo.enums.Role;
+import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -31,6 +34,10 @@ class CoachAvailabilityIntegrationTest {
 
     @Autowired
     MockMvc mockMvc;
+    @Autowired
+    UserRepository userRepository;
+    @Autowired
+    PasswordEncoder passwordEncoder;
 
     private String register(String email, String role) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
@@ -44,9 +51,13 @@ class CoachAvailabilityIntegrationTest {
     }
 
     private String adminToken() throws Exception {
+        return loginToken("admin@yks.local", "admin1234");
+    }
+
+    private String loginToken(String email, String password) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"admin@yks.local\",\"password\":\"admin1234\"}"))
+                        .content("{\"email\":\"%s\",\"password\":\"%s\"}".formatted(email, password)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return JsonPath.read(json, "$.accessToken");
@@ -55,7 +66,10 @@ class CoachAvailabilityIntegrationTest {
     /** Registers a coach, creates+approves a profile; returns [coachToken, profileId]. */
     private Object[] approvedCoach(String email) throws Exception {
         String admin = adminToken();
-        String coachToken = register(email, "COACH");
+        // Coaches no longer self-register (see AuthService.register) — build the fixture
+        // directly and log it in for a real token.
+        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, email, "password123");
+        String coachToken = loginToken(email, "password123");
         long universityId = ((Number) JsonPath.read(
                 mockMvc.perform(get("/api/v1/universities").header("Authorization", "Bearer " + admin))
                         .andReturn().getResponse().getContentAsString(), "$[0].id")).longValue();

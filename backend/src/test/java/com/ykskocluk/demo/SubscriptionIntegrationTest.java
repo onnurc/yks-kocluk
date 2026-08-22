@@ -1,6 +1,7 @@
 package com.ykskocluk.demo;
 
 import com.jayway.jsonpath.JsonPath;
+import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -32,6 +34,20 @@ class SubscriptionIntegrationTest {
     @Autowired
     UserRepository userRepository;
 
+    @Autowired
+    PasswordEncoder passwordEncoder;
+
+    /** Coaches no longer self-register (see AuthService.register) — build the fixture directly and log it in. */
+    private String registerCoach(String email) throws Exception {
+        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, email, "password123");
+        String json = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"password123\"}".formatted(email)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(json, "$.accessToken");
+    }
+
     private String register(String email, String role) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -55,7 +71,7 @@ class SubscriptionIntegrationTest {
 
     /** Registers a coach, creates and approves a profile, returns the coach profile id. */
     private int approvedCoachProfileId(String email, String admin) throws Exception {
-        String coachToken = register(email, "COACH");
+        String coachToken = registerCoach(email);
         long universityId = ((Number) JsonPath.read(
                 mockMvc.perform(get("/api/v1/universities").header("Authorization", "Bearer " + admin))
                         .andReturn().getResponse().getContentAsString(), "$[0].id")).longValue();
@@ -115,7 +131,7 @@ class SubscriptionIntegrationTest {
 
     @Test
     void authorization() throws Exception {
-        String coach = register("coach-authz@example.com", "COACH");
+        String coach = registerCoach("coach-authz@example.com");
         // COACH cannot subscribe -> 403
         mockMvc.perform(post("/api/v1/subscriptions")
                         .header("Authorization", "Bearer " + coach)

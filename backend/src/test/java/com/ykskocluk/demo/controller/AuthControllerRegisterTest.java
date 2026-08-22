@@ -140,24 +140,6 @@ class AuthControllerRegisterTest {
 
     @Test
     @WithMockUser
-    void register_coachNullDob_returnsCreated() throws Exception {
-        RegisterRequest request = new RegisterRequest("coach@example.com", "password123", "Coach", Role.COACH, null);
-        UserResponse userResponse = new UserResponse(2L, "coach@example.com", "Coach", Role.COACH, UserStatus.ACTIVE);
-        AuthResponse authResponse = new AuthResponse("access-token", "refresh-token", "Bearer", 900L, userResponse);
-
-        when(authService.register(any(RegisterRequest.class))).thenReturn(authResponse);
-
-        mockMvc.perform(post("/api/v1/auth/register")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.accessToken").value("access-token"))
-                .andExpect(jsonPath("$.user.email").value("coach@example.com"));
-    }
-
-    @Test
-    @WithMockUser
     void legalOnboarding_authenticatedUser_completesOwnOnboarding() throws Exception {
         mockMvc.perform(post("/api/v1/auth/legal-onboarding")
                         .with(csrf())

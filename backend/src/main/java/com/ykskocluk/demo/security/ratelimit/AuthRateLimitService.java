@@ -142,6 +142,11 @@ public class AuthRateLimitService {
                 properties.getEmailVerificationResend(), request);
     }
 
+    public void checkCoachApplication(String email, HttpServletRequest request) {
+        checkIpAndIdentifier("coach-application", email == null ? null : email.trim().toLowerCase(),
+                properties.getCoachApplication(), request);
+    }
+
     private void checkIpAndIdentifier(String action, String identifier, RateLimitProperties.LimitRule rule,
                                       HttpServletRequest request) {
         if (!properties.isEnabled()) return;

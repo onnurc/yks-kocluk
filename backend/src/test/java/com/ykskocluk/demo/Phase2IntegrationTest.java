@@ -1,12 +1,15 @@
 package com.ykskocluk.demo;
 
 import com.jayway.jsonpath.JsonPath;
+import com.ykskocluk.demo.enums.Role;
+import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -27,6 +30,16 @@ class Phase2IntegrationTest {
 
     @Autowired
     MockMvc mockMvc;
+    @Autowired
+    UserRepository userRepository;
+    @Autowired
+    PasswordEncoder passwordEncoder;
+
+    /** Coaches no longer self-register (see AuthService.register) — build the fixture directly and log it in. */
+    private String registerCoach(String email) throws Exception {
+        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, email, "password123");
+        return loginToken(email, "password123");
+    }
 
     private String register(String email, String role) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
@@ -64,7 +77,7 @@ class Phase2IntegrationTest {
 
     @Test
     void coachApprovalFlow_withSeededAdmin() throws Exception {
-        String coachToken = register("coach1@example.com", "COACH");
+        String coachToken = registerCoach("coach1@example.com");
         long universityId = firstUniversityId(coachToken);
 
         // coach creates profile -> PENDING
@@ -102,7 +115,7 @@ class Phase2IntegrationTest {
     @Test
     void authorizationMatrix() throws Exception {
         String studentToken = register("student1@example.com", "STUDENT");
-        String coachToken = register("coach2@example.com", "COACH");
+        String coachToken = registerCoach("coach2@example.com");
 
         // student cannot create a coach profile -> 403
         mockMvc.perform(post("/api/v1/coach/profile")
@@ -123,7 +136,7 @@ class Phase2IntegrationTest {
 
     @Test
     void coachProfile_invalidPayload_returns400() throws Exception {
-        String coachToken = register("coach3@example.com", "COACH");
+        String coachToken = registerCoach("coach3@example.com");
         mockMvc.perform(post("/api/v1/coach/profile")
                         .header("Authorization", "Bearer " + coachToken)
                         .contentType(MediaType.APPLICATION_JSON)

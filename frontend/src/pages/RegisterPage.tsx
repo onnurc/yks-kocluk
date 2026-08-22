@@ -20,7 +20,6 @@ export const RegisterPage: React.FC = () => {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"STUDENT" | "COACH">("STUDENT");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [error, setError] = useState<ApiError | Error | string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -50,15 +49,13 @@ export const RegisterPage: React.FC = () => {
       setError("Şifre en az 8 karakter olmalıdır.");
       return;
     }
-    if (role === "STUDENT") {
-      if (!dateOfBirth) {
-        setError("Öğrenci kaydı için doğum tarihi zorunludur.");
-        return;
-      }
-      if (new Date(dateOfBirth) > new Date()) {
-        setError("Doğum tarihi gelecekte olamaz.");
-        return;
-      }
+    if (!dateOfBirth) {
+      setError("Öğrenci kaydı için doğum tarihi zorunludur.");
+      return;
+    }
+    if (new Date(dateOfBirth) > new Date()) {
+      setError("Doğum tarihi gelecekte olamaz.");
+      return;
     }
     if (!legalDocuments.ready) {
       setError("Hukuki metinler yüklenemedi. Lütfen yeniden deneyin.");
@@ -75,8 +72,8 @@ export const RegisterPage: React.FC = () => {
         email,
         password,
         fullName: `${firstName.trim()} ${lastName.trim()}`,
-        role,
-        dateOfBirth: role === "STUDENT" ? dateOfBirth : undefined,
+        role: "STUDENT",
+        dateOfBirth,
         acceptedTermsDocumentId: legalDocuments.documents.TERMS_OF_USE!.id,
         acceptedExplicitConsentDocumentId: legalDocuments.documents.EXPLICIT_CONSENT!.id,
         marketingEmailOptIn,
@@ -120,10 +117,7 @@ export const RegisterPage: React.FC = () => {
         </div>
         <label className="auth-field" htmlFor="register-email"><span>E-posta:</span><input id="register-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required disabled={loading} /></label>
         <label className="auth-field" htmlFor="register-password"><span>Şifre (Min 8 karakter):</span><input id="register-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required disabled={loading} /></label>
-        <div className="auth-form__grid">
-          <label className="auth-field" htmlFor="register-role"><span>Rol Seçimi:</span><select id="register-role" value={role} onChange={(event) => setRole(event.target.value as "STUDENT" | "COACH")} disabled={loading}><option value="STUDENT">Öğrenci</option><option value="COACH">Koç</option></select></label>
-          {role === "STUDENT" && <label className="auth-field" htmlFor="date-of-birth"><span>Doğum Tarihi:</span><input id="date-of-birth" type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} required disabled={loading} /></label>}
-        </div>
+        <label className="auth-field" htmlFor="date-of-birth"><span>Doğum Tarihi:</span><input id="date-of-birth" type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} required disabled={loading} /></label>
 
         <fieldset className="auth-legal">
           <legend>Hukuki Onaylar</legend>
@@ -145,6 +139,7 @@ export const RegisterPage: React.FC = () => {
         <button className="auth-submit" type="submit" aria-label="Kayıt Ol" disabled={loading || !legalDocuments.ready || !termsAccepted || !explicitConsentAccepted}>{loading ? "Kayıt Yapılıyor…" : "Kayıt Ol →"}</button>
       </form>
       <p className="auth-footer">Zaten hesabın var mı? <Link to="/login">Giriş Yap</Link></p>
+      <p className="auth-footer">Koç olarak katılmak mı istiyorsun? <Link to="/koc-basvuru">Başvuru formunu doldur</Link></p>
       <p className="auth-security"><span aria-hidden="true">♙</span> Hukuki tercihleriniz ayrı ayrı ve güvenli biçimde kaydedilir.</p>
     </AuthPageShell>
   );

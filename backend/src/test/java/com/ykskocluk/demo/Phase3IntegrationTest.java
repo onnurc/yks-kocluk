@@ -1,12 +1,15 @@
 package com.ykskocluk.demo;
 
 import com.jayway.jsonpath.JsonPath;
+import com.ykskocluk.demo.enums.Role;
+import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -30,6 +33,21 @@ class Phase3IntegrationTest {
 
     @Autowired
     MockMvc mockMvc;
+    @Autowired
+    UserRepository userRepository;
+    @Autowired
+    PasswordEncoder passwordEncoder;
+
+    /** Coaches no longer self-register (see AuthService.register) — build the fixture directly and log it in. */
+    private String registerCoach(String email) throws Exception {
+        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, email, "password123");
+        String json = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"password123\"}".formatted(email)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(json, "$.accessToken");
+    }
 
     private String register(String email, String role) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
@@ -59,7 +77,7 @@ class Phase3IntegrationTest {
 
     /** Registers a coach, creates a profile with the given tracks, returns the profile id. */
     private int createCoachProfile(String email, long universityId, String... tracks) throws Exception {
-        String token = register(email, "COACH");
+        String token = registerCoach(email);
         String json = mockMvc.perform(post("/api/v1/coach/profile")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -118,7 +136,7 @@ class Phase3IntegrationTest {
                 .andExpect(jsonPath("$.errorCode").value("COACH_NOT_FOUND"));
 
         // authorization: COACH cannot search (403), unauthenticated cannot (401)
-        String coach = register("browsing-coach@example.com", "COACH");
+        String coach = registerCoach("browsing-coach@example.com");
         mockMvc.perform(get("/api/v1/coaches").header("Authorization", "Bearer " + coach))
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/v1/coaches"))
