@@ -57,7 +57,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/reset-password",
                                 "/api/v1/auth/oauth2/exchange",
                                 "/api/v1/legal-documents/**",
-                                "/api/v1/payments/iyzico/webhook")
+                                "/api/v1/payments/iyzico/webhook",
+                                "/api/v1/public/coach-applications")
                         .permitAll()
                         .requestMatchers(
                                 "/api/v1/health",

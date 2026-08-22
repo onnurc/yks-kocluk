@@ -15,6 +15,7 @@ export const publicQuickLinks: readonly PublicNavigationItem[] = [
   { label: "Koçlarımız", to: "/coaches", available: true },
   { label: "Giriş Yap", to: "/login", available: true },
   { label: "Hesap Oluştur", to: "/register", available: true },
+  { label: "Koç Olarak Başvur", to: "/koc-basvuru", available: true },
 ];
 
 export const publicSiteConfig = {

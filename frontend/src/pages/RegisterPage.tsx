@@ -139,6 +139,7 @@ export const RegisterPage: React.FC = () => {
         <button className="auth-submit" type="submit" aria-label="Kayıt Ol" disabled={loading || !legalDocuments.ready || !termsAccepted || !explicitConsentAccepted}>{loading ? "Kayıt Yapılıyor…" : "Kayıt Ol →"}</button>
       </form>
       <p className="auth-footer">Zaten hesabın var mı? <Link to="/login">Giriş Yap</Link></p>
+      <p className="auth-footer">Koç olarak katılmak mı istiyorsun? <Link to="/koc-basvuru">Başvuru formunu doldur</Link></p>
       <p className="auth-security"><span aria-hidden="true">♙</span> Hukuki tercihleriniz ayrı ayrı ve güvenli biçimde kaydedilir.</p>
     </AuthPageShell>
   );

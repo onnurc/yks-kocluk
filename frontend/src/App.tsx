@@ -12,6 +12,7 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminSafetyPage } from "./pages/admin/AdminSafetyPage";
 import { AdminFinancePage } from "./pages/admin/AdminFinancePage";
+import { AdminCoachApplicationsPage } from "./pages/admin/AdminCoachApplicationsPage";
 import { BookingsPage } from "./pages/BookingsPage";
 import { ChatPage } from "./pages/ChatPage";
 import { OAuthCallbackPage } from "./pages/OAuthCallbackPage";
@@ -28,6 +29,7 @@ import { AboutPage } from "./public/AboutPage";
 import { CoachingPage } from "./public/CoachingPage";
 import { CoachesPage } from "./public/CoachesPage";
 import { CoachProfilePage } from "./public/CoachProfilePage";
+import { CoachApplicationPage } from "./public/CoachApplicationPage";
 import { PublicLayout } from "./public/PublicLayout";
 import "./App.css";
 
@@ -43,6 +45,7 @@ const App: React.FC = () => {
             <Route path="kocluk" element={<CoachingPage />} />
             <Route path="coaches" element={<CoachesPage />} />
             <Route path="coaches/:id" element={<CoachProfilePage />} />
+            <Route path="koc-basvuru" element={<CoachApplicationPage />} />
           </Route>
 
           {/* Authentication Routes */}
@@ -81,6 +84,7 @@ const App: React.FC = () => {
                 <Route path="/admin" element={<AdminDashboardPage />} />
                 <Route path="/admin/safety" element={<AdminSafetyPage />} />
                 <Route path="/admin/finance" element={<AdminFinancePage />} />
+                <Route path="/admin/coach-applications" element={<AdminCoachApplicationsPage />} />
                 <Route path="/admin/messages" element={<ChatPage />} />
                 <Route path="/admin/messages/:conversationId" element={<ChatPage />} />
               </Route>
