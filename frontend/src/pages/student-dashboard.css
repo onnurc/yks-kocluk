@@ -1,0 +1,305 @@
+@import url("https://fonts.googleapis.com/css2?family=Afacad:wght@400;600&family=Righteous&display=swap");
+
+.student-dashboard,
+.student-dashboard * { box-sizing: border-box; }
+
+.student-dashboard {
+  --dashboard-ink: #000e32;
+  --dashboard-gold: #c9a25d;
+  --dashboard-gold-dark: #78591b;
+  --dashboard-paper: #fbf9f9;
+  --dashboard-panel: #fff;
+  --dashboard-soft: #f1efef;
+  --dashboard-muted: #666873;
+  width: 100%;
+  max-width: 1126px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: clamp(28px, 4vw, 56px) clamp(20px, 4vw, 52px) 64px;
+  color: var(--dashboard-ink);
+  background: var(--dashboard-paper);
+  font: 18px/1.45 "Afacad", sans-serif;
+  text-align: left;
+}
+
+.student-dashboard a { color: inherit; }
+.student-dashboard button { font: inherit; }
+
+.student-dashboard__welcome { margin-bottom: 40px; }
+.student-dashboard__welcome p { margin: 0 0 6px; font-size: 20px; }
+.student-dashboard__welcome h1,
+.student-dashboard__section-heading h2,
+.student-dashboard__messages-card h2,
+.student-dashboard__role-view h1 {
+  margin: 0;
+  color: var(--dashboard-ink);
+  font: 400 clamp(28px, 3vw, 36px)/1.15 "Righteous", sans-serif;
+  letter-spacing: -.025em;
+}
+.student-dashboard__welcome h1 { color: #45464e; font-size: clamp(26px, 3vw, 34px); }
+
+.student-dashboard__summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+  margin-bottom: 48px;
+}
+
+.student-dashboard__summary-card,
+.student-dashboard__messages-card {
+  min-width: 0;
+  min-height: 270px;
+  border-radius: 22px;
+  box-shadow: 0 20px 60px rgba(0, 14, 50, .045);
+}
+
+.student-dashboard__summary-card {
+  display: flex;
+  flex-direction: column;
+  padding: 28px;
+  border: 1px solid #f1efef;
+  background: var(--dashboard-panel);
+}
+
+.student-dashboard__eyebrow {
+  margin: 0;
+  color: var(--dashboard-gold-dark);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.student-dashboard__summary-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.student-dashboard__coach-identity { display: flex; align-items: center; gap: 14px; margin: 32px 0 22px; min-width: 0; }
+.student-dashboard__coach-identity > div { min-width: 0; }
+.student-dashboard__coach-identity h2,
+.student-dashboard__subscription-card h2,
+.student-dashboard__empty-summary h2 {
+  margin: 0;
+  color: var(--dashboard-ink);
+  font: 400 25px/1.2 "Righteous", sans-serif;
+  overflow-wrap: anywhere;
+}
+.student-dashboard__coach-identity p,
+.student-dashboard__subscription-card > p,
+.student-dashboard__empty-summary p { margin: 5px 0 0; color: var(--dashboard-muted); font-size: 15px; }
+
+.student-dashboard__avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 58px;
+  height: 58px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #e9e8e7;
+  color: #45464e;
+  font-weight: 600;
+}
+.student-dashboard__avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.student-dashboard__card-action {
+  align-self: stretch;
+  margin-top: auto;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--dashboard-soft);
+  color: var(--dashboard-ink);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.student-dashboard__card-action:hover,
+.student-dashboard__card-action:focus-visible { background: #e4e2e2; outline: 2px solid var(--dashboard-gold); outline-offset: 2px; }
+
+.student-dashboard__status,
+.student-dashboard__meeting-status {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: #efeded;
+  color: #45464e;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.student-dashboard__status--active { background: #e4f3e9; color: #23633a; }
+.student-dashboard__status--past_due,
+.student-dashboard__status--pending_payment { background: #fff1d2; color: #705315; }
+.student-dashboard__status--terminated { background: #ffdad6; color: #93000a; }
+
+.student-dashboard__subscription-mark,
+.student-dashboard__empty-icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin: 28px 0 14px;
+  border-radius: 50%;
+  background: #fff7e8;
+  color: var(--dashboard-gold);
+  font-size: 25px;
+}
+.student-dashboard__empty-summary { display: flex; flex: 1; flex-direction: column; }
+.student-dashboard__empty-summary .student-dashboard__card-action { margin-top: auto; }
+
+.student-dashboard__messages-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 28px;
+  background: linear-gradient(135deg, #07183f 0%, #000e32 72%, #16284d 100%);
+  color: #fff;
+  text-decoration: none;
+  box-shadow: 0 28px 55px -25px rgba(0, 14, 50, .75);
+}
+.student-dashboard__messages-card::after { content: ""; position: absolute; right: -50px; top: -70px; width: 180px; height: 180px; border-radius: 50%; background: rgba(201, 162, 93, .12); filter: blur(28px); }
+.student-dashboard__messages-heading { position: relative; z-index: 1; display: flex; align-items: center; gap: 14px; }
+.student-dashboard__messages-card h2 { color: #fff; font-size: 30px; }
+.student-dashboard__message-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 12px; background: #ffd48a; color: #795a1c; }
+.student-dashboard__message-icon svg,
+.student-dashboard__meeting svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.student-dashboard__unread { display: grid; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 12px; margin-top: auto; }
+.student-dashboard__unread > span { grid-column: 1 / -1; color: #b8c5f2; font-size: 15px; }
+.student-dashboard__unread strong { color: #ffd48a; font: 400 64px/1 "Righteous", sans-serif; }
+.student-dashboard__unread em { color: #fff; font-size: 19px; font-style: normal; }
+.student-dashboard__messages-arrow { position: absolute; right: 24px; bottom: 24px; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 11px; background: rgba(255,255,255,.1); color: #ffd48a; font-size: 24px; }
+
+.student-dashboard__subscription-details { margin: -22px 0 46px; }
+.student-dashboard__subscription-details > div { margin-bottom: 0 !important; text-align: left; }
+
+.student-dashboard__content-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 42px; }
+.student-dashboard__section { min-width: 0; }
+.student-dashboard__section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.student-dashboard__section-heading h2 { font-size: clamp(27px, 3vw, 32px); }
+.student-dashboard__section-heading > a { flex: 0 0 auto; color: var(--dashboard-gold-dark); font-size: 12px; font-weight: 600; letter-spacing: .09em; text-decoration: none; text-transform: uppercase; }
+
+.student-dashboard__meeting-list,
+.student-dashboard__recent-list { display: flex; flex-direction: column; gap: 13px; }
+.student-dashboard__meeting,
+.student-dashboard__recent-message {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 104px;
+  gap: 15px;
+  padding: 16px;
+  border: 1px solid #f1efef;
+  border-radius: 18px;
+  background: var(--dashboard-panel);
+  box-shadow: 0 12px 38px rgba(0,14,50,.035);
+}
+.student-dashboard__date-tile { display: flex; align-items: center; justify-content: center; flex-direction: column; flex: 0 0 auto; width: 60px; height: 68px; border-radius: 13px; background: #efeded; color: #45464e; text-align: center; }
+.student-dashboard__date-tile span { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }
+.student-dashboard__date-tile strong { font: 400 27px/1.1 "Righteous", sans-serif; }
+.student-dashboard__meeting-body { min-width: 0; flex: 1; }
+.student-dashboard__meeting-body h3 { overflow: hidden; margin: 0; color: var(--dashboard-ink); font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.student-dashboard__meeting-body p { display: flex; align-items: center; gap: 6px; margin: 4px 0 0; color: var(--dashboard-muted); font-size: 14px; }
+.student-dashboard__meeting-body .student-dashboard__meeting-date { display: none; }
+.student-dashboard__meeting-body svg { width: 17px; height: 17px; }
+.student-dashboard__meeting-status { align-self: flex-start; }
+.student-dashboard__join { display: grid; place-items: center; flex: 0 0 auto; width: 42px; height: 42px; border-radius: 50%; background: var(--dashboard-soft); color: #45464e; }
+.student-dashboard__join--disabled { cursor: not-allowed; opacity: .42; }
+
+.student-dashboard__recent-message { min-height: 94px; color: inherit; text-decoration: none; }
+.student-dashboard__recent-message > div { flex: 1; min-width: 0; }
+.student-dashboard__recent-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.student-dashboard__recent-heading strong { overflow: hidden; color: var(--dashboard-ink); font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.student-dashboard__recent-heading time { flex: 0 0 auto; color: var(--dashboard-gold-dark); font-size: 12px; font-weight: 600; text-transform: uppercase; }
+.student-dashboard__recent-message p { overflow: hidden; margin: 4px 0 0; color: var(--dashboard-muted); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.student-dashboard__recent-unread { display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 999px; background: var(--dashboard-ink); color: #fff; font-size: 11px; font-weight: 600; }
+
+.student-dashboard__list-state,
+.student-dashboard__section-error { display: flex; align-items: center; justify-content: center; flex-direction: column; min-height: 126px; padding: 24px; border: 1px dashed #c6c6cf; border-radius: 18px; background: rgba(255,255,255,.56); color: var(--dashboard-muted); text-align: center; }
+.student-dashboard__list-state strong { margin-bottom: 5px; color: var(--dashboard-ink); }
+.student-dashboard__list-state span { font-size: 14px; }
+.student-dashboard__section-error { min-height: 108px; }
+.student-dashboard__section-error p { margin: 0; }
+.student-dashboard__section-error button { margin-top: 10px; border: 0; border-bottom: 1px solid currentColor; background: transparent; color: var(--dashboard-gold-dark); cursor: pointer; }
+.student-dashboard__summary-card .student-dashboard__section-error { flex: 1; margin-top: 24px; padding: 14px; }
+
+.student-dashboard__skeleton { flex: 1; margin-top: 24px; border-radius: 14px; background: linear-gradient(90deg, #f1efef 25%, #fbf9f9 50%, #f1efef 75%); background-size: 200% 100%; animation: student-dashboard-pulse 1.3s linear infinite; }
+@keyframes student-dashboard-pulse { to { background-position: -200% 0; } }
+
+.student-dashboard__role-view { max-width: 760px; margin: 0 auto; padding: 64px 32px; text-align: left; }
+.student-dashboard__role-view h1 { margin: 8px 0 14px; }
+.student-dashboard__role-view p:not(.student-dashboard__eyebrow) { margin: 0 0 20px; color: var(--dashboard-muted, #666873); }
+.student-dashboard__role-view a { display: inline-flex; padding: 11px 16px; border-radius: 10px; background: #000e32; color: #fff; text-decoration: none; }
+.student-dashboard__route-state { padding: 48px 24px; text-align: center; }
+
+@media (max-width: 900px) {
+  .student-dashboard__summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .student-dashboard__messages-card { grid-column: 1 / -1; min-height: 250px; }
+  .student-dashboard__content-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 720px) {
+  .student-dashboard { padding: 26px 20px 48px; font-size: 16px; }
+  .student-dashboard__welcome { margin-bottom: 26px; }
+  .student-dashboard__welcome h1 { font-size: 25px; }
+  .student-dashboard__welcome p { font-size: 18px; }
+  .student-dashboard__summary { gap: 14px; margin-bottom: 48px; }
+  .student-dashboard__summary-card { min-height: 236px; padding: 20px; border-radius: 18px; text-align: center; }
+  .student-dashboard__summary-card .student-dashboard__eyebrow { margin-bottom: 8px; }
+  .student-dashboard__summary-heading { align-items: center; flex-direction: column; }
+  .student-dashboard__summary-heading .student-dashboard__eyebrow { order: 0; margin-top: 0; }
+  .student-dashboard__coach-identity { align-items: center; flex: 1; flex-direction: column; gap: 8px; margin: 16px 0 12px; }
+  .student-dashboard__coach-identity .student-dashboard__avatar { order: -1; }
+  .student-dashboard__coach-identity h2,
+  .student-dashboard__subscription-card h2,
+  .student-dashboard__empty-summary h2 { font-size: 20px; }
+  .student-dashboard__coach-identity p { display: none; }
+  .student-dashboard__avatar { width: 56px; height: 56px; }
+  .student-dashboard__subscription-mark,
+  .student-dashboard__empty-icon { width: 54px; height: 54px; margin: 15px auto 9px; }
+  .student-dashboard__subscription-card > h2 { margin-top: 7px; }
+  .student-dashboard__subscription-card > p { font-size: 13px; }
+  .student-dashboard__empty-summary { align-items: center; }
+  .student-dashboard__empty-summary p { display: none; }
+  .student-dashboard__card-action { padding: 9px 8px; font-size: 10px; }
+  .student-dashboard__status { font-size: 9px; }
+  .student-dashboard__messages-card { min-height: 300px; padding: 28px; border-radius: 18px; }
+  .student-dashboard__messages-card h2 { font-size: 36px; }
+  .student-dashboard__message-icon { width: 52px; height: 52px; }
+  .student-dashboard__unread strong { font-size: 66px; }
+  .student-dashboard__messages-arrow { right: 24px; bottom: 28px; width: 48px; height: 48px; }
+  .student-dashboard__subscription-details { margin-top: -28px; }
+  .student-dashboard__subscription-details > div { overflow-x: auto; }
+  .student-dashboard__section-heading { align-items: flex-end; }
+  .student-dashboard__section-heading h2 { max-width: 245px; font-size: 34px; line-height: 1.05; }
+  .student-dashboard__section-heading > a { font-size: 11px; }
+  .student-dashboard__meeting { min-height: 112px; padding: 15px; gap: 13px; }
+  .student-dashboard__date-tile { width: 58px; height: 72px; }
+  .student-dashboard__meeting-body h3 { font-size: 17px; }
+  .student-dashboard__meeting-body .student-dashboard__meeting-date { display: none; }
+  .student-dashboard__meeting-status { display: none; }
+  .student-dashboard__join { width: 44px; height: 44px; }
+  .student-dashboard__recent { display: none; }
+}
+
+@media (max-width: 420px) {
+  .student-dashboard { padding-inline: 16px; }
+  .student-dashboard__summary { gap: 12px; }
+  .student-dashboard__summary-card { min-height: 220px; padding: 16px; }
+  .student-dashboard__summary-card .student-dashboard__card-action { margin-inline: -2px; }
+  .student-dashboard__coach-identity h2,
+  .student-dashboard__subscription-card h2,
+  .student-dashboard__empty-summary h2 { font-size: 18px; }
+  .student-dashboard__messages-card { min-height: 280px; }
+  .student-dashboard__meeting { gap: 10px; }
+  .student-dashboard__meeting-body p { font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .student-dashboard__skeleton { animation: none; }
+}
