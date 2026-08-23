@@ -1,0 +1,113 @@
+@import url("https://fonts.googleapis.com/css2?family=Afacad:wght@400;600&family=Righteous&display=swap");
+
+#root:has(> .app-layout) { width: 100%; max-width: none; margin: 0; border: 0; }
+.app-layout, .app-layout * { box-sizing: border-box; }
+.app-layout {
+  --app-ink: #000e32;
+  --app-gold: #c9a25d;
+  --app-gold-dark: #78591b;
+  --app-paper: #fbf9f9;
+  --app-panel: #ffffff;
+  --app-soft: #f1efef;
+  --app-muted: #666873;
+  --app-border: rgba(198, 198, 207, .52);
+  min-height: 100svh;
+  overflow-x: clip;
+  color: var(--app-ink);
+  background: var(--app-paper);
+  font: 16px/1.45 "Afacad", system-ui, sans-serif;
+  text-align: left;
+}
+.app-layout a { color: inherit; }
+.app-layout button { font: inherit; }
+.app-layout__skip-link { position: fixed; z-index: 400; top: 8px; left: 8px; padding: 9px 14px; border-radius: 999px; color: #fff !important; background: var(--app-ink); transform: translateY(-160%); }
+.app-layout__skip-link:focus { transform: translateY(0); }
+
+.app-layout__header {
+  position: sticky;
+  z-index: 120;
+  top: 0;
+  min-height: 72px;
+  padding: 0 clamp(22px, 3.2vw, 48px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 1px solid var(--app-border);
+  background: rgba(251, 249, 249, .94);
+  box-shadow: 0 1px 10px rgba(0, 14, 50, .035);
+  backdrop-filter: blur(18px);
+}
+.app-layout__header-start, .app-layout__header-actions, .app-layout__identity, .app-layout__mobile-account { display: flex; align-items: center; }
+.app-layout__header-start { gap: 12px; }
+.app-layout__header-actions { gap: 12px; }
+.app-layout__brand { display: inline-flex; align-items: center; gap: 8px; color: var(--app-ink); text-decoration: none; }
+.app-layout__brand .brand-logo__mark { width: 29px; height: 29px; fill: currentColor; }
+.app-layout__brand .brand-logo__wordmark { color: var(--app-ink); font: 400 28px/1 "Righteous", sans-serif; letter-spacing: -.04em; text-transform: uppercase; }
+.app-layout__product-name { padding-left: 13px; border-left: 1px solid var(--app-border); color: var(--app-gold-dark); font-size: 13px; font-weight: 600; letter-spacing: .08em; }
+
+.app-layout__icon-button { position: relative; width: 42px; height: 42px; padding: 9px; display: grid; place-items: center; border: 0; border-radius: 50%; color: var(--app-ink); background: transparent; cursor: pointer; text-decoration: none; }
+.app-layout__icon-button:hover { background: var(--app-soft); }
+.app-layout__icon-button svg, .app-layout__nav-link svg, .app-layout__logout svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.app-layout__menu-button, .app-layout__profile-button { display: none; }
+.app-layout__notification-dot { position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border: 2px solid var(--app-paper); border-radius: 50%; background: var(--app-gold); }
+
+.app-layout__identity { gap: 10px; margin-left: 4px; }
+.app-layout__identity > span:last-child, .app-layout__mobile-account > span:last-child { display: grid; }
+.app-layout__identity strong, .app-layout__mobile-account strong { max-width: 190px; overflow: hidden; color: var(--app-ink); font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.app-layout__identity small, .app-layout__mobile-account small { color: var(--app-muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.app-layout__avatar { display: grid; place-items: center; flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; background: var(--app-ink); color: #fff; font-size: 12px; font-weight: 600; letter-spacing: .03em; }
+
+.app-layout__frame { display: flex; min-height: calc(100svh - 72px); }
+.app-layout__sidebar { position: sticky; top: 72px; z-index: 90; display: flex; flex: 0 0 248px; flex-direction: column; height: calc(100svh - 72px); padding: 28px 18px 22px; border-right: 1px solid var(--app-border); background: var(--app-panel); }
+.app-layout__mobile-account { display: none; }
+.app-layout__navigation { display: grid; gap: 7px; }
+.app-layout__nav-link { min-height: 48px; padding: 11px 14px; display: flex; align-items: center; gap: 13px; border-radius: 12px; color: #45464e !important; font-weight: 600; text-decoration: none; transition: color 160ms ease, background-color 160ms ease; }
+.app-layout__nav-link:hover { color: var(--app-ink) !important; background: var(--app-soft); }
+.app-layout__nav-link.is-active { color: var(--app-ink) !important; background: #fff7e8; }
+.app-layout__nav-link.is-active svg { color: var(--app-gold-dark); }
+.app-layout__unread-badge { min-width: 23px; height: 23px; margin-left: auto; padding: 0 7px; display: grid; place-items: center; border-radius: 999px; background: var(--app-ink); color: #fff; font-size: 11px; }
+.app-layout__sidebar-bottom { margin-top: auto; display: grid; gap: 10px; }
+.app-layout__privacy-link { padding: 8px 12px; color: var(--app-muted) !important; font-size: 13px; text-decoration: none; }
+.app-layout__privacy-link:hover { color: var(--app-ink) !important; text-decoration: underline; text-underline-offset: 3px; }
+.app-layout__logout { min-height: 46px; padding: 10px 13px; display: flex; align-items: center; gap: 12px; border: 1px solid var(--app-border); border-radius: 12px; color: var(--app-ink); background: var(--app-panel); cursor: pointer; }
+.app-layout__logout:hover { background: var(--app-soft); }
+
+.app-layout__content-column { min-width: 0; display: flex; flex: 1; flex-direction: column; }
+.app-layout__main { min-width: 0; flex: 1; background: var(--app-paper); }
+.app-layout__footer { min-height: 54px; padding: 15px clamp(24px, 4vw, 56px); display: flex; align-items: center; justify-content: space-between; gap: 18px; border-top: 1px solid var(--app-border); color: var(--app-muted); background: var(--app-paper); font-size: 12px; }
+.app-layout__footer > div { display: flex; flex-wrap: wrap; gap: 15px; }
+.app-layout__footer button { color: var(--app-muted) !important; text-underline-offset: 3px; }
+.app-layout__backdrop { display: none; }
+.app-layout :is(a, button):focus-visible { outline: 2px solid var(--app-gold); outline-offset: 3px; }
+.app-layout--guest .app-layout__header > a:last-child { color: var(--app-ink); text-decoration: none; }
+
+@media (max-width: 1023px) {
+  .app-layout__header { min-height: 68px; padding-inline: 22px; }
+  .app-layout__menu-button, .app-layout__profile-button { display: grid; }
+  .app-layout__identity { display: none; }
+  .app-layout__frame { min-height: calc(100svh - 68px); }
+  .app-layout__sidebar { position: fixed; top: 68px; bottom: 0; left: 0; width: min(350px, calc(100vw - 42px)); height: auto; padding: 24px 20px; box-shadow: 22px 0 50px rgba(0, 14, 50, .13); transform: translateX(-105%); transition: transform 210ms ease; }
+  .app-layout__sidebar.is-open { transform: translateX(0); }
+  .app-layout__mobile-account { gap: 12px; margin-bottom: 23px; padding: 0 8px 21px; border-bottom: 1px solid var(--app-border); }
+  .app-layout__backdrop { position: fixed; z-index: 80; inset: 68px 0 0; display: block; width: 100%; border: 0; background: rgba(0, 14, 50, .28); cursor: default; }
+  .app-layout__footer { padding-inline: 28px; }
+}
+
+@media (max-width: 719px) {
+  .app-layout__header { min-height: 64px; padding-inline: 14px; gap: 8px; }
+  .app-layout__header-start { gap: 6px; }
+  .app-layout__header-actions { gap: 2px; }
+  .app-layout__brand { gap: 4px; }
+  .app-layout__brand .brand-logo__mark { display: none; }
+  .app-layout__brand .brand-logo__wordmark { font-size: 25px; }
+  .app-layout__product-name { display: none; }
+  .app-layout__icon-button { width: 40px; height: 40px; }
+  .app-layout__frame { min-height: calc(100svh - 64px); }
+  .app-layout__sidebar { top: 64px; width: min(338px, calc(100vw - 28px)); padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+  .app-layout__backdrop { inset-block-start: 64px; }
+  .app-layout__footer { align-items: flex-start; flex-direction: column; padding: 20px; }
+  .app-layout:has(.chat-page) .app-layout__footer { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) { .app-layout__sidebar { transition: none; } }

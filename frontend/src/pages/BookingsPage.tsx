@@ -1,124 +1,136 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { bookingApi } from "../booking/bookingApi";
-import type { SessionResponse } from "../booking/bookingTypes";
-import { FormError } from "../components/FormError";
+import type { SessionResponse, SessionStatus } from "../booking/bookingTypes";
+import "./bookings-page.css";
 
-export const BookingsPage: React.FC = () => {
+const statusLabels: Record<SessionStatus, string> = {
+  PLANNED: "Planlandı",
+  COMPLETED: "Tamamlandı",
+  CANCELLED: "İptal edildi",
+  LATE_CANCELLED: "Geç iptal",
+  NO_SHOW: "Katılmadı",
+};
+
+const formatDay = (value: string) => new Intl.DateTimeFormat("tr-TR", { day: "2-digit" }).format(new Date(value));
+const formatMonth = (value: string) => new Intl.DateTimeFormat("tr-TR", { month: "short" }).format(new Date(value)).replace(".", "");
+const formatDate = (value: string) => new Intl.DateTimeFormat("tr-TR", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+}).format(new Date(value));
+const formatTimeRange = (start: string, end: string) => {
+  const formatter = new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  return `${formatter.format(new Date(start))} – ${formatter.format(new Date(end))}`;
+};
+
+function CalendarIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v5M16 3v5M4 10h16" /></svg>;
+}
+
+function ClockIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></svg>;
+}
+
+function VideoIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6" width="11.5" height="12" rx="2" /><path d="m15 10 5-2v8l-5-2" /></svg>;
+}
+
+export const BookingsPage = () => {
   const [sessions, setSessions] = useState<SessionResponse[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  const fetchSessions = async () => {
+  const retry = async () => {
     setLoading(true);
-    setError(null);
+    setError(false);
     try {
       const data = await bookingApi.listMySessions();
       setSessions(data || []);
-    } catch (err) {
-      setError(err);
+    } catch {
+      setError(true);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchSessions();
+    let active = true;
+    bookingApi.listMySessions().then((data) => {
+      if (active) setSessions(data || []);
+    }).catch(() => {
+      if (active) setError(true);
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const formatDateTime = (isoString: string) => {
-    const d = new Date(isoString);
-    return d.toLocaleString("tr-TR", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      weekday: "long",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const getStatusBadgeStyle = (status: string) => {
-    const base = {
-      padding: "0.25rem 0.5rem",
-      borderRadius: "4px",
-      fontSize: "0.8rem",
-      fontWeight: "bold" as const,
-    };
-    switch (status) {
-      case "PLANNED":
-        return { ...base, backgroundColor: "#cce5ff", color: "#004085" };
-      case "COMPLETED":
-        return { ...base, backgroundColor: "#d4edda", color: "#155724" };
-      case "CANCELLED":
-        return { ...base, backgroundColor: "#e2e3e5", color: "#383d41" };
-      case "LATE_CANCELLED":
-        return { ...base, backgroundColor: "#f8d7da", color: "#721c24" };
-      case "NO_SHOW":
-        return { ...base, backgroundColor: "#fff3cd", color: "#856404" };
-      default:
-        return base;
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "PLANNED":
-        return "Planlandı";
-      case "COMPLETED":
-        return "Tamamlandı";
-      case "CANCELLED":
-        return "İptal Edildi";
-      case "LATE_CANCELLED":
-        return "Geç İptal (Kontenjan Yandı)";
-      case "NO_SHOW":
-        return "Katılmadı";
-      default:
-        return status;
-    }
-  };
-
   return (
-    <div style={{ padding: "2rem", maxWidth: "800px", margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <h1 style={{ margin: 0 }}>Randevularım</h1>
-        <Link to="/coaches" style={{ padding: "0.5rem 1rem", backgroundColor: "#007bff", color: "white", textDecoration: "none", borderRadius: "4px", fontWeight: "bold" }}>
-          Yeni Randevu Al
-        </Link>
-      </div>
-
-      <FormError error={error} />
+    <section className="bookings-page" aria-labelledby="bookings-title">
+      <header className="bookings-page__header">
+        <div>
+          <p className="bookings-page__eyebrow">Mentorluk takvimi</p>
+          <h1 id="bookings-title">Görüşmelerim</h1>
+          <p className="bookings-page__lead">Planlanan ve geçmiş koçluk görüşmelerinizi tek yerde takip edin.</p>
+        </div>
+        {!loading && !error && sessions.length > 0 && <Link className="bookings-page__primary-action" to="/coaches">Koçları Keşfet <span aria-hidden="true">→</span></Link>}
+      </header>
 
       {loading ? (
-        <p>Randevularınız yükleniyor...</p>
+        <div className="bookings-page__loading" role="status" aria-label="Görüşmeler yükleniyor">
+          <span /><span /><span />
+        </div>
+      ) : error ? (
+        <div className="bookings-page__state bookings-page__state--error" role="alert">
+          <span className="bookings-page__state-icon"><CalendarIcon /></span>
+          <h2>Görüşmeler yüklenemedi</h2>
+          <p>Bilgilerinizi şu anda alamıyoruz. Lütfen yeniden deneyin.</p>
+          <button type="button" onClick={() => void retry()}>Yeniden dene</button>
+        </div>
       ) : sessions.length === 0 ? (
-        <div style={{ padding: "3rem", border: "1px dashed #dee2e6", borderRadius: "8px", textAlign: "center", backgroundColor: "#fff" }}>
-          <p style={{ margin: 0, color: "#6c757d", fontSize: "1.1rem" }}>
-            Kayıtlı randevunuz bulunmuyor.
-          </p>
-          <Link to="/coaches" style={{ display: "inline-block", marginTop: "1rem", color: "#007bff", fontWeight: "bold" }}>
-            Koçları Keşfet &rarr;
-          </Link>
+        <div className="bookings-page__state" aria-label="Boş görüşmeler durumu">
+          <span className="bookings-page__state-icon"><CalendarIcon /></span>
+          <p className="bookings-page__eyebrow">Görüşmeler</p>
+          <h2>Kayıtlı görüşmeniz bulunmuyor.</h2>
+          <p>Size uygun koçu keşfederek gerçek profilindeki uygun saatlerden görüşme planlayabilirsiniz.</p>
+          <Link className="bookings-page__primary-action" to="/coaches">Koçları Keşfet <span aria-hidden="true">→</span></Link>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {sessions.map((session) => (
-            <div key={session.id} style={{ padding: "1.5rem", border: "1px solid #dee2e6", borderRadius: "8px", backgroundColor: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
-                  <h3 style={{ margin: 0, color: "#333" }}>{session.coachName}</h3>
-                  <span style={getStatusBadgeStyle(session.status)}>
-                    {getStatusText(session.status)}
-                  </span>
+        <div className="bookings-page__list" aria-label="Görüşme listesi">
+          {sessions.map((session) => {
+            const canJoin = session.status === "PLANNED" && Boolean(session.meetLink);
+            return (
+              <article className="bookings-page__card" key={session.id}>
+                <time className="bookings-page__date-tile" dateTime={session.startTime}>
+                  <span>{formatMonth(session.startTime)}</span>
+                  <strong>{formatDay(session.startTime)}</strong>
+                </time>
+                <div className="bookings-page__details">
+                  <div className="bookings-page__title-row">
+                    <h2>{session.coachName}</h2>
+                    <span className={`bookings-page__status bookings-page__status--${session.status.toLowerCase()}`}>{statusLabels[session.status]}</span>
+                  </div>
+                  <p><CalendarIcon /> <span>{formatDate(session.startTime)}</span></p>
+                  <p><ClockIcon /> <span>{formatTimeRange(session.startTime, session.endTime)}</span></p>
                 </div>
-                <p style={{ margin: "0.25rem 0", color: "#495057" }}>
-                  <strong>Tarih & Saat:</strong> {formatDateTime(session.startTime)}
-                </p>
-              </div>
-            </div>
-          ))}
+                {canJoin ? (
+                  <a className="bookings-page__join" href={session.meetLink!} target="_blank" rel="noreferrer" aria-label={`${session.coachName} ile görüşmeye katıl`}>
+                    <VideoIcon /><span>Görüşmeye katıl</span>
+                  </a>
+                ) : session.status === "PLANNED" ? (
+                  <span className="bookings-page__join bookings-page__join--disabled" aria-label="Görüşme bağlantısı henüz hazır değil">
+                    <VideoIcon /><span>Bağlantı bekleniyor</span>
+                  </span>
+                ) : null}
+              </article>
+            );
+          })}
         </div>
       )}
-    </div>
+    </section>
   );
 };

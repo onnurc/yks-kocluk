@@ -1,59 +1,92 @@
-import React, { useEffect, useState } from "react";
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
+import type { UserRole } from "../auth/authTypes";
 import { LegalDocumentViewer } from "../legal/LegalDocumentViewer";
 import { useLegalDocuments } from "../legal/useLegalDocuments";
 import { messagingApi } from "../messaging/messagingApi";
 import { useNotificationSocket } from "../messaging/useNotificationSocket";
+import { BrandLogo } from "../public/BrandLogo";
+import "./app-layout.css";
 
-const UnreadBadge: React.FC<{ count: number }> = ({ count }) => {
-  if (count <= 0) return null;
-  return (
-    <span
-      style={{
-        marginLeft: "0.4rem",
-        backgroundColor: "#dc3545",
-        color: "white",
-        borderRadius: "999px",
-        padding: "0.05rem 0.45rem",
-        fontSize: "0.72rem",
-        fontWeight: "bold",
-      }}
-    >
-      {count}
-    </span>
-  );
+type NavigationItem = {
+  label: string;
+  to: string;
+  icon: "dashboard" | "coaches" | "messages" | "meetings" | "settings" | "applications" | "safety" | "finance";
+  showUnread?: boolean;
 };
+
+const navigationByRole: Record<UserRole, NavigationItem[]> = {
+  STUDENT: [
+    { label: "Panel", to: "/dashboard", icon: "dashboard" },
+    { label: "Koçlar", to: "/coaches", icon: "coaches" },
+    { label: "Mesajlar", to: "/messages", icon: "messages", showUnread: true },
+    { label: "Görüşmeler", to: "/bookings", icon: "meetings" },
+    { label: "Ayarlar", to: "/security", icon: "settings" },
+  ],
+  COACH: [
+    { label: "Panel", to: "/dashboard", icon: "dashboard" },
+    { label: "Mesajlar", to: "/messages", icon: "messages", showUnread: true },
+    { label: "Ayarlar", to: "/security", icon: "settings" },
+  ],
+  ADMIN: [
+    { label: "Admin Paneli", to: "/admin", icon: "dashboard" },
+    { label: "Koç Başvuruları", to: "/admin/coach-applications", icon: "applications" },
+    { label: "Güvenlik", to: "/admin/safety", icon: "safety" },
+    { label: "Finans", to: "/admin/finance", icon: "finance" },
+    { label: "Mesaj Gözlemi", to: "/admin/messages", icon: "messages" },
+  ],
+};
+
+function AppIcon({ name }: { name: NavigationItem["icon"] | "menu" | "close" | "notification" | "profile" | "logout" }) {
+  const paths: Record<string, React.ReactNode> = {
+    dashboard: <><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></>,
+    coaches: <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3.5 19c.4-4 2.3-6 5.5-6s5.1 2 5.5 6M14.5 14c3.3-.7 5.3 1 6 4" /></>,
+    messages: <><path d="M4 5h16v11H9l-5 4V5Z" /><path d="M8 9h8M8 12h6" /></>,
+    meetings: <><rect x="4" y="6" width="16" height="14" rx="2" /><path d="M8 3v6M16 3v6M4 11h16" /></>,
+    settings: <><circle cx="12" cy="12" r="3" /><path d="M19 13.5v-3l-2.2-.7-.7-1.7 1.1-2-2.1-2.1-2 1.1-1.7-.7L10.5 2h-3l-.7 2.2-1.7.7-2-1.1L1 5.9l1.1 2-.7 1.7L-.8 10.5v3l2.2.7.7 1.7-1.1 2L3.1 20l2-1.1 1.7.7.7 2.2h3l.7-2.2 1.7-.7 2 1.1 2.1-2.1-1.1-2 .7-1.7 2.4-.7Z" transform="translate(3 0) scale(.75)" /></>,
+    applications: <><path d="M7 4h10v4H7z" /><path d="M5 6h14v15H5zM8 12h8M8 16h5" /></>,
+    safety: <><path d="M12 3 5 6v5c0 4.7 2.8 8 7 10 4.2-2 7-5.3 7-10V6l-7-3Z" /><path d="m9 12 2 2 4-4" /></>,
+    finance: <><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h3" /></>,
+    menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+    close: <path d="m6 6 12 12M18 6 6 18" />,
+    notification: <><path d="M7 17h10l-1.2-1.8V10a3.8 3.8 0 0 0-7.6 0v5.2L7 17Z" /><path d="M10 20h4" /></>,
+    profile: <><circle cx="12" cy="8" r="3" /><path d="M6 20c.3-4.2 2.3-6.3 6-6.3s5.7 2.1 6 6.3" /></>,
+    logout: <><path d="M10 5H5v14h5M14 8l4 4-4 4M18 12H9" /></>,
+  };
+
+  return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>;
+}
+
+const roleLabels: Record<UserRole, string> = {
+  STUDENT: "Öğrenci hesabı",
+  COACH: "Koç hesabı",
+  ADMIN: "Yönetici hesabı",
+};
+
+const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toLocaleUpperCase("tr-TR");
 
 export const AppLayout: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const footerDocuments = useLegalDocuments(["KVKK_NOTICE", "PRIVACY_POLICY", "TERMS_OF_USE"]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const canSeeMessages = isAuthenticated && (user?.role === "STUDENT" || user?.role === "COACH");
+  const displayedUnreadCount = canSeeMessages ? unreadCount : 0;
+  const navigation = useMemo(() => user ? navigationByRole[user.role] : [], [user]);
 
   useEffect(() => {
     if (!canSeeMessages) {
-      setUnreadCount(0);
       return;
     }
     let cancelled = false;
     const fetchUnreadCount = () => {
-      messagingApi
-        .listConversations()
-        .then((list) => {
-          if (!cancelled) {
-            setUnreadCount((list || []).reduce((sum, c) => sum + (c.unreadCount || 0), 0));
-          }
-        })
-        .catch(() => {
-          // Badge is a nice-to-have; leave it at its last known value on failure.
-        });
+      messagingApi.listConversations().then((list) => {
+        if (!cancelled) setUnreadCount((list || []).reduce((sum, conversation) => sum + (conversation.unreadCount || 0), 0));
+      }).catch(() => undefined);
     };
     fetchUnreadCount();
-    // Dispatched by ConversationPage after it successfully marks a conversation read (on
-    // open, and whenever a live message arrives while it's being viewed) — refetch so the
-    // badge reflects it immediately instead of waiting for the next full page load.
     window.addEventListener("messages-read", fetchUnreadCount);
     return () => {
       cancelled = true;
@@ -61,86 +94,104 @@ export const AppLayout: React.FC = () => {
     };
   }, [canSeeMessages]);
 
-  // The other half of the badge: the fetch above only covers messages that already existed when
-  // the page loaded (and re-runs on a read). This makes it live — the server pushes an updated
-  // total whenever a message arrives, from whatever page the user happens to be on.
   useNotificationSocket({
     enabled: canSeeMessages,
-    // Assign, never increment: the server recomputes the authoritative total per push, so two
-    // open tabs and a reconnect all converge on the same number instead of drifting apart.
     onNotification: (notification) => setUnreadCount(notification.unreadTotal),
   });
+
+  useEffect(() => {
+    if (!navigationOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setNavigationOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [navigationOpen]);
 
   const handleLogout = async () => {
     await logout();
     navigate("/login");
   };
 
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="app-layout app-layout--guest">
+        <header className="app-layout__header"><BrandLogo size="compact" to="/" /><Link to="/login">Giriş Yap</Link></header>
+        <main className="app-layout__main"><Outlet /></main>
+      </div>
+    );
+  }
+
+  const messagePath = user.role === "ADMIN" ? "/admin/messages" : "/messages";
+
   return (
-    <div className="app-layout" style={{ display: "flex", flexDirection: "column", minHeight: "100vh", fontFamily: "sans-serif" }}>
-      <header className="app-layout__header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem 2rem", backgroundColor: "#343a40", color: "white" }}>
-        <div className="app-layout__header-primary" style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
-          <h2 style={{ margin: 0 }}>
-            <Link to="/dashboard" style={{ color: "white", textDecoration: "none" }}>YKS Koçluk</Link>
-          </h2>
-          {isAuthenticated && (
-            <nav style={{ display: "flex", gap: "1rem" }}>
-              <Link to="/dashboard" style={{ color: "#ccc", textDecoration: "none" }}>Anasayfa</Link>
-              <Link to="/privacy" style={{ color: "#ccc", textDecoration: "none" }}>Gizlilik</Link>
-              <Link to="/security" style={{ color: "#ccc", textDecoration: "none" }}>Güvenlik</Link>
-              {user?.role === "STUDENT" && (
-                <>
-                  <Link to="/coaches" style={{ color: "#ccc", textDecoration: "none" }}>Koç Keşfet</Link>
-                  <Link to="/bookings" style={{ color: "#ccc", textDecoration: "none" }}>Randevularım</Link>
-                  <Link to="/messages" style={{ color: "#ccc", textDecoration: "none", display: "flex", alignItems: "center" }}>
-                    Mesajlarım
-                    <UnreadBadge count={unreadCount} />
-                  </Link>
-                </>
-              )}
-              {user?.role === "COACH" && (
-                <Link to="/messages" style={{ color: "#ccc", textDecoration: "none", display: "flex", alignItems: "center" }}>
-                  Mesajlarım
-                  <UnreadBadge count={unreadCount} />
-                </Link>
-              )}
-              {user?.role === "ADMIN" && (
-                <>
-                  <Link to="/admin" style={{ color: "#ffc107", textDecoration: "none", fontWeight: "bold" }}>Admin Paneli</Link>
-                  <Link to="/admin/messages" style={{ color: "#ccc", textDecoration: "none" }}>Mesaj Gözlemi</Link>
-                </>
-              )}
-            </nav>
-          )}
+    <div className="app-layout">
+      <a className="app-layout__skip-link" href="#authenticated-content">İçeriğe geç</a>
+      <header className="app-layout__header">
+        <div className="app-layout__header-start">
+          <button type="button" className="app-layout__icon-button app-layout__menu-button" aria-label={navigationOpen ? "Menüyü kapat" : "Menüyü aç"} aria-controls="authenticated-navigation" aria-expanded={navigationOpen} onClick={() => setNavigationOpen((open) => !open)}>
+            <AppIcon name={navigationOpen ? "close" : "menu"} />
+          </button>
+          <BrandLogo className="app-layout__brand" size="compact" to="/dashboard" />
+          <span className="app-layout__product-name">Mentorluk</span>
         </div>
-        <div>
-          {isAuthenticated ? (
-            <div className="app-layout__account" style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-              <span className="app-layout__account-name">{user?.fullName} ({user?.role})</span>
-              <button onClick={handleLogout} style={{ padding: "0.5rem 1rem", backgroundColor: "#dc3545", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>
-                Çıkış Yap
-              </button>
-            </div>
-          ) : (
-            <Link to="/login" style={{ color: "white", textDecoration: "none" }}>Giriş Yap</Link>
+
+        <div className="app-layout__header-actions">
+          {canSeeMessages && (
+            <Link className="app-layout__icon-button app-layout__notification" to={messagePath} onClick={() => setNavigationOpen(false)} aria-label={displayedUnreadCount > 0 ? `${displayedUnreadCount} okunmamış mesaj, Mesajlara git` : "Mesajlara git"}>
+              <AppIcon name="notification" />
+              {displayedUnreadCount > 0 && <span className="app-layout__notification-dot" aria-hidden="true" />}
+            </Link>
           )}
+          <div className="app-layout__identity">
+            <span className="app-layout__avatar" aria-hidden="true">{initials(user.fullName)}</span>
+            <span><strong>{user.fullName}</strong><small>{roleLabels[user.role]}</small></span>
+          </div>
+          <button type="button" className="app-layout__icon-button app-layout__profile-button" aria-label="Hesap menüsünü aç" aria-controls="authenticated-navigation" aria-expanded={navigationOpen} onClick={() => setNavigationOpen(true)}>
+            <AppIcon name="profile" />
+          </button>
         </div>
       </header>
 
-      <main className="app-layout__main" style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
-        <Outlet />
-      </main>
+      <div className="app-layout__frame">
+        <aside id="authenticated-navigation" className={`app-layout__sidebar ${navigationOpen ? "is-open" : ""}`}>
+          <div className="app-layout__mobile-account">
+            <span className="app-layout__avatar" aria-hidden="true">{initials(user.fullName)}</span>
+            <span><strong>{user.fullName}</strong><small>{roleLabels[user.role]}</small></span>
+          </div>
+          <nav className="app-layout__navigation" aria-label="Ürün navigasyonu">
+            {navigation.map((item) => (
+              <NavLink key={item.to} to={item.to} onClick={() => setNavigationOpen(false)} className={({ isActive }) => `app-layout__nav-link ${isActive ? "is-active" : ""}`} end={item.to === "/dashboard" || item.to === "/admin"}>
+                <AppIcon name={item.icon} />
+                <span>{item.label}</span>
+                {item.showUnread && displayedUnreadCount > 0 && <span className="app-layout__unread-badge">{displayedUnreadCount > 99 ? "99+" : displayedUnreadCount}</span>}
+              </NavLink>
+            ))}
+          </nav>
 
-      <footer className="app-layout__footer" style={{ textAlign: "center", padding: "1rem", backgroundColor: "#e9ecef", borderTop: "1px solid #dee2e6" }}>
-        <p style={{ margin: "0 0 .5rem", fontSize: "0.9rem", color: "#6c757d" }}>
-          &copy; {new Date().getFullYear()} YKS Koçluk Platformu. Phase 0 Temelleri.
-        </p>
-        <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: "1rem", fontSize: ".85rem" }}>
-          <LegalDocumentViewer label="KVKK Aydınlatma Metni" document={footerDocuments.documents.KVKK_NOTICE} loading={footerDocuments.loading} error={footerDocuments.error} onRetry={() => void footerDocuments.reload()} />
-          <LegalDocumentViewer label="Gizlilik Politikası" document={footerDocuments.documents.PRIVACY_POLICY} loading={footerDocuments.loading} error={footerDocuments.error} onRetry={() => void footerDocuments.reload()} />
-          <LegalDocumentViewer label="Kullanım Koşulları" document={footerDocuments.documents.TERMS_OF_USE} loading={footerDocuments.loading} error={footerDocuments.error} onRetry={() => void footerDocuments.reload()} />
+          <div className="app-layout__sidebar-bottom">
+            <Link className="app-layout__privacy-link" to="/privacy" onClick={() => setNavigationOpen(false)}>Gizlilik tercihleri</Link>
+            <button type="button" className="app-layout__logout" onClick={() => void handleLogout()}>
+              <AppIcon name="logout" />
+              <span>Çıkış yap</span>
+            </button>
+          </div>
+        </aside>
+
+        {navigationOpen && <button type="button" className="app-layout__backdrop" aria-label="Menü dışını kapat" onClick={() => setNavigationOpen(false)} />}
+
+        <div className="app-layout__content-column">
+          <main id="authenticated-content" className="app-layout__main"><Outlet /></main>
+          <footer className="app-layout__footer">
+            <span>© {new Date().getFullYear()} Uniform Akademi</span>
+            <div>
+              <LegalDocumentViewer label="KVKK" document={footerDocuments.documents.KVKK_NOTICE} loading={footerDocuments.loading} error={footerDocuments.error} onRetry={() => void footerDocuments.reload()} />
+              <LegalDocumentViewer label="Gizlilik" document={footerDocuments.documents.PRIVACY_POLICY} loading={footerDocuments.loading} error={footerDocuments.error} onRetry={() => void footerDocuments.reload()} />
+              <LegalDocumentViewer label="Kullanım Koşulları" document={footerDocuments.documents.TERMS_OF_USE} loading={footerDocuments.loading} error={footerDocuments.error} onRetry={() => void footerDocuments.reload()} />
+            </div>
+          </footer>
         </div>
-      </footer>
+      </div>
     </div>
   );
 };
