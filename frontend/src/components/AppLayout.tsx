@@ -23,13 +23,11 @@ const navigationByRole: Record<UserRole, NavigationItem[]> = {
     { label: "Mesajlar", to: "/messages", icon: "messages", showUnread: true },
     { label: "Görüşmeler", to: "/bookings", icon: "meetings" },
     { label: "Hesabım", to: "/account", icon: "account" },
-    { label: "Ayarlar", to: "/security", icon: "settings" },
   ],
   COACH: [
     { label: "Panel", to: "/dashboard", icon: "dashboard" },
     { label: "Mesajlar", to: "/messages", icon: "messages", showUnread: true },
     { label: "Hesabım", to: "/account", icon: "account" },
-    { label: "Ayarlar", to: "/security", icon: "settings" },
   ],
   ADMIN: [
     { label: "Admin Paneli", to: "/admin", icon: "dashboard" },

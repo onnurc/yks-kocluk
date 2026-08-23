@@ -52,7 +52,7 @@ export const PendingPaymentWarning: React.FC<PendingPaymentWarningProps> = ({
     try {
       await subscriptionCheckoutApi.stubSucceed(payment.id);
       await onRefresh();
-    } catch (err) {
+    } catch {
       alert("Stub ödeme onayı başarısız oldu.");
     } finally {
       setStubLoading(false);
@@ -65,76 +65,49 @@ export const PendingPaymentWarning: React.FC<PendingPaymentWarningProps> = ({
     import.meta.env.VITE_ENABLE_STUB_PAYMENT_SUCCESS === "true";
 
   return (
-    <div
-      style={{
-        padding: "1.5rem",
-        marginBottom: "1.5rem",
-        border: "1px solid #ffeeba",
-        borderRadius: "8px",
-        backgroundColor: "#fff3cd",
-        color: "#856404",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem" }}>
+    <article className="pending-subscription" aria-labelledby="pending-subscription-title">
+      <div className="pending-subscription__header">
         <div>
-          <h3 style={{ margin: "0 0 0.5rem 0" }}>⚠️ Ödeme İşleminiz Bekleniyor</h3>
-          <p style={{ margin: "0 0 1rem 0" }}>
+          <p className="pending-subscription__eyebrow">Abonelik durumu</p>
+          <h3 id="pending-subscription-title">Ödeme İşleminiz Bekleniyor</h3>
+          <p>
             Koçluk paketinizin ve görüşme haklarınızın aktif olabilmesi için ödeme işleminin tamamlanması gerekmektedir.
           </p>
         </div>
         <button
+          className="pending-subscription__refresh"
           disabled={refreshing}
           onClick={handleManualRefresh}
-          style={{
-            padding: "0.5rem 1rem",
-            backgroundColor: "#ffc107",
-            color: "#212529",
-            border: "1px solid #ffc107",
-            borderRadius: "4px",
-            fontWeight: "bold",
-            cursor: refreshing ? "not-allowed" : "pointer",
-            fontSize: "0.85rem",
-          }}
         >
-          {refreshing ? "Güncelleniyor..." : "Durumu Yenile"}
+          {refreshing ? "Güncelleniyor…" : "Durumu Yenile"}
         </button>
       </div>
 
       {payment && (
-        <div style={{ fontSize: "0.9rem", borderTop: "1px solid #ffe8a1", paddingTop: "0.75rem", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+        <div className="pending-subscription__details">
           <div>
-            <p style={{ margin: "0.25rem 0" }}><strong>Ödeme Tutarı:</strong> {payment.amount} TRY</p>
-            <p style={{ margin: "0.25rem 0" }}>
+            <p><strong>Ödeme Tutarı:</strong> {payment.amount} TRY</p>
+            <p>
               <strong>İşlem Durumu:</strong> <PaymentStatusBadge status={payment.status} />
             </p>
             {payment.status === "PENDING" && pollCount < maxPolls && (
-              <p style={{ margin: "0.25rem 0", fontSize: "0.75rem", color: "#856404", fontStyle: "italic" }}>
-                * Ödeme durumu otomatik olarak güncelleniyor (Yenileme: {pollCount + 1}/{maxPolls})
+              <p className="pending-subscription__polling">
+                Ödeme durumu otomatik olarak güncelleniyor ({pollCount + 1}/{maxPolls})
               </p>
             )}
           </div>
 
           {isStubEnabled && payment.status === "PENDING" && (
             <button
+              className="pending-subscription__dev-action"
               disabled={stubLoading}
               onClick={handleStubSuccess}
-              style={{
-                padding: "0.5rem 1rem",
-                backgroundColor: "#28a745",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                fontWeight: "bold",
-                cursor: stubLoading ? "not-allowed" : "pointer",
-                fontSize: "0.85rem",
-                boxShadow: "0 2px 4px rgba(40,167,69,0.2)",
-              }}
             >
               {stubLoading ? "İşleniyor..." : "Local Test: Ödemeyi Başarılı Yap"}
             </button>
           )}
         </div>
       )}
-    </div>
+    </article>
   );
 };

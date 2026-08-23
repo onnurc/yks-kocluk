@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   coachSummary: vi.fn(),
   coachSessions: vi.fn(),
   coachAvailability: vi.fn(),
+  cancelRenewal: vi.fn(),
 }));
 
 vi.mock("../auth/AuthProvider", () => ({ useAuth: () => mocks.auth() }));
@@ -36,6 +37,9 @@ vi.mock("../coachDashboard/coachDashboardApi", () => ({
     getUpcomingSessions: mocks.coachSessions,
     getAvailability: mocks.coachAvailability,
   },
+}));
+vi.mock("../subscriptionManagement/subscriptionManagementApi", () => ({
+  subscriptionManagementApi: { cancelRenewal: mocks.cancelRenewal },
 }));
 
 const student = {
@@ -137,6 +141,7 @@ describe("responsive student dashboard", () => {
     mocks.conversations.mockResolvedValue([conversation]);
     mocks.sessions.mockResolvedValue([upcomingSession]);
     mocks.coach.mockResolvedValue(coachDetail);
+    mocks.cancelRenewal.mockResolvedValue({});
   });
 
   it("renders the student route with authenticated and real API/client data", async () => {
@@ -162,6 +167,41 @@ describe("responsive student dashboard", () => {
     const messagesCta = await screen.findByRole("link", { name: "5 okunmamış mesaj, Mesajlara git" });
     fireEvent.click(messagesCta);
     expect(screen.getByTestId("location")).toHaveTextContent("/messages");
+  });
+
+  it("keeps real subscription data and actions while using the Uniform management surface", async () => {
+    mocks.dashboard.mockResolvedValue({
+      ...dashboardResponse,
+      payment: { id: 52, status: "SUCCESS", amount: 2450, createdAt: "2029-01-01T00:00:00Z" },
+    });
+    const { container } = renderDashboard();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Aboneliği yönet" }));
+
+    const management = await screen.findByRole("article", { name: "Aktif Koçluk Aboneliği" });
+    expect(management).toHaveClass("subscription-management");
+    expect(management).not.toHaveAttribute("style");
+    expect(within(management).getByText(subscription.coachName)).toBeInTheDocument();
+    expect(within(management).getByText(subscription.packageName)).toBeInTheDocument();
+    expect(within(management).getByText("₺2.450,00")).toBeInTheDocument();
+    const coachProfileAction = within(management).getByRole("link", { name: "Koç Profilini Gör" });
+    const meetingsAction = within(management).getByRole("link", { name: "Görüşmelerim" });
+    const messagesAction = within(management).getByRole("link", { name: "Mesajlarım" });
+    expect(coachProfileAction).toHaveAttribute("href", `/coaches/${subscription.coachId}`);
+    expect(meetingsAction).toHaveAttribute("href", "/bookings");
+    expect(messagesAction).toHaveAttribute("href", "/messages");
+    expect([coachProfileAction, meetingsAction, messagesAction].every((action) => action.className === "subscription-management__action")).toBe(true);
+    expect(screen.queryByText(/Yönetici Sonlandırması|Yenileme İptali ve Yönetici/i)).not.toBeInTheDocument();
+    expect(container.querySelector('[style*="#d4edda"]')).not.toBeInTheDocument();
+
+    fireEvent.click(within(management).getByRole("button", { name: "Yenilemeyi İptal Et" }));
+    const dialog = screen.getByRole("dialog", { name: "Otomatik yenilemeyi kapat" });
+    expect(dialog).toHaveTextContent(/aboneliğinizi hemen sonlandırmaz/i);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Yenilemeyi İptal Et" }));
+
+    await waitFor(() => expect(mocks.cancelRenewal).toHaveBeenCalledWith(subscription.id));
+    expect(await screen.findByText(/Otomatik yenileme kapatıldı/)).toBeInTheDocument();
+    await waitFor(() => expect(mocks.dashboard).toHaveBeenCalledTimes(2));
   });
 
   it("opens an actual recent conversation route", async () => {

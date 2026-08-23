@@ -17,7 +17,7 @@ export const ForgotPasswordPage: React.FC = () => {
   };
 
   return <main style={{ maxWidth: 440, margin: "4rem auto", padding: "2rem", background: "white", border: "1px solid #cbd5e1", borderRadius: 8 }}>
-    <h1>Şifremi unuttum</h1>
+    <h1>Parolamı Unuttum</h1>
     <p>E-posta adresinizi girin. Hesabınız uygunsa size tek kullanımlık bir bağlantı göndereceğiz.</p>
     {message ? <div role="status" style={{ padding: ".75rem", background: "#ecfdf5", color: "#166534" }}>{message}</div> : <>
       <FormError error={error} />

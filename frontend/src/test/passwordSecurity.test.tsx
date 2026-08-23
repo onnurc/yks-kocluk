@@ -21,7 +21,7 @@ describe("password recovery and security pages", () => {
 
   it("login page links to forgot password", () => {
     render(<MemoryRouter><LoginPage /></MemoryRouter>);
-    expect(screen.getByRole("link", { name: "Şifremi unuttum" })).toHaveAttribute("href", "/forgot-password");
+    expect(screen.getByRole("link", { name: "Parolamı Unuttum" })).toHaveAttribute("href", "/forgot-password");
   });
 
   it("forgot password displays the generic confirmation", async () => {
