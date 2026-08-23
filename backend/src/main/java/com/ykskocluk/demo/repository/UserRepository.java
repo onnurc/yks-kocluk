@@ -32,4 +32,25 @@ public interface UserRepository extends JpaRepository<User, Long> {
             """)
     Page<User> searchAdmin(@Param("role") Role role, @Param("status") UserStatus status,
                            @Param("search") String search, Pageable pageable);
+
+    Page<User> findByRole(Role role, Pageable pageable);
+
+    Page<User> findByRoleAndStatus(Role role, UserStatus status, Pageable pageable);
+
+    @Query("""
+            select u from User u
+             where u.role = :role
+               and (lower(u.fullName) like lower(concat('%', :search, '%'))
+                    or lower(u.email) like lower(concat('%', :search, '%')))
+            """)
+    Page<User> searchByRole(@Param("role") Role role, @Param("search") String search, Pageable pageable);
+
+    @Query("""
+            select u from User u
+             where u.role = :role and u.status = :status
+               and (lower(u.fullName) like lower(concat('%', :search, '%'))
+                    or lower(u.email) like lower(concat('%', :search, '%')))
+            """)
+    Page<User> searchByRoleAndStatus(@Param("role") Role role, @Param("status") UserStatus status,
+                                     @Param("search") String search, Pageable pageable);
 }

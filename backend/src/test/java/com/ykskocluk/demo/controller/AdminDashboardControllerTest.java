@@ -37,8 +37,8 @@ class AdminDashboardControllerTest {
 
     @Test @WithMockUser(roles = "ADMIN")
     void adminCanReadSummary() throws Exception {
-        when(service.summary()).thenReturn(new AdminDashboardSummaryResponse(4, 3, 2, 1, 5,
-                BigDecimal.TEN, BigDecimal.ONE, 6, 7, 8));
+        when(service.summary()).thenReturn(new AdminDashboardSummaryResponse(4, 5, 3, 2, 1, 5,
+                BigDecimal.TEN, BigDecimal.ONE, BigDecimal.valueOf(9), 6, 7, 8));
         mvc.perform(get("/api/v1/admin/dashboard/summary")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalStudentCount").value(4))
                 .andExpect(jsonPath("$.grossRevenueThisMonth").value(10));

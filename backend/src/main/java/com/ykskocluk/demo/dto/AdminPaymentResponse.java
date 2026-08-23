@@ -22,6 +22,10 @@ public record AdminPaymentResponse(
         String status,
         String providerReference,
         Instant createdAt,
+        Instant succeededAt,
         BigDecimal refundedAmount,
-        BigDecimal remainingRefundableAmount
+        BigDecimal remainingRefundableAmount,
+        boolean refundEligible,
+        Instant refundDeadline,
+        String refundIneligibleReason
     ) {}

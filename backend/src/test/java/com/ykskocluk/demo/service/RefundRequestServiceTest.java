@@ -54,16 +54,18 @@ class RefundRequestServiceTest {
         assertThat(response.serviceStarted()).isTrue();
     }
 
-    @Test void daysEightToFourteen_withoutStartedService_isStandardEligible() {
+    @Test void afterSevenDays_withoutStartedService_isExpired() {
         payment.setSucceededAt(Instant.now().minus(10, ChronoUnit.DAYS));
-        when(sessions.findBySubscriptionIdOrderByStartTimeAsc(4L)).thenReturn(List.of(session(SessionStatus.PLANNED, Instant.now().plus(1, ChronoUnit.DAYS))));
-        assertThat(service.create(1L, new RefundRequestCreateRequest(4L)).refundWindow()).isEqualTo(RefundWindow.STANDARD_ELIGIBLE);
+        assertThatThrownBy(() -> service.create(1L, new RefundRequestCreateRequest(4L)))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getErrorCode()).isEqualTo("REFUND_WINDOW_EXPIRED"));
+        verifyNoInteractions(sessions);
     }
 
-    @Test void daysEightToFourteen_withStartedService_isManualReview_notRejected() {
+    @Test void afterSevenDays_withStartedService_isAlsoExpired() {
         payment.setSucceededAt(Instant.now().minus(10, ChronoUnit.DAYS));
-        when(sessions.findBySubscriptionIdOrderByStartTimeAsc(4L)).thenReturn(List.of(session(SessionStatus.COMPLETED, Instant.now().minus(1, ChronoUnit.DAYS))));
-        assertThat(service.create(1L, new RefundRequestCreateRequest(4L)).refundWindow()).isEqualTo(RefundWindow.MANUAL_REVIEW);
+        assertThatThrownBy(() -> service.create(1L, new RefundRequestCreateRequest(4L)))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getErrorCode()).isEqualTo("REFUND_WINDOW_EXPIRED"));
+        verifyNoInteractions(sessions);
     }
 
     @Test void afterFourteenDays_isExpired() {

@@ -20,6 +20,7 @@ public interface CoachProfileRepository extends JpaRepository<CoachProfile, Long
 
     boolean existsByUserId(Long userId);
 
+    @EntityGraph(attributePaths = {"user", "university"})
     Page<CoachProfile> findByStatus(CoachProfileStatus status, Pageable pageable);
 
     Optional<CoachProfile> findByIdAndStatus(Long id, CoachProfileStatus status);
@@ -47,6 +48,42 @@ public interface CoachProfileRepository extends JpaRepository<CoachProfile, Long
     Page<CoachProfile> searchAdmin(@Param("profileStatus") CoachProfileStatus profileStatus,
                                    @Param("userStatus") UserStatus userStatus,
                                    @Param("search") String search, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"user", "university"})
+    @Query("select c from CoachProfile c")
+    Page<CoachProfile> findAllAdmin(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"user", "university"})
+    @Query("""
+            select c from CoachProfile c
+             where lower(c.user.fullName) like lower(concat('%', :search, '%'))
+                or lower(c.user.email) like lower(concat('%', :search, '%'))
+            """)
+    Page<CoachProfile> searchAllAdmin(@Param("search") String search, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"user", "university"})
+    Page<CoachProfile> findByStatusAndUserStatus(CoachProfileStatus profileStatus, UserStatus userStatus,
+                                                 Pageable pageable);
+
+    @EntityGraph(attributePaths = {"user", "university"})
+    @Query("""
+            select c from CoachProfile c
+             where c.status = :profileStatus and c.user.status = :userStatus
+               and (lower(c.user.fullName) like lower(concat('%', :search, '%'))
+                    or lower(c.user.email) like lower(concat('%', :search, '%')))
+            """)
+    Page<CoachProfile> searchByStatusAndUserStatus(@Param("profileStatus") CoachProfileStatus profileStatus,
+            @Param("userStatus") UserStatus userStatus, @Param("search") String search, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"user", "university"})
+    @Query("""
+            select c from CoachProfile c
+             where c.status = :profileStatus
+               and (lower(c.user.fullName) like lower(concat('%', :search, '%'))
+                    or lower(c.user.email) like lower(concat('%', :search, '%')))
+            """)
+    Page<CoachProfile> searchByStatus(@Param("profileStatus") CoachProfileStatus profileStatus,
+                                      @Param("search") String search, Pageable pageable);
 
     /**
      * Atomic capacity guard for the capacity race: increments only if there's room.

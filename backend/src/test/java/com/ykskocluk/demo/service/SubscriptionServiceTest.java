@@ -41,6 +41,7 @@ import org.springframework.http.HttpStatus;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -564,6 +565,7 @@ class SubscriptionServiceTest {
         original.setSubscription(sub);
         original.setType(PaymentType.CHARGE);
         original.setStatus(PaymentStatus.SUCCESS);
+        original.setSucceededAt(Instant.now().minus(1, ChronoUnit.DAYS));
         original.setAmount(new BigDecimal("150.00"));
         original.setCommissionRate(new BigDecimal("0.2000"));
         original.setProviderReference("prov-ref-123");
@@ -602,6 +604,7 @@ class SubscriptionServiceTest {
         original.setSubscription(sub);
         original.setType(PaymentType.CHARGE);
         original.setStatus(PaymentStatus.SUCCESS);
+        original.setSucceededAt(Instant.now().minus(1, ChronoUnit.DAYS));
         original.setAmount(new BigDecimal("150.00"));
         original.setCommissionRate(new BigDecimal("0.2000"));
         original.setProviderReference("prov-ref-123");
@@ -633,6 +636,7 @@ class SubscriptionServiceTest {
         original.setSubscription(sub);
         original.setType(PaymentType.CHARGE);
         original.setStatus(PaymentStatus.SUCCESS);
+        original.setSucceededAt(Instant.now().minus(1, ChronoUnit.DAYS));
         original.setAmount(new BigDecimal("150.00"));
 
         Payment prevRefund = new Payment();
@@ -689,6 +693,7 @@ class SubscriptionServiceTest {
         original.setSubscription(sub);
         original.setType(PaymentType.CHARGE);
         original.setStatus(PaymentStatus.SUCCESS);
+        original.setSucceededAt(Instant.now().minus(1, ChronoUnit.DAYS));
         original.setAmount(new BigDecimal("150.00"));
         original.setCommissionRate(new BigDecimal("0.2000"));
         original.setProviderReference("prov-ref-123");
@@ -706,6 +711,28 @@ class SubscriptionServiceTest {
         // The reservation (PENDING) is still recorded, then finalized to FAILED — an audit trail
         // of the attempt, and it frees the reserved amount back up for a future refund attempt.
         verify(paymentRepository, times(2)).saveAndFlush(argThat(p -> p.getType() == PaymentType.REFUND));
+    }
+
+    @Test
+    void refund_afterInclusiveSevenDayWindow_isRejectedBeforeProviderCall() {
+        Payment original = new Payment();
+        ReflectionTestUtils.setField(original, "id", 100L);
+        original.setSubscription(new Subscription());
+        original.setType(PaymentType.CHARGE);
+        original.setStatus(PaymentStatus.SUCCESS);
+        original.setSucceededAt(Instant.now().minus(7, ChronoUnit.DAYS).minusSeconds(1));
+        original.setAmount(new BigDecimal("150.00"));
+
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(original));
+        when(paymentRepository.findBySourcePaymentIdAndStatusIn(100L,
+                List.of(PaymentStatus.PENDING, PaymentStatus.SUCCESS))).thenReturn(List.of());
+
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.refund(100L, new BigDecimal("150.00"), "Expired"));
+
+        assertThat(ex.getErrorCode()).isEqualTo("REFUND_WINDOW_EXPIRED");
+        assertThat(ex.getMessage()).contains("7 günlük iade süresi doldu");
+        verifyNoInteractions(iyzicoClient);
     }
 
     // --- admin subscription termination tests ---
@@ -824,12 +851,13 @@ class SubscriptionServiceTest {
         payment.setType(PaymentType.CHARGE);
         payment.setAmount(new BigDecimal("150.00"));
         payment.setStatus(PaymentStatus.SUCCESS);
+        payment.setSucceededAt(Instant.now().minus(1, ChronoUnit.DAYS));
         payment.setProviderReference("prov-ref");
         payment.setCommissionRate(new BigDecimal("0.2000"));
         payment.setCommissionAmount(new BigDecimal("30.00"));
         payment.setCoachPayoutAmount(new BigDecimal("120.00"));
 
-        when(paymentRepository.searchAdmin(null, null, null, null, null, null, null, pageable))
+        when(paymentRepository.findAllAdmin(pageable))
                 .thenReturn(new PageImpl<>(List.of(payment)));
         when(paymentRepository.findBySourcePaymentIdInAndStatus(List.of(100L), PaymentStatus.SUCCESS)).thenReturn(List.of());
 
@@ -864,7 +892,7 @@ class SubscriptionServiceTest {
         sub.setStartAt(Instant.now());
         sub.setEndAt(Instant.now());
 
-        when(subscriptionRepository.searchAdmin(null, null, null, null, null, null, pageable))
+        when(subscriptionRepository.findAllAdmin(pageable))
                 .thenReturn(new PageImpl<>(List.of(sub)));
 
         var res = service.listSubscriptions(pageable);

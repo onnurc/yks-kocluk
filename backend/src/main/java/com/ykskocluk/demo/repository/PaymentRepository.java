@@ -91,6 +91,11 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
                               @Param("to") Instant to,
                               Pageable pageable);
 
+    @EntityGraph(attributePaths = {"subscription.student", "subscription.coachProfile.user",
+            "subscription.pkg", "sourcePayment"})
+    @Query("select p from Payment p")
+    Page<Payment> findAllAdmin(Pageable pageable);
+
     /*
      * The bare "cast(:from as timestamp) is null" (instead of ":from is null") is deliberate:
      * PostgreSQL 18's JDBC parameter-type inference rejects a bind parameter whose only usage in

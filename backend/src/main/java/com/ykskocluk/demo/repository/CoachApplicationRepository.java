@@ -11,4 +11,6 @@ public interface CoachApplicationRepository extends JpaRepository<CoachApplicati
     Page<CoachApplication> findByStatus(CoachApplicationStatus status, Pageable pageable);
 
     boolean existsByEmailIgnoreCaseAndStatus(String email, CoachApplicationStatus status);
+
+    long countByStatus(CoachApplicationStatus status);
 }

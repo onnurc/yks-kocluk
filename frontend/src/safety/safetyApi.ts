@@ -49,6 +49,10 @@ export const safetyApi = {
     );
   },
 
+  updateReportStatus: (reportId: number, status: ReportResponse["status"]): Promise<ReportResponse> => {
+    return httpClient.patch<ReportResponse>(`/api/v1/admin/reports/${reportId}/status`, { status });
+  },
+
   suspendUser: (userId: number, reason: string): Promise<SuspendResponse> => {
     return httpClient.post<SuspendResponse>(`/api/v1/admin/users/${userId}/suspend`, {
       reason,

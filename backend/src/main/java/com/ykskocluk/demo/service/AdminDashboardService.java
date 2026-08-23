@@ -30,16 +30,21 @@ public class AdminDashboardService {
     private final PaymentRepository payments;
     private final ReportRepository reports;
     private final SessionRepository sessions;
+    private final TrialConsultationRepository trials;
+    private final CoachApplicationRepository coachApplications;
 
     public AdminDashboardService(UserRepository users, CoachProfileRepository coaches,
                                  SubscriptionRepository subscriptions, PaymentRepository payments,
-                                 ReportRepository reports, SessionRepository sessions) {
+                                 ReportRepository reports, SessionRepository sessions,
+                                 TrialConsultationRepository trials, CoachApplicationRepository coachApplications) {
         this.users = users;
         this.coaches = coaches;
         this.subscriptions = subscriptions;
         this.payments = payments;
         this.reports = reports;
         this.sessions = sessions;
+        this.trials = trials;
+        this.coachApplications = coachApplications;
     }
 
     @Transactional(readOnly = true)
@@ -48,16 +53,22 @@ public class AdminDashboardService {
         LocalDate first = now.atZone(ISTANBUL).toLocalDate().withDayOfMonth(1);
         Instant monthStart = first.atStartOfDay(ISTANBUL).toInstant();
         Instant nextMonth = first.plusMonths(1).atStartOfDay(ISTANBUL).toInstant();
+        BigDecimal gross = zero(payments.sumForPeriod(PaymentType.CHARGE, PaymentStatus.SUCCESS, monthStart, nextMonth));
+        BigDecimal refunds = zero(payments.sumForPeriod(PaymentType.REFUND, PaymentStatus.SUCCESS, monthStart, nextMonth));
         return new AdminDashboardSummaryResponse(
                 users.countByRoleAndStatusNot(Role.STUDENT, UserStatus.DELETED),
+                users.countByRoleAndStatusNot(Role.COACH, UserStatus.DELETED),
                 coaches.countOperational(CoachProfileStatus.APPROVED, UserStatus.ACTIVE),
-                coaches.countByStatus(CoachProfileStatus.PENDING),
+                coachApplications.countByStatus(CoachApplicationStatus.PENDING),
                 subscriptions.countByStatusIn(LIVE_SUBSCRIPTIONS),
                 payments.countForPeriod(PaymentType.CHARGE, PaymentStatus.SUCCESS, monthStart, nextMonth),
-                zero(payments.sumForPeriod(PaymentType.CHARGE, PaymentStatus.SUCCESS, monthStart, nextMonth)),
-                zero(payments.sumForPeriod(PaymentType.REFUND, PaymentStatus.SUCCESS, monthStart, nextMonth)),
+                gross,
+                refunds,
+                gross.subtract(refunds),
                 reports.countByStatusIn(OPEN_REPORTS),
-                sessions.countByStatusAndStartTimeAfter(SessionStatus.PLANNED, now),
+                sessions.countByStatusAndStartTimeAfter(SessionStatus.PLANNED, now)
+                        + trials.countByStatusInAndStartTimeAfter(
+                                Set.of(TrialConsultationStatus.REQUESTED, TrialConsultationStatus.CONFIRMED), now),
                 sessions.countByStatusAndStartTimeGreaterThanEqualAndStartTimeLessThan(
                         SessionStatus.COMPLETED, monthStart, nextMonth));
     }
@@ -66,7 +77,20 @@ public class AdminDashboardService {
     public PageResponse<AdminUserDirectoryResponse> users(Role role, UserStatus status, String search,
                                                           Pageable pageable) {
         validateSort(pageable, Set.of("createdAt", "id", "fullName", "email"));
-        return PageResponse.from(users.searchAdmin(role, status, normalize(search), pageable).map(this::userResponse));
+        String normalizedSearch = normalize(search);
+        Page<User> page;
+        if (role == null) {
+            page = users.searchAdmin(null, status, normalizedSearch, pageable);
+        } else if (status == null && normalizedSearch == null) {
+            page = users.findByRole(role, pageable);
+        } else if (status != null && normalizedSearch == null) {
+            page = users.findByRoleAndStatus(role, status, pageable);
+        } else if (status == null) {
+            page = users.searchByRole(role, normalizedSearch, pageable);
+        } else {
+            page = users.searchByRoleAndStatus(role, status, normalizedSearch, pageable);
+        }
+        return PageResponse.from(page.map(this::userResponse));
     }
 
     @Transactional(readOnly = true)
@@ -84,8 +108,19 @@ public class AdminDashboardService {
             case SUSPENDED -> UserStatus.SUSPENDED;
             default -> null;
         };
-        return PageResponse.from(coaches.searchAdmin(profileStatus, userStatus, normalize(search), pageable)
-                .map(this::coachResponse));
+        String normalizedSearch = normalize(search);
+        Page<CoachProfile> page;
+        if (profileStatus == null) {
+            page = normalizedSearch == null ? coaches.findAllAdmin(pageable)
+                    : coaches.searchAllAdmin(normalizedSearch, pageable);
+        } else if (userStatus != null) {
+            page = normalizedSearch == null ? coaches.findByStatusAndUserStatus(profileStatus, userStatus, pageable)
+                    : coaches.searchByStatusAndUserStatus(profileStatus, userStatus, normalizedSearch, pageable);
+        } else {
+            page = normalizedSearch == null ? coaches.findByStatus(profileStatus, pageable)
+                    : coaches.searchByStatus(profileStatus, normalizedSearch, pageable);
+        }
+        return PageResponse.from(page.map(this::coachResponse));
     }
 
     @Transactional(readOnly = true)
