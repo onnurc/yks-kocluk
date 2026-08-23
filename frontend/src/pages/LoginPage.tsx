@@ -71,7 +71,7 @@ export const LoginPage: React.FC = () => {
           <input id="login-password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required disabled={loading} />
           <button type="button" aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"} onClick={() => setShowPassword((value) => !value)}>◉</button>
         </label>
-        <Link className="auth-forgot" aria-label="Şifremi unuttum" to="/forgot-password">Şifremi Unuttum</Link>
+        <Link className="auth-forgot" aria-label="Parolamı Unuttum" to="/forgot-password">Parolamı Unuttum</Link>
         <button className="auth-submit" type="submit" aria-label="Giriş Yap" disabled={loading}>{loading ? "Giriş Yapılıyor…" : "Giriş Yap →"}</button>
       </form>
 

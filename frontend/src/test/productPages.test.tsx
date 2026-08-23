@@ -1,18 +1,15 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "../api/ApiError";
 import type { CurrentUser } from "../auth/authTypes";
 import type { SessionResponse } from "../booking/bookingTypes";
 import { AppLayout } from "../components/AppLayout";
 import { BookingsPage } from "../pages/BookingsPage";
-import { SecuritySettingsPage } from "../pages/SecuritySettingsPage";
 import { TestAuthProvider } from "./TestAuthProvider";
 
 const mocks = vi.hoisted(() => ({
   listConversations: vi.fn(),
   listMySessions: vi.fn(),
-  changePassword: vi.fn(),
   clearSession: vi.fn(),
   useNotificationSocket: vi.fn(),
 }));
@@ -20,7 +17,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../messaging/messagingApi", () => ({ messagingApi: { listConversations: mocks.listConversations } }));
 vi.mock("../messaging/useNotificationSocket", () => ({ useNotificationSocket: mocks.useNotificationSocket }));
 vi.mock("../booking/bookingApi", () => ({ bookingApi: { listMySessions: mocks.listMySessions } }));
-vi.mock("../auth/authApi", () => ({ authApi: { changePassword: mocks.changePassword } }));
 vi.mock("../legal/useLegalDocuments", () => ({
   useLegalDocuments: () => ({ documents: {}, loading: false, error: null, reload: vi.fn() }),
 }));
@@ -55,7 +51,7 @@ function renderProductPage(path: string, user: CurrentUser = student) {
         <Routes>
           <Route element={<AppLayout />}>
             <Route path="/bookings" element={<BookingsPage />} />
-            <Route path="/security" element={<SecuritySettingsPage />} />
+            <Route path="/security" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<div>Dashboard body</div>} />
             <Route path="/messages" element={<div>Messages body</div>} />
           </Route>
@@ -123,60 +119,21 @@ describe("authenticated meetings page", () => {
   });
 });
 
-describe("authenticated security settings page", () => {
+describe("obsolete authenticated security destination", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.listConversations.mockResolvedValue([]);
   });
 
-  it("renders only the real password setting in the shared shell and activates Ayarlar", () => {
-    const { container } = renderProductPage("/security");
+  it.each([
+    [student],
+    [{ ...student, role: "COACH" as const, fullName: "Ece Koç" }],
+  ])("redirects %s away from the removed password-change page", (user) => {
+    renderProductPage("/security", user);
 
-    expect(container.querySelector(".app-layout__header")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Ayarlar" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("heading", { name: "Şifre Değiştir" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Mevcut şifre")).toBeInTheDocument();
-    expect(screen.getByLabelText("Yeni şifre")).toBeInTheDocument();
-    expect(screen.getByLabelText("Yeni şifre tekrar")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Şifreyi Değiştir" })).toBeInTheDocument();
-    expect(screen.queryByText("Ayarlar → Güvenlik → Şifre Değiştir")).not.toBeInTheDocument();
-    expect(screen.queryByText(/bildirim tercihleri|tema ayarları/i)).not.toBeInTheDocument();
-  });
-
-  it("uses the existing password client and preserves session invalidation", async () => {
-    mocks.changePassword.mockResolvedValue({ message: "ok", reloginRequired: true });
-    renderProductPage("/security");
-    fireEvent.change(screen.getByLabelText("Mevcut şifre"), { target: { value: "old-password" } });
-    fireEvent.change(screen.getByLabelText("Yeni şifre"), { target: { value: "new-password" } });
-    fireEvent.change(screen.getByLabelText("Yeni şifre tekrar"), { target: { value: "new-password" } });
-    fireEvent.click(screen.getByRole("button", { name: "Şifreyi Değiştir" }));
-
-    await waitFor(() => expect(mocks.changePassword).toHaveBeenCalledWith("old-password", "new-password"));
-    expect(mocks.clearSession).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText("Login body")).toBeInTheDocument();
-  });
-
-  it("validates password confirmation before calling the client", () => {
-    renderProductPage("/security");
-    fireEvent.change(screen.getByLabelText("Mevcut şifre"), { target: { value: "old-password" } });
-    fireEvent.change(screen.getByLabelText("Yeni şifre"), { target: { value: "new-password" } });
-    fireEvent.change(screen.getByLabelText("Yeni şifre tekrar"), { target: { value: "different-password" } });
-    fireEvent.click(screen.getByRole("button", { name: "Şifreyi Değiştir" }));
-
-    expect(screen.getByText("Yeni şifreler eşleşmiyor.")).toBeInTheDocument();
-    expect(mocks.changePassword).not.toHaveBeenCalled();
-  });
-
-  it("shows password errors safely without changing the existing client contract", async () => {
-    mocks.changePassword.mockRejectedValue(new ApiError(400, "Şifre değiştirilemedi", "Mevcut şifre hatalı.", "WRONG_CURRENT_PASSWORD"));
-    renderProductPage("/security");
-    fireEvent.change(screen.getByLabelText("Mevcut şifre"), { target: { value: "wrong-password" } });
-    fireEvent.change(screen.getByLabelText("Yeni şifre"), { target: { value: "new-password" } });
-    fireEvent.change(screen.getByLabelText("Yeni şifre tekrar"), { target: { value: "new-password" } });
-    fireEvent.click(screen.getByRole("button", { name: "Şifreyi Değiştir" }));
-
-    expect(await screen.findByText("Mevcut şifre hatalı.")).toBeInTheDocument();
-    expect(screen.queryByText(/stack trace/i)).not.toBeInTheDocument();
-    expect(mocks.clearSession).not.toHaveBeenCalled();
+    expect(screen.getByText("Dashboard body")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Şifre Değiştir" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mevcut şifre")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ayarlar" })).not.toBeInTheDocument();
   });
 });

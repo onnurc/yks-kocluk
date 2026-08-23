@@ -84,6 +84,7 @@ describe("shared authenticated product shell", () => {
     expect(screen.getByRole("button", { name: "Menüyü kapat" })).toHaveAttribute("aria-expanded", "true");
     expect(container.querySelector(".app-layout__sidebar")).toHaveClass("is-open");
     expect(screen.getByRole("button", { name: "Hesap menüsünü aç" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ayarlar" })).not.toBeInTheDocument();
   });
 
   it("uses only real student product destinations and keeps logout in the menu", async () => {
@@ -95,7 +96,7 @@ describe("shared authenticated product shell", () => {
     expect(within(navigation).getByRole("link", { name: "Mesajlar" })).toHaveAttribute("href", "/messages");
     expect(within(navigation).getByRole("link", { name: "Görüşmeler" })).toHaveAttribute("href", "/bookings");
     expect(within(navigation).getByRole("link", { name: "Hesabım" })).toHaveAttribute("href", "/account");
-    expect(within(navigation).getByRole("link", { name: "Ayarlar" })).toHaveAttribute("href", "/security");
+    expect(within(navigation).queryByRole("link", { name: "Ayarlar" })).not.toBeInTheDocument();
     expect(screen.queryByText("Courses")).not.toBeInTheDocument();
     expect(screen.queryByText("Grades")).not.toBeInTheDocument();
 
@@ -105,6 +106,17 @@ describe("shared authenticated product shell", () => {
 
     await waitFor(() => expect(mocks.logout).toHaveBeenCalledTimes(1));
     expect(await screen.findByText("Login body")).toBeInTheDocument();
+  });
+
+  it("keeps Ayarlar out of the coach navigation and responsive drawer", () => {
+    renderShell("/dashboard", { ...student, role: "COACH", fullName: "Ece Koç" });
+    fireEvent.click(screen.getByRole("button", { name: "Menüyü aç" }));
+
+    const navigation = screen.getByRole("navigation", { name: "Ürün navigasyonu" });
+    expect(within(navigation).getByRole("link", { name: "Panel" })).toHaveAttribute("href", "/dashboard");
+    expect(within(navigation).getByRole("link", { name: "Mesajlar" })).toHaveAttribute("href", "/messages");
+    expect(within(navigation).getByRole("link", { name: "Hesabım" })).toHaveAttribute("href", "/account");
+    expect(within(navigation).queryByRole("link", { name: "Ayarlar" })).not.toBeInTheDocument();
   });
 
   it("keeps student-only navigation out of the admin shell", () => {

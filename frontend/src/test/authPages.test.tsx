@@ -46,7 +46,7 @@ describe("auth page family", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Tekrar Hoş Geldin!" })).toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Google ile Giriş Yap" })).toHaveAttribute("href", "http://localhost:8080/oauth2/authorization/google");
-    expect(screen.getByRole("link", { name: "Şifremi unuttum" })).toHaveAttribute("href", "/forgot-password");
+    expect(screen.getByRole("link", { name: "Parolamı Unuttum" })).toHaveAttribute("href", "/forgot-password");
     expect(screen.getByRole("link", { name: "Kayıt Ol" })).toHaveAttribute("href", "/register");
 
     fireEvent.change(screen.getByLabelText("E-posta Adresi"), { target: { value: "ada@example.com" } });

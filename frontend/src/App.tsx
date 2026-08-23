@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthProvider";
 import { AppLayout } from "./components/AppLayout";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
@@ -23,7 +23,6 @@ import { LegalOnboardingPage } from "./pages/LegalOnboardingPage";
 import { PrivacySettingsPage } from "./pages/PrivacySettingsPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
-import { SecuritySettingsPage } from "./pages/SecuritySettingsPage";
 import { AccountPage } from "./pages/AccountPage";
 import { LegalOnboardingRoute } from "./routes/LegalOnboardingRoute";
 import { EmailVerificationRoute } from "./routes/EmailVerificationRoute";
@@ -66,7 +65,7 @@ const App: React.FC = () => {
             <Route path="/legal-onboarding" element={<LegalOnboardingPage />} />
             <Route element={<AppLayout />}>
               <Route path="/privacy" element={<PrivacySettingsPage />} />
-              <Route path="/security" element={<SecuritySettingsPage />} />
+              <Route path="/security" element={<Navigate to="/dashboard" replace />} />
               <Route element={<EmailVerificationRoute />}>
               <Route element={<LegalOnboardingRoute />}>
                 <Route path="/dashboard" element={<DashboardPage />} />
