@@ -5,12 +5,15 @@ import com.ykskocluk.demo.dto.CoachApplicationResponse;
 import com.ykskocluk.demo.dto.ForgotPasswordRequest;
 import com.ykskocluk.demo.dto.PageResponse;
 import com.ykskocluk.demo.entity.CoachApplication;
+import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachApplicationStatus;
+import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.CoachApplicationRepository;
+import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -40,15 +43,18 @@ public class CoachApplicationService {
 
     private final CoachApplicationRepository coachApplicationRepository;
     private final UserRepository userRepository;
+    private final CoachProfileRepository coachProfileRepository;
     private final PasswordEncoder passwordEncoder;
     private final PasswordSecurityService passwordSecurityService;
 
     public CoachApplicationService(CoachApplicationRepository coachApplicationRepository,
                                    UserRepository userRepository,
+                                   CoachProfileRepository coachProfileRepository,
                                    PasswordEncoder passwordEncoder,
                                    PasswordSecurityService passwordSecurityService) {
         this.coachApplicationRepository = coachApplicationRepository;
         this.userRepository = userRepository;
+        this.coachProfileRepository = coachProfileRepository;
         this.passwordEncoder = passwordEncoder;
         this.passwordSecurityService = passwordSecurityService;
     }
@@ -127,6 +133,14 @@ public class CoachApplicationService {
         // still needs to pass through the standard legal-onboarding gate on first login.
         user.setLegalOnboardingCompleted(false);
         userRepository.save(user);
+
+        CoachProfile profile = new CoachProfile();
+        profile.setUser(user);
+        profile.setStatus(CoachProfileStatus.PENDING);
+        profile.setActiveStudentCount(0);
+        profile.setMaxStudentCapacity(10);
+        profile.setPayoutAccountReady(false);
+        coachProfileRepository.save(profile);
 
         application.setStatus(CoachApplicationStatus.APPROVED);
         application.setReviewedAt(Instant.now());

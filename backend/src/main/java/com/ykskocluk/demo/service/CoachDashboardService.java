@@ -10,6 +10,7 @@ import org.springframework.data.domain.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.time.*;
 import java.time.temporal.TemporalAdjusters;
@@ -119,8 +120,21 @@ public class CoachDashboardService {
         if (from != null && to != null && !to.isAfter(from)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE", "Bitiş başlangıçtan sonra olmalı");
         }
-        return PageResponse.from(sessions.findCoachCalendar(coach.getId(), from, to, status, studentId, pageable)
-                .map(sessionMapper::toResponse));
+        Specification<Session> filters = (root, query, cb) ->
+                cb.equal(root.get("coachProfile").get("id"), coach.getId());
+        if (from != null) {
+            filters = filters.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("startTime"), from));
+        }
+        if (to != null) {
+            filters = filters.and((root, query, cb) -> cb.lessThan(root.get("startTime"), to));
+        }
+        if (status != null) {
+            filters = filters.and((root, query, cb) -> cb.equal(root.get("status"), status));
+        }
+        if (studentId != null) {
+            filters = filters.and((root, query, cb) -> cb.equal(root.get("student").get("id"), studentId));
+        }
+        return PageResponse.from(sessions.findAll(filters, pageable).map(sessionMapper::toResponse));
     }
 
     @Transactional(readOnly = true)

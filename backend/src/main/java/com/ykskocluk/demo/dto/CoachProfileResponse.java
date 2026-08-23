@@ -16,6 +16,7 @@ public record CoachProfileResponse(
         String universityName,
         String department,
         Integer graduationYear,
+        Integer yksRanking,
         CoachProfileStatus status,
         String rejectionReason,
         Set<Track> tracks,

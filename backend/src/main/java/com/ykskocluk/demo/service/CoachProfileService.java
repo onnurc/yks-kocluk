@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.service;
 
 import com.ykskocluk.demo.dto.CoachProfileCreateRequest;
+import com.ykskocluk.demo.dto.CoachEducationUpdateRequest;
 import com.ykskocluk.demo.dto.CoachProfileResponse;
 import com.ykskocluk.demo.dto.CoachProfileUpdateRequest;
 import com.ykskocluk.demo.dto.PageResponse;
@@ -105,9 +106,19 @@ public class CoachProfileService {
         profile.setUniversity(requireUniversity(request.universityId()));
         profile.setDepartment(request.department());
         profile.setGraduationYear(request.graduationYear());
+        profile.setYksRanking(request.yksRanking());
         // Status is NOT touched here — only admin changes it (post-approval edits stay APPROVED).
         replaceTracks(profile, request.tracks());
         return coachProfileMapper.toResponse(profile, request.tracks());
+    }
+
+    @Transactional
+    public CoachProfileResponse updateOwnEducation(Long userId, CoachEducationUpdateRequest request) {
+        CoachProfile profile = requireOwnProfile(userId);
+        profile.setUniversity(resolveUniversity(request.university()));
+        profile.setDepartment(request.department());
+        profile.setYksRanking(request.yksRanking());
+        return coachProfileMapper.toResponse(profile, loadTracks(profile.getId()));
     }
 
     @Transactional(readOnly = true)
@@ -162,6 +173,15 @@ public class CoachProfileService {
         return universityRepository.findById(universityId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "UNIVERSITY_NOT_FOUND",
                         "Üniversite bulunamadı"));
+    }
+
+    private University resolveUniversity(String universityName) {
+        String normalizedName = universityName.trim().replaceAll("\\s+", " ");
+        return universityRepository.findByNameIgnoreCase(normalizedName).orElseGet(() -> {
+            University university = new University();
+            university.setName(normalizedName);
+            return universityRepository.save(university);
+        });
     }
 
     private CoachProfile requireOwnProfile(Long userId) {

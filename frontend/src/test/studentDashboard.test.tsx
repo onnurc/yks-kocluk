@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   conversations: vi.fn(),
   sessions: vi.fn(),
   coach: vi.fn(),
+  coachSummary: vi.fn(),
+  coachSessions: vi.fn(),
+  coachAvailability: vi.fn(),
 }));
 
 vi.mock("../auth/AuthProvider", () => ({ useAuth: () => mocks.auth() }));
@@ -26,6 +29,13 @@ vi.mock("../booking/bookingApi", () => ({
 }));
 vi.mock("../coaches/coachDiscoveryApi", () => ({
   coachDiscoveryApi: { getPublicCoachDetail: mocks.coach },
+}));
+vi.mock("../coachDashboard/coachDashboardApi", () => ({
+  coachDashboardApi: {
+    getSummary: mocks.coachSummary,
+    getUpcomingSessions: mocks.coachSessions,
+    getAvailability: mocks.coachAvailability,
+  },
 }));
 
 const student = {
@@ -118,6 +128,9 @@ afterEach(cleanup);
 
 describe("responsive student dashboard", () => {
   beforeEach(() => {
+    mocks.coachSummary.mockResolvedValue({ activeStudentCount: 0, completedSessionsThisMonth: 0, upcomingSessionCount: 0, unreadMessageCount: 0, availabilityConfigured: false, nextSession: null, pendingTrialConsultationCount: 0 });
+    mocks.coachSessions.mockResolvedValue({ content: [], page: 0, size: 4, totalElements: 0, totalPages: 0, last: true });
+    mocks.coachAvailability.mockResolvedValue([]);
     vi.clearAllMocks();
     mocks.auth.mockReturnValue({ user: student, isSuspended: false });
     mocks.dashboard.mockResolvedValue(dashboardResponse);
@@ -209,8 +222,8 @@ describe("responsive student dashboard", () => {
   it("preserves coach content and redirects admin users away from the student body", async () => {
     mocks.auth.mockReturnValue({ user: { ...student, fullName: "Ece Koç", role: "COACH" }, isSuspended: false });
     const coachView = renderDashboard();
-    expect(screen.getByRole("heading", { name: "Tekrar hoş geldin, Ece." })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Mesajlara git" })).toHaveAttribute("href", "/messages");
+    expect(screen.getByRole("heading", { name: "Merhaba, Ece!" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Mesajlar/ })).toHaveAttribute("href", "/messages");
     expect(mocks.dashboard).not.toHaveBeenCalled();
     coachView.unmount();
 

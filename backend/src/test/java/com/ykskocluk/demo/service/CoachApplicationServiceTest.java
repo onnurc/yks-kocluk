@@ -2,11 +2,14 @@ package com.ykskocluk.demo.service;
 
 import com.ykskocluk.demo.dto.CoachApplicationRequest;
 import com.ykskocluk.demo.entity.CoachApplication;
+import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachApplicationStatus;
+import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.CoachApplicationRepository;
+import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,11 +33,12 @@ class CoachApplicationServiceTest {
 
     @Mock CoachApplicationRepository coachApplicationRepository;
     @Mock UserRepository userRepository;
+    @Mock CoachProfileRepository coachProfileRepository;
     @Mock PasswordEncoder passwordEncoder;
     @Mock PasswordSecurityService passwordSecurityService;
 
     private CoachApplicationService service() {
-        return new CoachApplicationService(coachApplicationRepository, userRepository,
+        return new CoachApplicationService(coachApplicationRepository, userRepository, coachProfileRepository,
                 passwordEncoder, passwordSecurityService);
     }
 
@@ -136,5 +140,28 @@ class CoachApplicationServiceTest {
         ArgumentCaptor<CoachApplication> captor = ArgumentCaptor.forClass(CoachApplication.class);
         verify(coachApplicationRepository).save(captor.capture());
         assertThat(captor.getValue().getEmail()).isEqualTo("coach@example.com");
+    }
+
+    @Test
+    void approve_createsPendingCoachProfileShellForAuthenticatedProductPages() {
+        CoachApplicationService service = service();
+        CoachApplication application = new CoachApplication();
+        application.setEmail("approved@example.com");
+        application.setFullName("Approved Coach");
+        application.setStatus(CoachApplicationStatus.PENDING);
+        when(coachApplicationRepository.findById(14L)).thenReturn(Optional.of(application));
+        when(userRepository.findByEmailIgnoreCase("approved@example.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(any())).thenReturn("encoded-placeholder");
+
+        service.approve(14L);
+
+        ArgumentCaptor<CoachProfile> profileCaptor = ArgumentCaptor.forClass(CoachProfile.class);
+        verify(coachProfileRepository).save(profileCaptor.capture());
+        assertThat(profileCaptor.getValue().getUser().getRole()).isEqualTo(Role.COACH);
+        assertThat(profileCaptor.getValue().getStatus()).isEqualTo(CoachProfileStatus.PENDING);
+        assertThat(profileCaptor.getValue().getHeadline()).isNull();
+        assertThat(profileCaptor.getValue().getUniversity()).isNull();
+        assertThat(profileCaptor.getValue().getActiveStudentCount()).isZero();
+        verify(passwordSecurityService).forgotPassword(any());
     }
 }

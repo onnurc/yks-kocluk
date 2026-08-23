@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.controller;
 
 import com.ykskocluk.demo.dto.CoachProfileCreateRequest;
+import com.ykskocluk.demo.dto.CoachEducationUpdateRequest;
 import com.ykskocluk.demo.dto.CoachProfileResponse;
 import com.ykskocluk.demo.dto.CoachProfileUpdateRequest;
 import com.ykskocluk.demo.service.CoachProfileService;
@@ -42,5 +43,11 @@ public class CoachProfileController {
     public CoachProfileResponse updateOwn(@AuthenticationPrincipal Long userId,
                                           @Valid @RequestBody CoachProfileUpdateRequest request) {
         return coachProfileService.updateOwn(userId, request);
+    }
+
+    @PutMapping("/me/education")
+    public CoachProfileResponse updateOwnEducation(@AuthenticationPrincipal Long userId,
+                                                   @Valid @RequestBody CoachEducationUpdateRequest request) {
+        return coachProfileService.updateOwnEducation(userId, request);
     }
 }

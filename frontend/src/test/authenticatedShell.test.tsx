@@ -94,6 +94,7 @@ describe("shared authenticated product shell", () => {
     expect(within(navigation).getByRole("link", { name: "Koçlar" })).toHaveAttribute("href", "/coaches");
     expect(within(navigation).getByRole("link", { name: "Mesajlar" })).toHaveAttribute("href", "/messages");
     expect(within(navigation).getByRole("link", { name: "Görüşmeler" })).toHaveAttribute("href", "/bookings");
+    expect(within(navigation).getByRole("link", { name: "Hesabım" })).toHaveAttribute("href", "/account");
     expect(within(navigation).getByRole("link", { name: "Ayarlar" })).toHaveAttribute("href", "/security");
     expect(screen.queryByText("Courses")).not.toBeInTheDocument();
     expect(screen.queryByText("Grades")).not.toBeInTheDocument();
