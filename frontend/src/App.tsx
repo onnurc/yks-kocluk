@@ -13,6 +13,9 @@ import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminSafetyPage } from "./pages/admin/AdminSafetyPage";
 import { AdminFinancePage } from "./pages/admin/AdminFinancePage";
 import { AdminCoachApplicationsPage } from "./pages/admin/AdminCoachApplicationsPage";
+import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
+import { AdminCoachesPage } from "./pages/admin/AdminCoachesPage";
+import { AdminSessionsPage } from "./pages/admin/AdminSessionsPage";
 import { BookingsPage } from "./pages/BookingsPage";
 import { ChatPage } from "./pages/ChatPage";
 import { OAuthCallbackPage } from "./pages/OAuthCallbackPage";
@@ -87,8 +90,12 @@ const App: React.FC = () => {
               {/* Admin-only Routes */}
               <Route element={<RoleRoute allowedRoles={["ADMIN"]} />}>
                 <Route path="/admin" element={<AdminDashboardPage />} />
+                <Route path="/admin/users" element={<AdminUsersPage />} />
+                <Route path="/admin/coaches" element={<AdminCoachesPage />} />
                 <Route path="/admin/safety" element={<AdminSafetyPage />} />
+                <Route path="/admin/reports" element={<AdminSafetyPage />} />
                 <Route path="/admin/finance" element={<AdminFinancePage />} />
+                <Route path="/admin/sessions" element={<AdminSessionsPage />} />
                 <Route path="/admin/coach-applications" element={<AdminCoachApplicationsPage />} />
                 <Route path="/admin/messages" element={<ChatPage />} />
                 <Route path="/admin/messages/:conversationId" element={<ChatPage />} />

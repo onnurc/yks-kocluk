@@ -12,7 +12,7 @@ import "./app-layout.css";
 type NavigationItem = {
   label: string;
   to: string;
-  icon: "dashboard" | "coaches" | "messages" | "meetings" | "account" | "settings" | "applications" | "safety" | "finance";
+  icon: "dashboard" | "coaches" | "messages" | "meetings" | "account" | "settings" | "applications" | "safety" | "finance" | "users";
   showUnread?: boolean;
 };
 
@@ -33,9 +33,12 @@ const navigationByRole: Record<UserRole, NavigationItem[]> = {
   ],
   ADMIN: [
     { label: "Admin Paneli", to: "/admin", icon: "dashboard" },
+    { label: "Kullanıcılar", to: "/admin/users", icon: "users" },
+    { label: "Koçlar", to: "/admin/coaches", icon: "coaches" },
     { label: "Koç Başvuruları", to: "/admin/coach-applications", icon: "applications" },
-    { label: "Güvenlik", to: "/admin/safety", icon: "safety" },
-    { label: "Finans", to: "/admin/finance", icon: "finance" },
+    { label: "Abonelik & Finans", to: "/admin/finance", icon: "finance" },
+    { label: "Seanslar", to: "/admin/sessions", icon: "meetings" },
+    { label: "Raporlar", to: "/admin/reports", icon: "safety" },
     { label: "Mesaj Gözlemi", to: "/admin/messages", icon: "messages" },
   ],
 };
@@ -44,6 +47,7 @@ function AppIcon({ name }: { name: NavigationItem["icon"] | "menu" | "close" | "
   const paths: Record<string, React.ReactNode> = {
     dashboard: <><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></>,
     coaches: <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3.5 19c.4-4 2.3-6 5.5-6s5.1 2 5.5 6M14.5 14c3.3-.7 5.3 1 6 4" /></>,
+    users: <><circle cx="8" cy="8" r="3" /><circle cx="16" cy="8" r="3" /><path d="M2.5 20c.4-4.3 2.2-6.5 5.5-6.5s5.1 2.2 5.5 6.5M10.5 20c.4-4.3 2.2-6.5 5.5-6.5s5.1 2.2 5.5 6.5" /></>,
     messages: <><path d="M4 5h16v11H9l-5 4V5Z" /><path d="M8 9h8M8 12h6" /></>,
     meetings: <><rect x="4" y="6" width="16" height="14" rx="2" /><path d="M8 3v6M16 3v6M4 11h16" /></>,
     account: <><circle cx="12" cy="8" r="3" /><path d="M6 20c.3-4.2 2.3-6.3 6-6.3s5.7 2.1 6 6.3" /></>,

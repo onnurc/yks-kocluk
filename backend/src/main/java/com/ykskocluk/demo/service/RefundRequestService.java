@@ -23,8 +23,6 @@ import java.util.Set;
 
 @Service
 public class RefundRequestService {
-    private static final Duration UNCONDITIONAL_WINDOW = Duration.ofDays(7);
-    private static final Duration STANDARD_WINDOW = Duration.ofDays(14);
     private static final Set<String> SORT_FIELDS = Set.of("requestedAt", "purchaseAt", "id");
     private static final List<RefundRequestStatus> ACTIVE_STATUSES =
             List.of(RefundRequestStatus.PENDING, RefundRequestStatus.APPROVED);
@@ -67,23 +65,22 @@ public class RefundRequestService {
                     "Satın alma zamanı doğrulanamadı");
         }
         Instant now = Instant.now();
-        if (now.isAfter(purchaseAt.plus(STANDARD_WINDOW))) {
+        BigDecimal refunded = refundedAmount(original.getId());
+        RefundPolicy.Decision policy = RefundPolicy.evaluate(purchaseAt, now, original.getAmount().subtract(refunded));
+        if (!policy.eligible()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "REFUND_WINDOW_EXPIRED",
-                    "Standart iade talebi süresi sona erdi");
+                    policy.ineligibleReason());
         }
         if (requests.existsByOriginalPaymentIdAndStatusIn(original.getId(), ACTIVE_STATUSES)) {
             throw new ApiException(HttpStatus.CONFLICT, "ACTIVE_REFUND_REQUEST_EXISTS",
                     "Bu satın alma için aktif bir iade talebi zaten var");
         }
-        BigDecimal refunded = refundedAmount(original.getId());
         if (refunded.compareTo(original.getAmount()) >= 0) {
             throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_ALREADY_REFUNDED", "Ödeme zaten tamamen iade edildi");
         }
 
         Evidence evidence = evidence(subscription.getId(), now);
-        RefundWindow window = now.isBefore(purchaseAt.plus(UNCONDITIONAL_WINDOW))
-                ? RefundWindow.UNCONDITIONAL
-                : evidence.serviceStarted ? RefundWindow.MANUAL_REVIEW : RefundWindow.STANDARD_ELIGIBLE;
+        RefundWindow window = RefundWindow.UNCONDITIONAL;
 
         RefundRequest request = new RefundRequest();
         request.setStudent(student);

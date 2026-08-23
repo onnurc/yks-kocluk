@@ -26,6 +26,8 @@ public interface TrialConsultationRepository extends JpaRepository<TrialConsulta
     long countByCoachAndStatus(@Param("coachId") Long coachId,
                                @Param("status") TrialConsultationStatus status);
 
+    long countByStatusInAndStartTimeAfter(Collection<TrialConsultationStatus> statuses, Instant now);
+
     @Query("""
             select count(t) > 0 from TrialConsultation t
              where t.coachProfile.id = :coachId

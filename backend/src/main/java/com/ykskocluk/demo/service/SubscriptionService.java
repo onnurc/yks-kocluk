@@ -411,6 +411,13 @@ public class SubscriptionService {
 
         BigDecimal remainingRefundable = originalPayment.getAmount().subtract(totalRefunded);
 
+        RefundPolicy.Decision policy = RefundPolicy.evaluate(originalPayment.getSucceededAt(), Instant.now(), remainingRefundable);
+        if (!policy.eligible()) {
+            String code = remainingRefundable.signum() <= 0 ? "PAYMENT_ALREADY_REFUNDED"
+                    : originalPayment.getSucceededAt() == null ? "PURCHASE_TIMESTAMP_UNAVAILABLE" : "REFUND_WINDOW_EXPIRED";
+            throw new ApiException(HttpStatus.BAD_REQUEST, code, policy.ineligibleReason());
+        }
+
         if (refundAmount.compareTo(remainingRefundable) > 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "EXCEEDS_REFUNDABLE_AMOUNT",
                     String.format("İade tutarı kalan iade edilebilir tutarı (%s TRY) aşamaz", remainingRefundable));
@@ -523,7 +530,8 @@ public class SubscriptionService {
 
     @Transactional(readOnly = true)
     public PageResponse<AdminPaymentResponse> listPayments(Pageable pageable) {
-        return listPayments(null, null, null, null, null, null, null, pageable);
+        validateSort(pageable, PAYMENT_SORTABLE_FIELDS);
+        return mapAdminPayments(paymentRepository.findAllAdmin(pageable));
     }
 
     @Transactional(readOnly = true)
@@ -533,7 +541,10 @@ public class SubscriptionService {
         if (from != null && to != null && !to.isAfter(from)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE", "Bitiş başlangıçtan sonra olmalı");
         }
-        Page<Payment> page = paymentRepository.searchAdmin(type, status, studentId, coachId, packageId, from, to, pageable);
+        return mapAdminPayments(paymentRepository.searchAdmin(type, status, studentId, coachId, packageId, from, to, pageable));
+    }
+
+    private PageResponse<AdminPaymentResponse> mapAdminPayments(Page<Payment> page) {
 
         // Batch-load refunds for every CHARGE row on this page in one query (avoids N+1).
         List<Long> chargeIds = page.getContent().stream()
@@ -554,6 +565,10 @@ public class SubscriptionService {
             BigDecimal remainingRefundable = payment.getType() == PaymentType.CHARGE
                     ? payment.getAmount().subtract(totalRefunded)
                     : BigDecimal.ZERO;
+            RefundPolicy.Decision policy = payment.getType() == PaymentType.CHARGE
+                    && payment.getStatus() == PaymentStatus.SUCCESS
+                    ? RefundPolicy.evaluate(payment.getSucceededAt(), Instant.now(), remainingRefundable)
+                    : new RefundPolicy.Decision(false, null, "Yalnızca başarılı tahsilatlar iade edilebilir.");
 
             return new AdminPaymentResponse(
                     payment.getId(),
@@ -571,8 +586,12 @@ public class SubscriptionService {
                     payment.getStatus().name(),
                     payment.getProviderReference(),
                     payment.getCreatedAt(),
+                    payment.getSucceededAt(),
                     totalRefunded,
-                    remainingRefundable
+                    remainingRefundable,
+                    policy.eligible(),
+                    policy.deadline(),
+                    policy.ineligibleReason()
             );
         });
         return PageResponse.from(mapped);
@@ -580,7 +599,8 @@ public class SubscriptionService {
 
     @Transactional(readOnly = true)
     public PageResponse<AdminSubscriptionResponse> listSubscriptions(Pageable pageable) {
-        return listSubscriptions(null, null, null, null, null, null, pageable);
+        validateSort(pageable, SUBSCRIPTION_SORTABLE_FIELDS);
+        return mapAdminSubscriptions(subscriptionRepository.findAllAdmin(pageable));
     }
 
     @Transactional(readOnly = true)
@@ -590,7 +610,10 @@ public class SubscriptionService {
         if (from != null && to != null && !to.isAfter(from)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE", "Bitiş başlangıçtan sonra olmalı");
         }
-        Page<Subscription> page = subscriptionRepository.searchAdmin(status, studentId, coachId, packageId, from, to, pageable);
+        return mapAdminSubscriptions(subscriptionRepository.searchAdmin(status, studentId, coachId, packageId, from, to, pageable));
+    }
+
+    private PageResponse<AdminSubscriptionResponse> mapAdminSubscriptions(Page<Subscription> page) {
         Page<AdminSubscriptionResponse> mapped = page.map(sub -> new AdminSubscriptionResponse(
                 sub.getId(),
                 sub.getStudent().getId(),

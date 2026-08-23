@@ -10,8 +10,23 @@ export interface AdminPaymentResponse {
   status: string;
   providerReference: string;
   createdAt: string;
+  succeededAt: string | null;
   refundedAmount: number;
   remainingRefundableAmount: number;
+  refundEligible: boolean;
+  refundDeadline: string | null;
+  refundIneligibleReason: string | null;
+}
+
+export interface AdminFinanceSummary {
+  from: string | null;
+  to: string | null;
+  grossRevenue: number;
+  successfulPaymentCount: number;
+  failedPaymentCount: number;
+  pendingPaymentCount: number;
+  refundTotal: number;
+  netCollectedAmount: number;
 }
 
 export interface AdminSubscriptionResponse {

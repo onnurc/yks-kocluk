@@ -158,4 +158,8 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
                                    @Param("from") Instant from,
                                    @Param("to") Instant to,
                                    Pageable pageable);
+
+    @EntityGraph(attributePaths = {"student", "coachProfile.user", "pkg"})
+    @Query("select s from Subscription s")
+    Page<Subscription> findAllAdmin(Pageable pageable);
 }

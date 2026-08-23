@@ -112,8 +112,13 @@ describe("shared authenticated product shell", () => {
     const navigation = screen.getByRole("navigation", { name: "Ürün navigasyonu" });
 
     expect(within(navigation).getByRole("link", { name: "Admin Paneli" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Kullanıcılar" })).toHaveAttribute("href", "/admin/users");
+    expect(within(navigation).getByRole("link", { name: "Koçlar" })).toHaveAttribute("href", "/admin/coaches");
     expect(within(navigation).getByRole("link", { name: "Koç Başvuruları" })).toBeInTheDocument();
-    expect(within(navigation).queryByRole("link", { name: "Koçlar" })).not.toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Abonelik & Finans" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Seanslar" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Raporlar" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Mesaj Gözlemi" })).toBeInTheDocument();
     expect(within(navigation).queryByRole("link", { name: "Görüşmeler" })).not.toBeInTheDocument();
     expect(mocks.listConversations).not.toHaveBeenCalled();
   });

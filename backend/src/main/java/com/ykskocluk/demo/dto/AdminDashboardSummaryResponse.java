@@ -4,12 +4,14 @@ import java.math.BigDecimal;
 
 public record AdminDashboardSummaryResponse(
         long totalStudentCount,
+        long totalCoachCount,
         long activeCoachCount,
-        long pendingCoachApprovalCount,
+        long pendingCoachApplicationCount,
         long activeSubscriptionCount,
         long salesThisMonthCount,
         BigDecimal grossRevenueThisMonth,
         BigDecimal refundAmountThisMonth,
+        BigDecimal netCollectedThisMonth,
         long openReportCount,
         long scheduledSessionCount,
         long completedSessionCountThisMonth

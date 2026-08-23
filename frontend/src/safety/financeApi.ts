@@ -5,9 +5,11 @@ import type {
   AdminSubscriptionResponse,
   RefundResponse,
   AdminSubscriptionTerminateResponse,
+  AdminFinanceSummary,
 } from "./financeTypes";
 
 export const financeApi = {
+  summary: (): Promise<AdminFinanceSummary> => httpClient.get<AdminFinanceSummary>("/api/v1/admin/finance/summary"),
   listPayments: (page: number = 0, size: number = 20): Promise<PageResponse<AdminPaymentResponse>> => {
     return httpClient.get<PageResponse<AdminPaymentResponse>>(
       `/api/v1/admin/payments?page=${page}&size=${size}`
