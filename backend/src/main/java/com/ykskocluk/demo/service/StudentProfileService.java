@@ -55,6 +55,11 @@ public class StudentProfileService {
         StudentProfile profile = requireOwnProfile(userId);
         profile.setGradeLevel(request.gradeLevel());
         profile.setCity(request.city());
+        profile.setExamYear(request.examYear());
+        profile.setYksScoreType(request.yksScoreType());
+        profile.setExamSession(request.examSession());
+        profile.setTargetUniversity(request.targetUniversity());
+        profile.setTargetDepartment(request.targetDepartment());
         return studentProfileMapper.toResponse(profile);
     }
 

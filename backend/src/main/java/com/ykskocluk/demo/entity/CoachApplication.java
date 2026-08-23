@@ -18,8 +18,8 @@ import java.time.Instant;
 /**
  * A public "become a coach" application. Distinct from {@link CoachProfile}: this exists before
  * any {@link User} account does. Approval creates the User (see {@code CoachApplicationService});
- * the coach still submits their own {@link CoachProfile} for the separate, pre-existing
- * profile-approval step after logging in.
+ * approval also initializes an incomplete {@link CoachProfile} shell so authenticated coach
+ * pages have a stable owner row. The coach completes its education/public-profile fields later.
  */
 @Entity
 @Table(name = "coach_applications")

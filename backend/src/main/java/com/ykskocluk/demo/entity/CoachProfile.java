@@ -31,7 +31,7 @@ public class CoachProfile extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
-    @Column(nullable = false, length = 150)
+    @Column(length = 150)
     private String headline;
 
     @Column(length = 2000)
@@ -46,6 +46,9 @@ public class CoachProfile extends BaseEntity {
 
     @Column(name = "graduation_year")
     private Integer graduationYear;
+
+    @Column(name = "yks_ranking")
+    private Integer yksRanking;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

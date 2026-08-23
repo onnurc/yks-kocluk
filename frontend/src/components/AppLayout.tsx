@@ -12,7 +12,7 @@ import "./app-layout.css";
 type NavigationItem = {
   label: string;
   to: string;
-  icon: "dashboard" | "coaches" | "messages" | "meetings" | "settings" | "applications" | "safety" | "finance";
+  icon: "dashboard" | "coaches" | "messages" | "meetings" | "account" | "settings" | "applications" | "safety" | "finance";
   showUnread?: boolean;
 };
 
@@ -22,11 +22,13 @@ const navigationByRole: Record<UserRole, NavigationItem[]> = {
     { label: "Koçlar", to: "/coaches", icon: "coaches" },
     { label: "Mesajlar", to: "/messages", icon: "messages", showUnread: true },
     { label: "Görüşmeler", to: "/bookings", icon: "meetings" },
+    { label: "Hesabım", to: "/account", icon: "account" },
     { label: "Ayarlar", to: "/security", icon: "settings" },
   ],
   COACH: [
     { label: "Panel", to: "/dashboard", icon: "dashboard" },
     { label: "Mesajlar", to: "/messages", icon: "messages", showUnread: true },
+    { label: "Hesabım", to: "/account", icon: "account" },
     { label: "Ayarlar", to: "/security", icon: "settings" },
   ],
   ADMIN: [
@@ -44,6 +46,7 @@ function AppIcon({ name }: { name: NavigationItem["icon"] | "menu" | "close" | "
     coaches: <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3.5 19c.4-4 2.3-6 5.5-6s5.1 2 5.5 6M14.5 14c3.3-.7 5.3 1 6 4" /></>,
     messages: <><path d="M4 5h16v11H9l-5 4V5Z" /><path d="M8 9h8M8 12h6" /></>,
     meetings: <><rect x="4" y="6" width="16" height="14" rx="2" /><path d="M8 3v6M16 3v6M4 11h16" /></>,
+    account: <><circle cx="12" cy="8" r="3" /><path d="M6 20c.3-4.2 2.3-6.3 6-6.3s5.7 2.1 6 6.3" /></>,
     settings: <><circle cx="12" cy="12" r="3" /><path d="M19 13.5v-3l-2.2-.7-.7-1.7 1.1-2-2.1-2.1-2 1.1-1.7-.7L10.5 2h-3l-.7 2.2-1.7.7-2-1.1L1 5.9l1.1 2-.7 1.7L-.8 10.5v3l2.2.7.7 1.7-1.1 2L3.1 20l2-1.1 1.7.7.7 2.2h3l.7-2.2 1.7-.7 2 1.1 2.1-2.1-1.1-2 .7-1.7 2.4-.7Z" transform="translate(3 0) scale(.75)" /></>,
     applications: <><path d="M7 4h10v4H7z" /><path d="M5 6h14v15H5zM8 12h8M8 16h5" /></>,
     safety: <><path d="M12 3 5 6v5c0 4.7 2.8 8 7 10 4.2-2 7-5.3 7-10V6l-7-3Z" /><path d="m9 12 2 2 4-4" /></>,

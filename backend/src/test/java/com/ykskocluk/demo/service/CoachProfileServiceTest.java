@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.service;
 
 import com.ykskocluk.demo.dto.CoachProfileCreateRequest;
+import com.ykskocluk.demo.dto.CoachEducationUpdateRequest;
 import com.ykskocluk.demo.dto.CoachProfileResponse;
 import com.ykskocluk.demo.dto.CoachProfileUpdateRequest;
 import com.ykskocluk.demo.entity.CoachProfile;
@@ -50,7 +51,7 @@ class CoachProfileServiceTest {
                 userRepository, universityRepository, coachProfileMapper);
         lenient().when(coachProfileMapper.toResponse(any(), any())).thenReturn(
                 new CoachProfileResponse(1L, 1L, "Coach", "c@e.com", "h", "b", 5L, "Uni", "dep",
-                        2020, CoachProfileStatus.PENDING, null, Set.of(Track.NUMERICAL), 0, 10, false, null, null));
+                        2020, null, CoachProfileStatus.PENDING, null, Set.of(Track.NUMERICAL), 0, 10, false, null, null));
     }
 
     private CoachProfileCreateRequest createRequest() {
@@ -185,10 +186,46 @@ class CoachProfileServiceTest {
         when(coachProfileRepository.findByUserId(1L)).thenReturn(Optional.of(profile));
         when(universityRepository.findById(5L)).thenReturn(Optional.of(new University()));
 
-        service.updateOwn(1L, new CoachProfileUpdateRequest("Yeni başlık", "bio", 5L, "dep", 2021,
+        service.updateOwn(1L, new CoachProfileUpdateRequest("Yeni başlık", "bio", 5L, "dep", 2021, 1250,
                 Set.of(Track.VERBAL)));
 
         assertThat(profile.getHeadline()).isEqualTo("Yeni başlık");
+        assertThat(profile.getYksRanking()).isEqualTo(1250);
         assertThat(profile.getStatus()).isEqualTo(CoachProfileStatus.APPROVED); // unchanged
+    }
+
+    @Test
+    void updateOwnEducation_updatesOnlyAccountEducationFields() {
+        CoachProfile profile = new CoachProfile();
+        profile.setHeadline("Mevcut başlık");
+        profile.setStatus(CoachProfileStatus.APPROVED);
+        University university = new University();
+        when(coachProfileRepository.findByUserId(1L)).thenReturn(Optional.of(profile));
+        university.setName("İstanbul Teknik Üniversitesi");
+        when(universityRepository.findByNameIgnoreCase("İstanbul Teknik Üniversitesi")).thenReturn(Optional.of(university));
+
+        service.updateOwnEducation(1L, new CoachEducationUpdateRequest("  İstanbul   Teknik Üniversitesi ", "Bilgisayar", 1420));
+
+        assertThat(profile.getUniversity()).isSameAs(university);
+        assertThat(profile.getDepartment()).isEqualTo("Bilgisayar");
+        assertThat(profile.getYksRanking()).isEqualTo(1420);
+        assertThat(profile.getHeadline()).isEqualTo("Mevcut başlık");
+        assertThat(profile.getStatus()).isEqualTo(CoachProfileStatus.APPROVED);
+    }
+
+    @Test
+    void updateOwnEducation_persistsAnUnlistedUniversityName() {
+        CoachProfile profile = new CoachProfile();
+        profile.setStatus(CoachProfileStatus.APPROVED);
+        when(coachProfileRepository.findByUserId(1L)).thenReturn(Optional.of(profile));
+        when(universityRepository.findByNameIgnoreCase("Yeni Üniversite")).thenReturn(Optional.empty());
+        when(universityRepository.save(any(University.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.updateOwnEducation(1L, new CoachEducationUpdateRequest("Yeni Üniversite", null, null));
+
+        ArgumentCaptor<University> captor = ArgumentCaptor.forClass(University.class);
+        verify(universityRepository).save(captor.capture());
+        assertThat(captor.getValue().getName()).isEqualTo("Yeni Üniversite");
+        assertThat(profile.getUniversity()).isSameAs(captor.getValue());
     }
 }

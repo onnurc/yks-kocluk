@@ -9,6 +9,7 @@ import type { PublicCoachDetailResponse } from "../coaches/coachDiscoveryTypes";
 import { messagingApi } from "../messaging/messagingApi";
 import type { ConversationResponse } from "../messaging/messagingTypes";
 import { MESSAGE_NOTIFICATION_EVENT } from "../messaging/useNotificationSocket";
+import { CoachDashboardPage } from "./CoachDashboardPage";
 import { ActiveSubscriptionCard } from "../studentDashboard/ActiveSubscriptionCard";
 import { PendingPaymentWarning } from "../studentDashboard/PendingPaymentWarning";
 import { studentDashboardApi } from "../studentDashboard/studentDashboardApi";
@@ -281,14 +282,7 @@ export const DashboardPage = () => {
   }
 
   if (user.role === "COACH") {
-    return (
-      <section className="student-dashboard__role-view" aria-labelledby="coach-dashboard-title">
-        <p className="student-dashboard__eyebrow">Koç hesabı</p>
-        <h1 id="coach-dashboard-title">Tekrar hoş geldin, {firstName(user.fullName)}.</h1>
-        <p>Koç paneliniz hazırlanırken öğrencilerinizle mevcut mesajlar sayfasından iletişim kurabilirsiniz.</p>
-        <Link to="/messages">Mesajlara git</Link>
-      </section>
-    );
+    return <CoachDashboardPage />;
   }
 
   const subscription = dashboard?.subscription ?? null;

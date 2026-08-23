@@ -12,6 +12,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -98,6 +102,23 @@ class CoachDashboardServiceTest {
         verify(messages, never()).findFirstByConversationIdOrderByCreatedAtDesc(anyLong());
         verify(messages, never()).countByConversationIdAndSenderIdNotAndReadAtIsNull(anyLong(), anyLong());
         verify(subscriptions, never()).existsLiveSubscription(anyLong(), anyLong());
+    }
+
+    @Test
+    void sessionsBuildsTypedPredicatesInsteadOfPassingNullFiltersToPostgres() {
+        User user = new User(); ReflectionTestUtils.setField(user, "id", 7L);
+        CoachProfile coach = new CoachProfile(); ReflectionTestUtils.setField(coach, "id", 8L); coach.setUser(user);
+        var from = Instant.parse("2026-08-23T12:00:00Z");
+        var pageable = PageRequest.of(0, 4, Sort.by("startTime").ascending());
+        when(coaches.findByUserId(7L)).thenReturn(Optional.of(coach));
+        when(sessions.findAll(any(Specification.class), eq(pageable))).thenReturn(Page.empty(pageable));
+
+        var result = service.sessions(7L, from, null, SessionStatus.PLANNED, null, pageable);
+
+        assertAll(
+                () -> assertTrue(result.content().isEmpty()),
+                () -> assertEquals(0, result.totalElements()));
+        verify(sessions).findAll(any(Specification.class), eq(pageable));
     }
 
     private User student(long id, String name) {

@@ -4,6 +4,7 @@ import com.ykskocluk.demo.enums.Track;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import java.util.Set;
@@ -24,6 +25,9 @@ public record CoachProfileUpdateRequest(
         String department,
 
         Integer graduationYear,
+
+        @Positive(message = "YKS sıralaması pozitif bir sayı olmalı")
+        Integer yksRanking,
 
         @NotEmpty(message = "En az bir alan seçilmeli")
         Set<Track> tracks
