@@ -3,21 +3,17 @@ package com.ykskocluk.demo.service;
 import com.ykskocluk.demo.entity.MediaAsset;
 import com.ykskocluk.demo.enums.MediaStatus;
 import com.ykskocluk.demo.enums.MediaVisibility;
-import com.ykskocluk.demo.storage.StorageService;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.*;
 
 class MediaAssetUrlResolverTest {
-    private final StorageService storage = mock(StorageService.class);
-    private final MediaAssetUrlResolver resolver = new MediaAssetUrlResolver(storage);
+    private final MediaAssetUrlResolver resolver = new MediaAssetUrlResolver("https://api.example.com");
 
     @Test void resolvesOnlyActivePublicAssets() {
-        MediaAsset asset = new MediaAsset(); asset.setObjectKey("public/image.jpg");
-        asset.setVisibility(MediaVisibility.PUBLIC); asset.setStatus(MediaStatus.ACTIVE);
-        when(storage.resolvePublicUrl(asset.getObjectKey())).thenReturn("https://media.example.com/public/image.jpg");
-        assertThat(resolver.publicUrl(asset)).isEqualTo("https://media.example.com/public/image.jpg");
+        MediaAsset asset = activePublicAsset();
+        assertThat(resolver.publicUrl(asset)).isEqualTo("https://api.example.com/api/v1/public/media/42");
 
         asset.setStatus(MediaStatus.PENDING_UPLOAD);
         assertThat(resolver.publicUrl(asset)).isNull();
@@ -25,6 +21,25 @@ class MediaAssetUrlResolverTest {
         assertThat(resolver.publicUrl(asset)).isNull();
         asset.setVisibility(MediaVisibility.PUBLIC); asset.setStatus(MediaStatus.DELETED);
         assertThat(resolver.publicUrl(asset)).isNull();
-        verify(storage, times(1)).resolvePublicUrl(anyString());
+    }
+
+    @Test void trailingSlashInBaseUrlDoesNotDoubleUp() {
+        assertThat(new MediaAssetUrlResolver("https://api.example.com/").publicUrl(activePublicAsset()))
+                .isEqualTo("https://api.example.com/api/v1/public/media/42");
+    }
+
+    @Test void unsavedAssetHasNoPublicUrl() {
+        MediaAsset asset = activePublicAsset();
+        ReflectionTestUtils.setField(asset, "id", null);
+        assertThat(resolver.publicUrl(asset)).isNull();
+    }
+
+    private MediaAsset activePublicAsset() {
+        MediaAsset asset = new MediaAsset();
+        ReflectionTestUtils.setField(asset, "id", 42L);
+        asset.setObjectKey("public/image.jpg");
+        asset.setVisibility(MediaVisibility.PUBLIC);
+        asset.setStatus(MediaStatus.ACTIVE);
+        return asset;
     }
 }

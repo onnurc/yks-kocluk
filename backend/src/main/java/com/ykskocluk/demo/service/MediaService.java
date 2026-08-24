@@ -77,14 +77,26 @@ public class MediaService {
     public MediaDownloadResponse download(Long requesterId, Long assetId) {
         User requester = requireUser(requesterId);
         MediaAsset asset = requireActiveAsset(assetId);
-        if (asset.getVisibility() == MediaVisibility.PUBLIC) {
-            return new MediaDownloadResponse(urlResolver.publicUrl(asset), null);
-        }
-        if (!asset.getOwner().getId().equals(requesterId) && requester.getRole() != Role.ADMIN) {
+        if (asset.getVisibility() == MediaVisibility.PRIVATE
+                && !asset.getOwner().getId().equals(requesterId) && requester.getRole() != Role.ADMIN) {
             throw new ApiException(HttpStatus.FORBIDDEN, "MEDIA_OWNER_INVALID", "You cannot access this media asset");
         }
         StorageService.DownloadTarget target = storage.createPresignedDownload(asset.getObjectKey());
         return new MediaDownloadResponse(target.url(), target.expiresAt());
+    }
+
+    /**
+     * Signs a short-lived URL for a PUBLIC asset without requiring a caller identity — these
+     * objects are already world-readable through the bucket itself. PRIVATE assets are reported
+     * as missing rather than forbidden so this endpoint cannot be used to probe for them.
+     */
+    @Transactional(readOnly = true)
+    public String publicPresignedUrl(Long assetId) {
+        MediaAsset asset = requireActiveAsset(assetId);
+        if (asset.getVisibility() != MediaVisibility.PUBLIC) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "MEDIA_NOT_FOUND", "Active media asset not found");
+        }
+        return storage.createPresignedDownload(asset.getObjectKey()).url();
     }
 
     @Transactional
