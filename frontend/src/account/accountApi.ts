@@ -30,4 +30,5 @@ export const accountApi = {
     if (!upload.ok) throw new Error("PROFILE_IMAGE_UPLOAD_FAILED");
     return httpClient.post<MediaAssetResponse>(`/api/v1/media/uploads/${presign.assetId}/complete`);
   },
+  deleteMedia: (assetId: number) => httpClient.delete<void>(`/api/v1/media/${assetId}`),
 };

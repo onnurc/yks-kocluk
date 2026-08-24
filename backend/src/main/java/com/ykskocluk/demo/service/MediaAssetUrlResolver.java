@@ -26,4 +26,10 @@ public class MediaAssetUrlResolver {
         if (asset.getStatus() != MediaStatus.ACTIVE || asset.getVisibility() != MediaVisibility.PUBLIC) return null;
         return publicBaseUrl + "/api/v1/public/media/" + asset.getId();
     }
+
+    @Named("activeAssetId")
+    public Long activeAssetId(MediaAsset asset) {
+        if (asset == null || asset.getStatus() != MediaStatus.ACTIVE) return null;
+        return asset.getId();
+    }
 }

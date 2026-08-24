@@ -13,6 +13,7 @@ export interface StudentProfileResponse {
   targetUniversity: string | null;
   targetDepartment: string | null;
   profileImageUrl: string | null;
+  profileImageAssetId: number | null;
 }
 
 export interface StudentProfileUpdateRequest {
@@ -73,3 +74,4 @@ export interface MediaAssetResponse {
   id: number;
   url: string | null;
 }
+

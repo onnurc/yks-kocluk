@@ -10,8 +10,10 @@
 .account-page__avatar img { width: 100%; height: 100%; object-fit: cover; }
 .account-page__photo h2 { margin: 0 0 4px; font-size: 22px; }
 .account-page__photo p { margin: 0 0 18px; color: var(--app-muted); }
+.account-page__photo-actions { display: flex; flex-wrap: wrap; gap: 12px; }
 .account-page__photo button, .account-page__state button { min-height: 44px; padding: 0 20px; border: 0; border-radius: 12px; background: var(--app-ink); color: #fff; font-weight: 600; cursor: pointer; }
 .account-page__photo button:disabled { opacity: .55; cursor: wait; }
+.account-page__photo .account-page__photo-remove { border: 1px solid var(--app-border); background: #fff; color: #b42318; }
 .account-page__section + .account-page__section { border-top: 1px solid var(--app-border); }
 .account-page__section-title { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
 .account-page__section-title > span { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; background: #fff7e8; color: var(--app-gold-dark); font-size: 20px; }
