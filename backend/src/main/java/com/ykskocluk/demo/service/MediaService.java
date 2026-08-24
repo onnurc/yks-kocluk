@@ -157,7 +157,12 @@ public class MediaService {
         }
     }
 
-    private void markReplaced(MediaAsset old) { if (old != null && old.getStatus() == MediaStatus.ACTIVE) old.setStatus(MediaStatus.DELETED); }
+    private void markReplaced(MediaAsset old) {
+        if (old != null && old.getStatus() == MediaStatus.ACTIVE) {
+            storage.deleteObject(old.getObjectKey());
+            old.setStatus(MediaStatus.DELETED);
+        }
+    }
 
     private void detachFromProfiles(MediaAsset asset) {
         coaches.findByUserId(asset.getOwner().getId()).ifPresent(p -> {

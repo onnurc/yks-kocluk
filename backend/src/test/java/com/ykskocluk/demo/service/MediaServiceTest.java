@@ -111,7 +111,7 @@ class MediaServiceTest {
         assertThat(asset.getStatus()).isEqualTo(MediaStatus.PENDING_UPLOAD);
     }
 
-    @Test void completeActivatesAndReplacesProfileImageWithoutPhysicalOldDelete() {
+    @Test void completeActivatesAndReplacesProfileImageAndDeletesOldFromStorage() {
         MediaAsset old = asset(19L, coach, MediaType.PROFILE_IMAGE, MediaVisibility.PUBLIC, MediaStatus.ACTIVE);
         MediaAsset fresh = asset(20L, coach, MediaType.PROFILE_IMAGE, MediaVisibility.PUBLIC, MediaStatus.PENDING_UPLOAD);
         CoachProfile profile = new CoachProfile(); profile.setProfileImageAsset(old);
@@ -122,7 +122,18 @@ class MediaServiceTest {
         assertThat(fresh.getStatus()).isEqualTo(MediaStatus.ACTIVE);
         assertThat(old.getStatus()).isEqualTo(MediaStatus.DELETED);
         assertThat(profile.getProfileImageAsset()).isSameAs(fresh);
-        verify(storage, never()).deleteObject(old.getObjectKey());
+        verify(storage).deleteObject(old.getObjectKey());
+    }
+
+    @Test void completeSkipsStorageDeleteWhenNoPriorActiveImageExists() {
+        MediaAsset fresh = asset(20L, coach, MediaType.PROFILE_IMAGE, MediaVisibility.PUBLIC, MediaStatus.PENDING_UPLOAD);
+        CoachProfile profile = new CoachProfile();
+        when(assets.findById(20L)).thenReturn(Optional.of(fresh));
+        when(storage.headObject(fresh.getObjectKey())).thenReturn(new StorageService.StoredObjectMetadata(true, "image/jpeg", 100));
+        when(coaches.findByUserId(7L)).thenReturn(Optional.of(profile));
+        service.complete(7L, 20L);
+        assertThat(profile.getProfileImageAsset()).isSameAs(fresh);
+        verify(storage, never()).deleteObject(anyString());
     }
 
     @Test void privateDocumentDownloadOwnerAndAdminAllowedUnrelatedDenied() {
