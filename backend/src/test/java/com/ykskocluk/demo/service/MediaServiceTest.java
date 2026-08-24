@@ -111,7 +111,7 @@ class MediaServiceTest {
         assertThat(asset.getStatus()).isEqualTo(MediaStatus.PENDING_UPLOAD);
     }
 
-    @Test void completeActivatesAndReplacesProfileImageWithoutPhysicalOldDelete() {
+    @Test void completeActivatesAndReplacesProfileImageAndDeletesOldFromStorage() {
         MediaAsset old = asset(19L, coach, MediaType.PROFILE_IMAGE, MediaVisibility.PUBLIC, MediaStatus.ACTIVE);
         MediaAsset fresh = asset(20L, coach, MediaType.PROFILE_IMAGE, MediaVisibility.PUBLIC, MediaStatus.PENDING_UPLOAD);
         CoachProfile profile = new CoachProfile(); profile.setProfileImageAsset(old);
@@ -122,7 +122,18 @@ class MediaServiceTest {
         assertThat(fresh.getStatus()).isEqualTo(MediaStatus.ACTIVE);
         assertThat(old.getStatus()).isEqualTo(MediaStatus.DELETED);
         assertThat(profile.getProfileImageAsset()).isSameAs(fresh);
-        verify(storage, never()).deleteObject(old.getObjectKey());
+        verify(storage).deleteObject(old.getObjectKey());
+    }
+
+    @Test void completeSkipsStorageDeleteWhenNoPriorActiveImageExists() {
+        MediaAsset fresh = asset(20L, coach, MediaType.PROFILE_IMAGE, MediaVisibility.PUBLIC, MediaStatus.PENDING_UPLOAD);
+        CoachProfile profile = new CoachProfile();
+        when(assets.findById(20L)).thenReturn(Optional.of(fresh));
+        when(storage.headObject(fresh.getObjectKey())).thenReturn(new StorageService.StoredObjectMetadata(true, "image/jpeg", 100));
+        when(coaches.findByUserId(7L)).thenReturn(Optional.of(profile));
+        service.complete(7L, 20L);
+        assertThat(profile.getProfileImageAsset()).isSameAs(fresh);
+        verify(storage, never()).deleteObject(anyString());
     }
 
     @Test void privateDocumentDownloadOwnerAndAdminAllowedUnrelatedDenied() {
@@ -136,6 +147,37 @@ class MediaServiceTest {
         assertThatThrownBy(() -> service.download(2L, 30L)).isInstanceOf(ApiException.class)
                 .extracting(e -> ((ApiException)e).getErrorCode()).isEqualTo("MEDIA_OWNER_INVALID");
         verify(resolver, never()).publicUrl(document);
+    }
+
+    @Test void publicAssetDownloadReturnsPresignedUrlNotDirectPublicUrl() {
+        MediaAsset profileImage = asset(31L, coach, MediaType.PROFILE_IMAGE, MediaVisibility.PUBLIC, MediaStatus.ACTIVE);
+        when(assets.findById(31L)).thenReturn(Optional.of(profileImage));
+        Instant expiry = Instant.now().plusSeconds(600);
+        when(storage.createPresignedDownload(profileImage.getObjectKey()))
+                .thenReturn(new StorageService.DownloadTarget("https://stub/presigned", expiry));
+        User stranger = user(2L, Role.STUDENT);
+        when(users.findById(2L)).thenReturn(Optional.of(stranger));
+
+        var response = service.download(2L, 31L);
+
+        assertThat(response.url()).isEqualTo("https://stub/presigned");
+        assertThat(response.expiresAt()).isEqualTo(expiry);
+        verify(resolver, never()).publicUrl(profileImage);
+    }
+
+    @Test void publicPresignedUrlNeedsNoRequesterButRejectsPrivateAssets() {
+        MediaAsset image = asset(31L, coach, MediaType.PROFILE_IMAGE, MediaVisibility.PUBLIC, MediaStatus.ACTIVE);
+        when(assets.findById(31L)).thenReturn(Optional.of(image));
+        when(storage.createPresignedDownload(image.getObjectKey()))
+                .thenReturn(new StorageService.DownloadTarget("https://stub/presigned", Instant.now().plusSeconds(600)));
+        assertThat(service.publicPresignedUrl(31L)).isEqualTo("https://stub/presigned");
+        verify(users, never()).findById(anyLong());
+
+        MediaAsset document = asset(32L, coach, MediaType.DOCUMENT, MediaVisibility.PRIVATE, MediaStatus.ACTIVE);
+        when(assets.findById(32L)).thenReturn(Optional.of(document));
+        assertThatThrownBy(() -> service.publicPresignedUrl(32L)).isInstanceOf(ApiException.class)
+                .extracting(e -> ((ApiException) e).getErrorCode()).isEqualTo("MEDIA_NOT_FOUND");
+        verify(storage, never()).createPresignedDownload(document.getObjectKey());
     }
 
     @Test void cannotDeleteAnotherUsersAsset() {

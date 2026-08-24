@@ -36,6 +36,7 @@ export function AccountPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [removingPhoto, setRemovingPhoto] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
@@ -61,6 +62,8 @@ export function AccountPage() {
     return () => { active = false; };
   }, [user, version]);
 
+  // profileImageUrl points at the backend's own /api/v1/public/media/{assetId} redirect, which
+  // signs a fresh storage URL per request — so it stays valid however long this page is open.
   const profileImageUrl = studentProfile?.profileImageUrl ?? coachProfile?.profileImageUrl ?? null;
   const dirty = useMemo(() => {
     if (user?.role === "STUDENT" && studentProfile) return JSON.stringify(student) !== JSON.stringify(studentDraft(studentProfile));
@@ -117,6 +120,19 @@ export function AccountPage() {
     finally { setUploading(false); }
   };
 
+  const removePhoto = async () => {
+    const assetId = studentProfile?.profileImageAssetId;
+    if (assetId == null) return;
+    if (!window.confirm("Profil fotoğrafınızı kaldırmak istediğinize emin misiniz?")) return;
+    setRemovingPhoto(true); setError(null); setNotice(null);
+    try {
+      await accountApi.deleteMedia(assetId);
+      setStudentProfile((prev) => (prev ? { ...prev, profileImageAssetId: null, profileImageUrl: null } : prev));
+      setNotice("Profil fotoğrafınız kaldırıldı.");
+    } catch { setError("Profil fotoğrafı kaldırılamadı. Lütfen yeniden deneyin."); }
+    finally { setRemovingPhoto(false); }
+  };
+
   if (!user || user.role === "ADMIN") return <div className="account-page__state">Hesap sayfasına yönlendiriliyor…</div>;
 
   return (
@@ -128,7 +144,24 @@ export function AccountPage() {
         <form className="account-page__card" onSubmit={save}>
           <section className="account-page__photo" aria-labelledby="profile-photo-title">
             <div className="account-page__avatar">{profileImageUrl ? <img src={profileImageUrl} alt="Profil fotoğrafı" /> : <span>{initials(user.fullName)}</span>}</div>
-            <div><h2 id="profile-photo-title">Profil Fotoğrafı</h2><p>JPG, PNG veya WEBP · En fazla 2 MB</p><button type="button" disabled={uploading} onClick={() => fileInput.current?.click()}>{uploading ? "Yükleniyor…" : "Fotoğraf Yükle"}</button><input ref={fileInput} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadPhoto} /></div>
+            <div>
+              <h2 id="profile-photo-title">Profil Fotoğrafı</h2>
+              <p>JPG, PNG veya WEBP · En fazla 2 MB</p>
+              <div className="account-page__photo-actions">
+                <button type="button" disabled={uploading || removingPhoto} onClick={() => fileInput.current?.click()}>{uploading ? "Yükleniyor…" : "Fotoğraf Yükle"}</button>
+                {studentProfile?.profileImageAssetId != null && (
+                  <button
+                    type="button"
+                    className="account-page__photo-remove"
+                    disabled={uploading || removingPhoto}
+                    onClick={() => void removePhoto()}
+                  >
+                    {removingPhoto ? "Kaldırılıyor…" : "Fotoğrafı Kaldır"}
+                  </button>
+                )}
+              </div>
+              <input ref={fileInput} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadPhoto} />
+            </div>
           </section>
 
           <section className="account-page__section" aria-labelledby="personal-info-title">

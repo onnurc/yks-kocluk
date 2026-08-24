@@ -92,6 +92,10 @@ app:
     upload-url-expiration-minutes: ${R2_UPLOAD_URL_EXPIRATION_MINUTES:10}
     download-url-expiration-minutes: ${R2_DOWNLOAD_URL_EXPIRATION_MINUTES:10}
   media:
+    # This backend's own externally reachable origin. Public media URLs handed to clients point
+    # at GET /api/v1/public/media/{assetId} here, which redirects to a freshly signed storage
+    # URL, so the bucket's own hostname never has to be reachable by the browser.
+    public-base-url: ${MEDIA_PUBLIC_BASE_URL:http://localhost:8080}
     profile-image-max-bytes: ${MEDIA_PROFILE_IMAGE_MAX_BYTES:5242880}
     coach-video-max-bytes: ${MEDIA_COACH_VIDEO_MAX_BYTES:20971520}
     document-max-bytes: ${MEDIA_DOCUMENT_MAX_BYTES:10485760}

@@ -15,6 +15,7 @@ public record StudentProfileResponse(
         ExamSession examSession,
         String targetUniversity,
         String targetDepartment,
-        String profileImageUrl
+        String profileImageUrl,
+        Long profileImageAssetId
 ) {
 }

@@ -13,5 +13,6 @@ public interface StudentProfileMapper {
     @Mapping(target = "fullName", source = "user.fullName")
     @Mapping(target = "email", source = "user.email")
     @Mapping(target = "profileImageUrl", source = "profileImageAsset", qualifiedByName = "publicMediaUrl")
+    @Mapping(target = "profileImageAssetId", source = "profileImageAsset", qualifiedByName = "activeAssetId")
     StudentProfileResponse toResponse(StudentProfile profile);
 }
