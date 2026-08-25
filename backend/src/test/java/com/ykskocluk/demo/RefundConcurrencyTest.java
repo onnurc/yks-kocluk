@@ -108,7 +108,7 @@ class RefundConcurrencyTest {
         String r2 = f2.get(15, TimeUnit.SECONDS);
         pool.shutdown();
 
-        assertThat(List.of(r1, r2)).containsExactlyInAnyOrder("OK", "EXCEEDS_REFUNDABLE_AMOUNT");
+        assertThat(List.of(r1, r2)).containsExactlyInAnyOrder("OK", "PAYMENT_ALREADY_REFUNDED");
 
         // Exactly one SUCCESS refund, and total refunded equals the original amount (never doubled).
         List<Payment> successRefunds = paymentRepository.findBySourcePaymentIdAndStatus(chargeId, PaymentStatus.SUCCESS);
