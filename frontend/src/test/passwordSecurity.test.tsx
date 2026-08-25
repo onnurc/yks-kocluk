@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ForgotPasswordPage } from "../pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "../pages/ResetPasswordPage";
@@ -27,9 +27,38 @@ describe("password recovery and security pages", () => {
   it("forgot password displays the generic confirmation", async () => {
     mocks.forgotPassword.mockResolvedValue({ message: "Bu e-posta adresiyle eşleşen bir hesap varsa şifre sıfırlama bağlantısı gönderildi.", reloginRequired: false });
     render(<MemoryRouter><ForgotPasswordPage /></MemoryRouter>);
-    fireEvent.change(screen.getByLabelText("E-posta"), { target: { value: "user@example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: "Sıfırlama bağlantısı gönder" }));
+    fireEvent.change(screen.getByLabelText("E-posta Adresi"), { target: { value: "user@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sıfırlama Bağlantısı Gönder" }));
+    await waitFor(() => expect(mocks.forgotPassword).toHaveBeenCalledWith("user@example.com"));
     expect(await screen.findByRole("status")).toHaveTextContent("bir hesap varsa");
+  });
+
+  it("renders forgot password in the auth shell and returns to login", () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={["/forgot-password"]}>
+        <Routes>
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/login" element={<div>Giriş hedefi</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(container.querySelector(".auth-shell")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Parolamı Unuttum" })).toBeInTheDocument();
+    expect(screen.getByLabelText("E-posta Adresi")).toHaveAttribute("type", "email");
+    expect(screen.getByLabelText("E-posta Adresi").closest("label")).toHaveClass("auth-field");
+    fireEvent.click(screen.getByRole("link", { name: "Giriş sayfasına dön" }));
+    expect(screen.getByText("Giriş hedefi")).toBeInTheDocument();
+  });
+
+  it("keeps the styled forgot-password form available after a safe request error", async () => {
+    mocks.forgotPassword.mockRejectedValue(new Error("İstek tamamlanamadı. Lütfen tekrar deneyin."));
+    render(<MemoryRouter><ForgotPasswordPage /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("E-posta Adresi"), { target: { value: "user@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sıfırlama Bağlantısı Gönder" }));
+
+    expect(await screen.findByText("İstek tamamlanamadı. Lütfen tekrar deneyin.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sıfırlama Bağlantısı Gönder" })).toBeEnabled();
   });
 
   it("reset password validates confirmation before API call", () => {

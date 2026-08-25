@@ -144,6 +144,7 @@
 .auth-footer { margin-top: 28px; color: #4c5260; font-size: 15px; text-align: center; }
 .auth-footer a { color: var(--auth-ink) !important; font-weight: 600; text-decoration: none; }
 .auth-footer a:hover { color: #8a671f !important; text-decoration: underline; text-underline-offset: 4px; }
+.auth-footer--return { margin-top: 24px; }
 .auth-security { margin-top: 28px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #9a9a9a; font-size: 12px; line-height: 1.45; text-align: center; }
 
 .auth-legal { margin: 8px 0 0; padding: 22px; border: 1px solid var(--auth-border); border-radius: 20px; background: #fafafa; }

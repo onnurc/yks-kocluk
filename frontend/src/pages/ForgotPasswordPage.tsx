@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { authApi } from "../auth/authApi";
 import { FormError } from "../components/FormError";
+import { AuthPageShell } from "./AuthPageShell";
+import "./auth-page.css";
 
 export const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState("");
@@ -16,17 +18,30 @@ export const ForgotPasswordPage: React.FC = () => {
     finally { setLoading(false); }
   };
 
-  return <main style={{ maxWidth: 440, margin: "4rem auto", padding: "2rem", background: "white", border: "1px solid #cbd5e1", borderRadius: 8 }}>
-    <h1>Parolamı Unuttum</h1>
-    <p>E-posta adresinizi girin. Hesabınız uygunsa size tek kullanımlık bir bağlantı göndereceğiz.</p>
-    {message ? <div role="status" style={{ padding: ".75rem", background: "#ecfdf5", color: "#166534" }}>{message}</div> : <>
-      <FormError error={error} />
-      <form onSubmit={submit}>
-        <label htmlFor="forgot-email">E-posta</label>
-        <input id="forgot-email" type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} disabled={loading} style={{ width: "100%", padding: ".65rem", boxSizing: "border-box", margin: ".5rem 0 1rem" }} />
-        <button disabled={loading} type="submit">{loading ? "Gönderiliyor…" : "Sıfırlama bağlantısı gönder"}</button>
-      </form>
-    </>}
-    <p><Link to="/login">Giriş sayfasına dön</Link></p>
-  </main>;
+  return (
+    <AuthPageShell
+      title="Parolamı Unuttum"
+      lead="E-posta adresinizi girin. Hesabınız uygunsa mevcut güvenli sıfırlama bağlantısını size göndereceğiz."
+      icon="✦"
+    >
+      {message ? (
+        <div className="auth-notice auth-notice--success" role="status">{message}</div>
+      ) : (
+        <>
+          <div className="auth-error-slot"><FormError error={error} /></div>
+          <form className="auth-form" onSubmit={submit}>
+            <label className="auth-field" htmlFor="forgot-email">
+              <span>E-posta Adresi</span>
+              <input id="forgot-email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} disabled={loading} />
+            </label>
+            <button className="auth-submit" disabled={loading} type="submit">
+              {loading ? "Gönderiliyor…" : "Sıfırlama Bağlantısı Gönder"}
+            </button>
+          </form>
+        </>
+      )}
+      <p className="auth-footer auth-footer--return"><Link to="/login">Giriş sayfasına dön</Link></p>
+      <p className="auth-security"><span aria-hidden="true">♙</span> Güvenliğiniz için hesap durumu bu ekranda paylaşılmaz.</p>
+    </AuthPageShell>
+  );
 };

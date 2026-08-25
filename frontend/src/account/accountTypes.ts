@@ -45,6 +45,7 @@ export interface CoachProfileResponse {
   maxStudentCapacity: number;
   payoutAccountReady: boolean;
   profileImageUrl: string | null;
+  profileImageAssetId: number | null;
   introVideoUrl: string | null;
 }
 

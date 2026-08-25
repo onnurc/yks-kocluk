@@ -24,6 +24,7 @@ public record CoachProfileResponse(
         int maxStudentCapacity,
         boolean payoutAccountReady,
         String profileImageUrl,
+        Long profileImageAssetId,
         String introVideoUrl
 ) {
 }

@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   listConversations: vi.fn(),
   logout: vi.fn(),
   useNotificationSocket: vi.fn(),
+  getStudentProfile: vi.fn(),
+  getCoachProfile: vi.fn(),
 }));
 
 vi.mock("../messaging/messagingApi", () => ({
@@ -16,6 +18,12 @@ vi.mock("../messaging/messagingApi", () => ({
 }));
 vi.mock("../messaging/useNotificationSocket", () => ({
   useNotificationSocket: mocks.useNotificationSocket,
+}));
+vi.mock("../account/accountApi", () => ({
+  accountApi: {
+    getStudentProfile: mocks.getStudentProfile,
+    getCoachProfile: mocks.getCoachProfile,
+  },
 }));
 vi.mock("../legal/useLegalDocuments", () => ({
   useLegalDocuments: () => ({ documents: {}, loading: false, error: null, reload: vi.fn() }),
@@ -57,6 +65,41 @@ describe("shared authenticated product shell", () => {
     vi.clearAllMocks();
     mocks.listConversations.mockResolvedValue([]);
     mocks.logout.mockResolvedValue(undefined);
+    mocks.getStudentProfile.mockResolvedValue({ profileImageUrl: null });
+    mocks.getCoachProfile.mockResolvedValue({ profileImageUrl: null });
+  });
+
+  it("renders the student's saved profile image in every responsive avatar slot", async () => {
+    mocks.getStudentProfile.mockResolvedValue({ profileImageUrl: "/api/v1/public/media/41" });
+    const { container } = renderShell("/dashboard");
+
+    await waitFor(() => expect(container.querySelectorAll('.app-layout__avatar img[src="/api/v1/public/media/41"]')).toHaveLength(3));
+    expect(mocks.getStudentProfile).toHaveBeenCalledTimes(1);
+    expect(mocks.getCoachProfile).not.toHaveBeenCalled();
+  });
+
+  it("renders the coach's saved profile image in every responsive avatar slot", async () => {
+    mocks.getCoachProfile.mockResolvedValue({ profileImageUrl: "/api/v1/public/media/57" });
+    const { container } = renderShell("/dashboard", { ...student, role: "COACH", fullName: "Ece Koç" });
+
+    await waitFor(() => expect(container.querySelectorAll('.app-layout__avatar img[src="/api/v1/public/media/57"]')).toHaveLength(3));
+    expect(mocks.getCoachProfile).toHaveBeenCalledTimes(1);
+    expect(mocks.getStudentProfile).not.toHaveBeenCalled();
+  });
+
+  it("keeps initials as the safe fallback when no profile image exists or an image fails", async () => {
+    const { container } = renderShell("/dashboard");
+
+    await waitFor(() => expect(mocks.getStudentProfile).toHaveBeenCalledTimes(1));
+    expect(container.querySelectorAll(".app-layout__avatar img")).toHaveLength(0);
+    expect(screen.getAllByText("SE")).toHaveLength(3);
+
+    mocks.getStudentProfile.mockResolvedValue({ profileImageUrl: "/api/v1/public/media/unavailable" });
+    const failedImageView = renderShell("/dashboard");
+    await waitFor(() => expect(failedImageView.container.querySelector(".app-layout__avatar img")).toBeInTheDocument());
+    const failedImage = failedImageView.container.querySelector(".app-layout__avatar img")!;
+    fireEvent.error(failedImage);
+    expect(failedImageView.container.querySelector(".app-layout__avatar")?.textContent).toBe("SE");
   });
 
   it.each([
