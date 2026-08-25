@@ -198,6 +198,21 @@ class MediaServiceTest {
         assertThat(asset.getStatus()).isEqualTo(MediaStatus.DELETED);
     }
 
+    @Test void ownerDeleteDetachesCoachProfileImage() {
+        MediaAsset asset = asset(42L, coach, MediaType.PROFILE_IMAGE, MediaVisibility.PUBLIC, MediaStatus.ACTIVE);
+        CoachProfile profile = new CoachProfile();
+        profile.setProfileImageAsset(asset);
+        when(assets.findById(42L)).thenReturn(Optional.of(asset));
+        when(coaches.findByUserId(7L)).thenReturn(Optional.of(profile));
+        when(students.findByUserId(7L)).thenReturn(Optional.empty());
+
+        service.delete(7L, 42L);
+
+        verify(storage).deleteObject(asset.getObjectKey());
+        assertThat(profile.getProfileImageAsset()).isNull();
+        assertThat(asset.getStatus()).isEqualTo(MediaStatus.DELETED);
+    }
+
     private User user(Long id, Role role) { User u = new User(); ReflectionTestUtils.setField(u, "id", id); u.setRole(role); return u; }
     private MediaAsset asset(Long id, User owner, MediaType type, MediaVisibility visibility, MediaStatus status) {
         MediaAsset a = new MediaAsset(); ReflectionTestUtils.setField(a, "id", id); a.setOwner(owner);

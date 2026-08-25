@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { AccountProfileProvider, useAccountProfile } from "../account/accountProfileContext";
 import { useAuth } from "../auth/AuthProvider";
 import type { UserRole } from "../auth/authTypes";
 import { LegalDocumentViewer } from "../legal/LegalDocumentViewer";
@@ -71,8 +72,20 @@ const roleLabels: Record<UserRole, string> = {
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toLocaleUpperCase("tr-TR");
 
-export const AppLayout: React.FC = () => {
+function ProfileAvatar({ fullName, imageUrl }: { fullName: string; imageUrl: string | null }) {
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const availableImageUrl = imageUrl && imageUrl !== failedImageUrl ? imageUrl : null;
+
+  return (
+    <span className="app-layout__avatar" aria-hidden="true">
+      {availableImageUrl ? <img src={availableImageUrl} alt="" onError={() => setFailedImageUrl(availableImageUrl)} /> : initials(fullName)}
+    </span>
+  );
+}
+
+const AppLayoutContent: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuth();
+  const { profileImageUrl } = useAccountProfile();
   const navigate = useNavigate();
   const footerDocuments = useLegalDocuments(["KVKK_NOTICE", "PRIVACY_POLICY", "TERMS_OF_USE"]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -149,11 +162,11 @@ export const AppLayout: React.FC = () => {
             </Link>
           )}
           <div className="app-layout__identity">
-            <span className="app-layout__avatar" aria-hidden="true">{initials(user.fullName)}</span>
+            <ProfileAvatar fullName={user.fullName} imageUrl={profileImageUrl} />
             <span><strong>{user.fullName}</strong><small>{roleLabels[user.role]}</small></span>
           </div>
           <button type="button" className="app-layout__icon-button app-layout__profile-button" aria-label="Hesap menüsünü aç" aria-controls="authenticated-navigation" aria-expanded={navigationOpen} onClick={() => setNavigationOpen(true)}>
-            <AppIcon name="profile" />
+            <ProfileAvatar fullName={user.fullName} imageUrl={profileImageUrl} />
           </button>
         </div>
       </header>
@@ -161,7 +174,7 @@ export const AppLayout: React.FC = () => {
       <div className="app-layout__frame">
         <aside id="authenticated-navigation" className={`app-layout__sidebar ${navigationOpen ? "is-open" : ""}`}>
           <div className="app-layout__mobile-account">
-            <span className="app-layout__avatar" aria-hidden="true">{initials(user.fullName)}</span>
+            <ProfileAvatar fullName={user.fullName} imageUrl={profileImageUrl} />
             <span><strong>{user.fullName}</strong><small>{roleLabels[user.role]}</small></span>
           </div>
           <nav className="app-layout__navigation" aria-label="Ürün navigasyonu">
@@ -200,3 +213,9 @@ export const AppLayout: React.FC = () => {
     </div>
   );
 };
+
+export const AppLayout: React.FC = () => (
+  <AccountProfileProvider>
+    <AppLayoutContent />
+  </AccountProfileProvider>
+);

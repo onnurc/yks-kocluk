@@ -51,7 +51,7 @@ class CoachProfileServiceTest {
                 userRepository, universityRepository, coachProfileMapper);
         lenient().when(coachProfileMapper.toResponse(any(), any())).thenReturn(
                 new CoachProfileResponse(1L, 1L, "Coach", "c@e.com", "h", "b", 5L, "Uni", "dep",
-                        2020, null, CoachProfileStatus.PENDING, null, Set.of(Track.NUMERICAL), 0, 10, false, null, null));
+                        2020, null, CoachProfileStatus.PENDING, null, Set.of(Track.NUMERICAL), 0, 10, false, null, null, null));
     }
 
     private CoachProfileCreateRequest createRequest() {
