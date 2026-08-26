@@ -19,13 +19,16 @@ public class StudentProfileService {
     private final StudentProfileRepository studentProfileRepository;
     private final UserRepository userRepository;
     private final StudentProfileMapper studentProfileMapper;
+    private final StudentProfileProvisioningService studentProfileProvisioningService;
 
     public StudentProfileService(StudentProfileRepository studentProfileRepository,
                                  UserRepository userRepository,
-                                 StudentProfileMapper studentProfileMapper) {
+                                 StudentProfileMapper studentProfileMapper,
+                                 StudentProfileProvisioningService studentProfileProvisioningService) {
         this.studentProfileRepository = studentProfileRepository;
         this.userRepository = userRepository;
         this.studentProfileMapper = studentProfileMapper;
+        this.studentProfileProvisioningService = studentProfileProvisioningService;
     }
 
     @Transactional
@@ -45,7 +48,7 @@ public class StudentProfileService {
         return studentProfileMapper.toResponse(profile);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public StudentProfileResponse getOwn(Long userId) {
         return studentProfileMapper.toResponse(requireOwnProfile(userId));
     }
@@ -64,8 +67,6 @@ public class StudentProfileService {
     }
 
     private StudentProfile requireOwnProfile(Long userId) {
-        return studentProfileRepository.findByUserId(userId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PROFILE_NOT_FOUND",
-                        "Öğrenci profili bulunamadı"));
+        return studentProfileProvisioningService.getOrCreateForStudent(userId);
     }
 }

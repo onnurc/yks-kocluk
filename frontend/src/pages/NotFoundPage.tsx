@@ -1,14 +1,13 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import { FullPageError } from "../errors/FullPageError";
 
-export const NotFoundPage: React.FC = () => {
+export const NotFoundPage = () => {
   return (
-    <div style={{ padding: "4rem", textAlign: "center" }}>
-      <h1>404 - Sayfa Bulunamadı</h1>
-      <p style={{ margin: "1.5rem 0" }}>Aradığınız sayfa mevcut değil veya taşınmış olabilir.</p>
-      <Link to="/dashboard" style={{ padding: "0.75rem 1.5rem", backgroundColor: "#007bff", color: "white", textDecoration: "none", borderRadius: "4px" }}>
-        Anasayfaya Dön
-      </Link>
-    </div>
+    <FullPageError
+      code="404"
+      eyebrow="Aradığınız yere ulaşamadık"
+      title="Sayfa Bulunamadı"
+      description="Aradığınız sayfa mevcut değil, taşınmış veya bağlantı artık geçerli olmayabilir."
+      primaryAction={{ label: "Ana Sayfaya Dön", to: "/" }}
+    />
   );
 };

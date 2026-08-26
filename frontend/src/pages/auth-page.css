@@ -111,9 +111,14 @@
 .auth-field select:focus { border-color: var(--auth-gold); background: #fff; box-shadow: 0 0 0 3px rgba(201, 162, 93, .14); }
 .auth-field input:disabled,
 .auth-field select:disabled { opacity: .62; }
+.auth-field input[aria-invalid="true"] { border-color: #b3261e; background: #fff8f7; box-shadow: 0 0 0 3px rgba(179, 38, 30, .08); }
 .auth-field--password input { padding-right: 58px; }
 .auth-field--password > button { position: absolute; right: 14px; bottom: 9px; width: 40px; height: 40px; border: 0; border-radius: 50%; color: #4c5260; background: transparent; cursor: pointer; }
 .auth-field--password > button:hover { background: rgba(0, 14, 50, .06); }
+.auth-form-hint { margin: -8px 8px 20px; color: #626875; font-size: 13px; line-height: 1.45; text-align: center; }
+.auth-field-group { margin-bottom: 18px; }
+.auth-field-group .auth-field { margin-bottom: 0; }
+.auth-field-error { margin: 7px 16px 0; color: #9b1c1c; font-size: 13px; line-height: 1.4; }
 
 .auth-forgot { display: block; width: fit-content; margin: -4px 8px 0 auto; color: var(--auth-ink) !important; font-size: 13px; text-decoration: none; }
 .auth-forgot:hover { text-decoration: underline; text-underline-offset: 4px; }
@@ -135,6 +140,7 @@
 .auth-submit { margin-top: 26px; border: 0; color: #fff; background: var(--auth-ink); cursor: pointer; }
 .auth-submit:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0, 14, 50, .18); }
 .auth-submit:disabled { opacity: .55; cursor: not-allowed; }
+.auth-shell .auth-submit--link { color: #fff; text-decoration: none; }
 .auth-google { border: 1px solid var(--auth-border); color: var(--auth-ink) !important; background: #fff; text-decoration: none; }
 .auth-google:hover { transform: translateY(-1px); background: #f8f8f8; }
 
