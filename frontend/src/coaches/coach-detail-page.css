@@ -220,12 +220,14 @@
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.06);
 }
 
-.coach-detail-video video {
+.coach-detail-video video,
+.coach-detail-video iframe {
   display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
   background: #000;
 }
+.coach-detail-video iframe { border: 0; }
 
 .coach-detail-video__empty {
   display: flex;

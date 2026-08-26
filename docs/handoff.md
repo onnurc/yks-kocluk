@@ -454,11 +454,12 @@ sanctioned interfaces" rule were kept, not revisited.
 - Neon/PostgreSQL remains the structured-data store. `media_assets` stores only owner, object key, declared metadata, type, visibility and lifecycle status; no binary content, credentials, or temporary signed URLs are stored in PostgreSQL.
 - `StorageService` isolates business code from the S3-compatible SDK. `CloudflareR2StorageService` uses AWS SDK v2 only when `R2_ENABLED=true`; otherwise `StubStorageService` provides in-memory, network-free presign/HEAD/download/delete behavior.
 - Authenticated clients call `POST /api/v1/media/uploads/presign`, upload directly with the required `Content-Type`, then call `POST /api/v1/media/uploads/{assetId}/complete`. Completion performs object HEAD/metadata validation before changing `PENDING_UPLOAD` to `ACTIVE`.
-- The backend selects visibility and random object key. Profile images and coach intro videos are public; documents are private. Public URLs resolve only from `R2_PUBLIC_BASE_URL`; private downloads require owner or ADMIN authorization and use short-lived signed GET URLs.
-- Coach/student profiles can reference an active profile-image asset. Coach profiles can additionally reference an optional active intro-video asset. Discovery/detail DTOs expose only resolved active public media. Pending, deleted, and private assets are never emitted there.
-- Defaults: profile image (JPEG/PNG/WebP) 5 MiB; coach video (MP4/WebM) 20 MiB; private document (PDF/JPEG/PNG) 10 MiB. R2 is object storage only: Cloudflare Stream, transcoding and adaptive bitrate are not included.
-- Replacement is transactional: the new active asset becomes the profile reference and the old asset is lifecycle-marked `DELETED` without immediate physical deletion. Explicit deletion calls storage first; a provider failure rolls back the database transition.
-- Railway does not proxy upload bodies or use its ephemeral filesystem. Required future variables are `R2_ENABLED`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_ENDPOINT`, `R2_PUBLIC_BASE_URL`, `R2_UPLOAD_URL_EXPIRATION_MINUTES`, and `R2_DOWNLOAD_URL_EXPIRATION_MINUTES`. Optional policy overrides are `MEDIA_PROFILE_IMAGE_MAX_BYTES`, `MEDIA_COACH_VIDEO_MAX_BYTES`, and `MEDIA_DOCUMENT_MAX_BYTES`.
+- The backend selects visibility and a random object key. Profile images remain PUBLIC because both authenticated shells and public coach discovery render the same stable URL; their anonymous locator is a separate 256-bit opaque token, never a database/user id. DOCUMENT remains intentionally PRIVATE for future KVKK/consent/user-document work.
+- PUBLIC responses use the stable backend URL `GET /api/v1/public/media/{opaqueToken}`, which redirects to a fresh signed storage URL. PRIVATE downloads use authenticated `GET /api/v1/media/{assetId}/download-url` with owner/ADMIN authorization and expiration.
+- Coach/student profiles reference active profile-image assets. Coach introductions are no longer uploaded to R2: an ADMIN stores a validated YouTube video id and responses derive only `https://www.youtube-nocookie.com/embed/{id}`. The historical R2 intro-video column/type is retained only for migration compatibility.
+- Defaults: profile image (JPEG/PNG/WebP) 5 MiB; private document (PDF/JPEG/PNG) 10 MiB. Stale `PENDING_UPLOAD` rows expire after 24 hours in bounded scheduled batches.
+- Replacement/deletion first commits the DB lifecycle/reference change, then performs irreversible object deletion after commit. Rollback therefore cannot leave an active DB reference pointing at a deleted object; post-commit failures are logged for operational follow-up.
+- Railway does not proxy upload bodies or use its ephemeral filesystem. Required variables are `R2_ENABLED`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_ENDPOINT`, `MEDIA_PUBLIC_BASE_URL`, `R2_UPLOAD_URL_EXPIRATION_MINUTES`, and `R2_DOWNLOAD_URL_EXPIRATION_MINUTES`. A non-local R2 deployment fails startup unless `MEDIA_PUBLIC_BASE_URL` is a non-local HTTPS backend origin.
 
 No real Cloudflare account, bucket, credentials, DNS, CORS, custom domain, or API call is configured in this branch. Production setup checklist:
 
@@ -467,11 +468,11 @@ No real Cloudflare account, bucket, credentials, DNS, CORS, custom domain, or AP
 3. Create a bucket-scoped API token with minimum required object permissions.
 4. Set Railway environment variables and enable R2.
 5. Configure bucket CORS for exact frontend origins, PUT/GET methods and required headers.
-6. Configure the media custom domain.
-7. Set `R2_PUBLIC_BASE_URL` (for example `https://media.uniformakademi.com`).
+6. Set `MEDIA_PUBLIC_BASE_URL` to the externally reachable HTTPS backend origin.
+7. Confirm anonymous opaque-token redirects and authenticated private downloads through the backend.
 8. Run real presign/upload/finalize/public-read/private-download/replacement/delete smoke tests.
 
-Private-document malware scanning/quarantine, abandoned-pending cleanup and physical deletion retry are production-hardening follow-ups.
+Private-document malware scanning/quarantine and a durable retry/outbox for failed post-commit physical deletion remain production-hardening follow-ups.
 
 ## Account, conversation, purchase-mail and refund policy contract (2026-08-09)
 

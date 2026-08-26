@@ -18,11 +18,11 @@ public record PublicCoachDetailResponse(
         int totalSessions,
         boolean acceptingNewStudents,
         String profileImageUrl,
-        String introVideoUrl
+        String introVideoEmbedUrl
 ) {
     public static PublicCoachDetailResponse from(CoachDetailResponse coach) {
         return new PublicCoachDetailResponse(coach.id(), coach.fullName(), coach.headline(), coach.bio(),
                 coach.universityName(), coach.department(), coach.graduationYear(), coach.tracks(), coach.rating(),
-                coach.totalSessions(), coach.acceptingNewStudents(), coach.profileImageUrl(), coach.introVideoUrl());
+                coach.totalSessions(), coach.acceptingNewStudents(), coach.profileImageUrl(), coach.introVideoEmbedUrl());
     }
 }

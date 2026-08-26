@@ -25,7 +25,7 @@ const detail = {
   totalSessions: 18,
   acceptingNewStudents: true,
   profileImageUrl: null,
-  introVideoUrl: null,
+  introVideoEmbedUrl: null,
 };
 
 const similar = {
@@ -38,7 +38,7 @@ const similar = {
   totalSessions: 2,
   acceptingNewStudents: true,
   profileImageUrl: null,
-  introVideoUrl: null,
+  introVideoEmbedUrl: null,
 };
 
 const page = { content: [detail, similar], page: 0, size: 4, totalElements: 2, totalPages: 1, last: true };
@@ -92,19 +92,32 @@ describe("Public koç profili", () => {
     expect(screen.queryByText(/9\.8|500\+|Efe Ali/)).not.toBeInTheDocument();
   });
 
-  it("renders real profile image and video URLs when supplied", async () => {
+  it("renders a real profile image and the generated privacy-enhanced YouTube embed", async () => {
     vi.mocked(coachDiscoveryApi.getPublicCoachDetail).mockResolvedValue({
       ...detail,
       profileImageUrl: "https://media.example/profile.jpg",
-      introVideoUrl: "https://media.example/intro.mp4",
+      introVideoEmbedUrl: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
     });
     vi.mocked(coachDiscoveryApi.listCoaches).mockResolvedValue({ ...page, content: [] });
     renderRoute();
 
     expect(await screen.findByRole("img", { name: "Ayşe Yılmaz profil fotoğrafı" })).toHaveAttribute("src", "https://media.example/profile.jpg");
-    const video = screen.getByLabelText("Ayşe Yılmaz tanıtım videosu");
-    expect(video).toHaveAttribute("poster", "https://media.example/profile.jpg");
-    expect(video.querySelector("source")).toHaveAttribute("src", "https://media.example/intro.mp4");
+    const video = screen.getByTitle("Ayşe Yılmaz tanıtım videosu");
+    expect(video).toHaveAttribute("src", "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ");
+    expect(video).toHaveAttribute("sandbox", "allow-scripts allow-same-origin allow-presentation");
+    expect(video).toHaveAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+  });
+
+  it("rejects a non-YouTube embed URL and keeps the clean no-video state", async () => {
+    vi.mocked(coachDiscoveryApi.getPublicCoachDetail).mockResolvedValue({
+      ...detail,
+      introVideoEmbedUrl: "https://evil.example/embed/dQw4w9WgXcQ",
+    });
+    vi.mocked(coachDiscoveryApi.listCoaches).mockResolvedValue({ ...page, content: [] });
+    renderRoute();
+
+    expect(await screen.findByText("Tanıtım videosu henüz eklenmedi.")).toBeInTheDocument();
+    expect(screen.queryByTitle("Ayşe Yılmaz tanıtım videosu")).not.toBeInTheDocument();
   });
 
   it("shows generic not-found and retryable service errors", async () => {

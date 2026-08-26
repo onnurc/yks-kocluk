@@ -22,6 +22,6 @@ public record CoachDetailResponse(
         int totalSessions,
         boolean acceptingNewStudents,
         String profileImageUrl,
-        String introVideoUrl
+        String introVideoEmbedUrl
 ) {
 }

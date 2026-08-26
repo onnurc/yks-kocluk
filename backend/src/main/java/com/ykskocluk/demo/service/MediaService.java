@@ -15,12 +15,13 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 public class MediaService {
     private static final Set<String> IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
-    private static final Set<String> VIDEO_TYPES = Set.of("video/mp4", "video/webm");
     private static final Set<String> DOCUMENT_TYPES = Set.of("application/pdf", "image/jpeg", "image/png");
+    private static final Pattern PUBLIC_TOKEN = Pattern.compile("^[0-9a-f]{64}$");
 
     private final MediaAssetRepository assets;
     private final UserRepository users;
@@ -29,12 +30,16 @@ public class MediaService {
     private final StorageService storage;
     private final MediaPolicyProperties policy;
     private final MediaAssetUrlResolver urlResolver;
+    private final MediaPublicTokenGenerator tokenGenerator;
+    private final AfterCommitStorageDeletionService storageDeletion;
 
     public MediaService(MediaAssetRepository assets, UserRepository users, CoachProfileRepository coaches,
                         StudentProfileRepository students, StorageService storage, MediaPolicyProperties policy,
-                        MediaAssetUrlResolver urlResolver) {
+                        MediaAssetUrlResolver urlResolver, MediaPublicTokenGenerator tokenGenerator,
+                        AfterCommitStorageDeletionService storageDeletion) {
         this.assets = assets; this.users = users; this.coaches = coaches; this.students = students;
         this.storage = storage; this.policy = policy; this.urlResolver = urlResolver;
+        this.tokenGenerator = tokenGenerator; this.storageDeletion = storageDeletion;
     }
 
     @Transactional
@@ -46,6 +51,7 @@ public class MediaService {
         String objectKey = generateKey(owner, request.mediaType(), contentType);
 
         MediaAsset asset = new MediaAsset();
+        asset.setPublicToken(tokenGenerator.generate());
         asset.setOwner(owner); asset.setObjectKey(objectKey);
         asset.setOriginalFilename(safeFilename(request.originalFilename()));
         asset.setContentType(contentType); asset.setSizeBytes(request.sizeBytes());
@@ -91,11 +97,13 @@ public class MediaService {
      * as missing rather than forbidden so this endpoint cannot be used to probe for them.
      */
     @Transactional(readOnly = true)
-    public String publicPresignedUrl(Long assetId) {
-        MediaAsset asset = requireActiveAsset(assetId);
-        if (asset.getVisibility() != MediaVisibility.PUBLIC) {
+    public String publicPresignedUrl(String publicToken) {
+        if (publicToken == null || !PUBLIC_TOKEN.matcher(publicToken).matches()) {
             throw new ApiException(HttpStatus.NOT_FOUND, "MEDIA_NOT_FOUND", "Active media asset not found");
         }
+        MediaAsset asset = assets.findByPublicTokenAndStatusAndVisibility(
+                        publicToken, MediaStatus.ACTIVE, MediaVisibility.PUBLIC)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "MEDIA_NOT_FOUND", "Active media asset not found"));
         return storage.createPresignedDownload(asset.getObjectKey()).url();
     }
 
@@ -104,9 +112,9 @@ public class MediaService {
         MediaAsset asset = requireAsset(assetId);
         requireOwner(requesterId, asset);
         if (asset.getStatus() == MediaStatus.DELETED) return;
-        storage.deleteObject(asset.getObjectKey());
         detachFromProfiles(asset);
         asset.setStatus(MediaStatus.DELETED);
+        storageDeletion.deleteAfterCommit(asset.getObjectKey());
     }
 
     private void validatePolicy(User owner, MediaType type, String contentType, long size) {
@@ -114,11 +122,8 @@ public class MediaService {
         long max;
         switch (type) {
             case PROFILE_IMAGE -> { allowed = IMAGE_TYPES; max = policy.profileImageMaxBytes(); requireProfileOwner(owner); }
-            case COACH_INTRO_VIDEO -> {
-                allowed = VIDEO_TYPES; max = policy.coachVideoMaxBytes();
-                if (owner.getRole() != Role.COACH || !coaches.existsByUserId(owner.getId()))
-                    throw new ApiException(HttpStatus.FORBIDDEN, "MEDIA_OWNER_INVALID", "Coach intro video requires the owner's coach profile");
-            }
+            case COACH_INTRO_VIDEO -> throw new ApiException(HttpStatus.BAD_REQUEST, "MEDIA_TYPE_NOT_ALLOWED",
+                    "Coach intro videos are managed as approved YouTube references and cannot be uploaded");
             case DOCUMENT -> { allowed = DOCUMENT_TYPES; max = policy.documentMaxBytes(); }
             default -> throw new ApiException(HttpStatus.BAD_REQUEST, "MEDIA_TYPE_NOT_ALLOWED", "Unsupported media type");
         }
@@ -135,7 +140,7 @@ public class MediaService {
     private String generateKey(User owner, MediaType type, String contentType) {
         String folder = switch (type) {
             case PROFILE_IMAGE -> "public/profile-images/";
-            case COACH_INTRO_VIDEO -> "public/coach-videos/";
+            case COACH_INTRO_VIDEO -> throw new IllegalArgumentException("Legacy coach video uploads are disabled");
             case DOCUMENT -> "private/documents/";
         };
         return folder + owner.getId() + "/" + UUID.randomUUID() + extension(contentType);
@@ -158,21 +163,26 @@ public class MediaService {
 
     private void attachToProfile(MediaAsset asset) {
         if (asset.getMediaType() == MediaType.DOCUMENT) return;
+        if (asset.getMediaType() != MediaType.PROFILE_IMAGE) {
+            throw new ApiException(HttpStatus.CONFLICT, "MEDIA_STATUS_INVALID",
+                    "Legacy coach video uploads can no longer be completed");
+        }
         if (asset.getOwner().getRole() == Role.COACH) {
-            CoachProfile profile = coaches.findByUserId(asset.getOwner().getId()).orElseThrow();
-            if (asset.getMediaType() == MediaType.PROFILE_IMAGE) {
-                markReplaced(profile.getProfileImageAsset()); profile.setProfileImageAsset(asset);
-            } else { markReplaced(profile.getIntroVideoAsset()); profile.setIntroVideoAsset(asset); }
+            CoachProfile profile = coaches.findByUserId(asset.getOwner().getId())
+                    .orElseThrow(() -> profileMissing(asset));
+            markReplaced(profile.getProfileImageAsset());
+            profile.setProfileImageAsset(asset);
         } else if (asset.getMediaType() == MediaType.PROFILE_IMAGE) {
-            StudentProfile profile = students.findByUserId(asset.getOwner().getId()).orElseThrow();
+            StudentProfile profile = students.findByUserId(asset.getOwner().getId())
+                    .orElseThrow(() -> profileMissing(asset));
             markReplaced(profile.getProfileImageAsset()); profile.setProfileImageAsset(asset);
         }
     }
 
     private void markReplaced(MediaAsset old) {
         if (old != null && old.getStatus() == MediaStatus.ACTIVE) {
-            storage.deleteObject(old.getObjectKey());
             old.setStatus(MediaStatus.DELETED);
+            storageDeletion.deleteAfterCommit(old.getObjectKey());
         }
     }
 
@@ -188,6 +198,12 @@ public class MediaService {
 
     private boolean sameAsset(MediaAsset left, MediaAsset right) {
         return left != null && left.getId() != null && left.getId().equals(right.getId());
+    }
+
+    private ApiException profileMissing(MediaAsset asset) {
+        return new ApiException(HttpStatus.CONFLICT, "MEDIA_PROFILE_MISSING",
+                "The profile required to attach this media asset is unavailable",
+                Map.of("assetId", asset.getId()));
     }
 
     private User requireUser(Long id) { return users.findById(id).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User not found")); }

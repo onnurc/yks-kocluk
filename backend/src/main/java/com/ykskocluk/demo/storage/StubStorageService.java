@@ -38,10 +38,6 @@ public class StubStorageService implements StorageService {
 
     @Override public void deleteObject(String key) { preparedObjects.remove(key); }
 
-    @Override public String resolvePublicUrl(String key) {
-        return properties.publicBaseUrl() == null ? null : properties.publicBaseUrl() + "/" + key;
-    }
-
     private String stubUrl(String operation, String key) {
         return "https://stub-storage.invalid/" + operation + "/" + URLEncoder.encode(key, StandardCharsets.UTF_8);
     }

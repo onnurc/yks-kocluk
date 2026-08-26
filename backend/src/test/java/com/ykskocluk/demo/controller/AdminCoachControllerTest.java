@@ -12,6 +12,7 @@ import com.ykskocluk.demo.security.JwtService;
 import com.ykskocluk.demo.service.AdminDashboardService;
 import com.ykskocluk.demo.service.CoachDashboardService;
 import com.ykskocluk.demo.service.CoachProfileService;
+import com.ykskocluk.demo.service.CoachYoutubeIntroService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -40,6 +41,7 @@ class AdminCoachControllerTest {
     @MockitoBean CoachProfileService coachProfileService;
     @MockitoBean AdminDashboardService adminDashboardService;
     @MockitoBean CoachDashboardService coachDashboardService;
+    @MockitoBean CoachYoutubeIntroService coachYoutubeIntroService;
     @MockitoBean JwtService jwtService;
     @MockitoBean UserRepository userRepository;
 

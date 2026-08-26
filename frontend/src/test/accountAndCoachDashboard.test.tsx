@@ -8,6 +8,7 @@ import { AppLayout } from "../components/AppLayout";
 import { AccountPage } from "../pages/AccountPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { TestAuthProvider } from "./TestAuthProvider";
+import { ApiError } from "../api/ApiError";
 
 const mocks = vi.hoisted(() => ({
   getStudentProfile: vi.fn(), updateStudentProfile: vi.fn(),
@@ -32,7 +33,7 @@ const student: CurrentUser = { id: 7, email: "selin@uniform.test", fullName: "Se
 const coach: CurrentUser = { ...student, id: 9, email: "emre@uniform.test", fullName: "Emre Kaya", role: "COACH" };
 
 const studentProfile = { id: 3, userId: 7, fullName: student.fullName, email: student.email, gradeLevel: "12. Sınıf", city: "İzmir", examYear: 2030, yksScoreType: "NUMERICAL" as const, examSession: "AYT" as const, targetUniversity: "Ankara Üniversitesi", targetDepartment: "Tıp", profileImageUrl: null };
-const coachProfile = { id: 4, userId: 9, fullName: coach.fullName, email: coach.email, headline: "YKS mentoru", bio: "Gerçek profil", universityId: 11, universityName: "İstanbul Teknik Üniversitesi", department: "Endüstri Mühendisliği", graduationYear: 2024, yksRanking: 2870, status: "APPROVED" as const, rejectionReason: null, tracks: ["NUMERICAL" as const], activeStudentCount: 5, maxStudentCapacity: 10, payoutAccountReady: true, profileImageUrl: null, profileImageAssetId: null, introVideoUrl: null };
+const coachProfile = { id: 4, userId: 9, fullName: coach.fullName, email: coach.email, headline: "YKS mentoru", bio: "Gerçek profil", universityId: 11, universityName: "İstanbul Teknik Üniversitesi", department: "Endüstri Mühendisliği", graduationYear: 2024, yksRanking: 2870, status: "APPROVED" as const, rejectionReason: null, tracks: ["NUMERICAL" as const], activeStudentCount: 5, maxStudentCapacity: 10, payoutAccountReady: true, profileImageUrl: null, profileImageAssetId: null, introVideoEmbedUrl: null };
 
 function renderRoute(path: string, user: CurrentUser, element: React.ReactNode) {
   return render(
@@ -125,6 +126,36 @@ describe("shared role-aware account", () => {
     await waitFor(() => expect(mocks.uploadProfileImage).toHaveBeenCalledWith(file));
     await waitFor(() => expect(container.querySelector('.app-layout__identity img[src="/api/v1/public/media/42"]')).toBeInTheDocument());
     expect(mocks.getStudentProfile).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts backend-compatible profile images up to 5 MB and rejects larger files locally", async () => {
+    const { container } = renderRoute("/account", student, <AccountPage />);
+    await screen.findByRole("heading", { name: "Eğitim Hedefleri" });
+    expect(screen.getByText(/En fazla 5 MB/)).toBeInTheDocument();
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+
+    const valid = new File([new Uint8Array(3 * 1024 * 1024)], "profile.webp", { type: "image/webp" });
+    fireEvent.change(fileInput, { target: { files: [valid] } });
+    await waitFor(() => expect(mocks.uploadProfileImage).toHaveBeenCalledWith(valid));
+
+    mocks.uploadProfileImage.mockClear();
+    const oversized = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "large.png", { type: "image/png" });
+    fireEvent.change(fileInput, { target: { files: [oversized] } });
+    expect(await screen.findByRole("alert")).toHaveTextContent("5 MB’ı geçmemeli");
+    expect(mocks.uploadProfileImage).not.toHaveBeenCalled();
+  });
+
+  it("maps backend media error codes to safe contextual Turkish feedback", async () => {
+    mocks.uploadProfileImage.mockRejectedValueOnce(
+      new ApiError(400, "Bad Request", "internal detail", "MEDIA_TYPE_NOT_ALLOWED"),
+    );
+    const { container } = renderRoute("/account", coach, <AccountPage />);
+    await screen.findByRole("heading", { name: "Eğitim Bilgilerim" });
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    fireEvent.change(fileInput, { target: { files: [new File(["image"], "profile.png", { type: "image/png" })] } });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Bu dosya türü desteklenmiyor");
+    expect(screen.queryByText("internal detail")).not.toBeInTheDocument();
   });
 
   it("opens an in-app photo removal confirmation and cancel leaves the saved image untouched", async () => {

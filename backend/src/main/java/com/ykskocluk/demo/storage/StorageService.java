@@ -8,7 +8,6 @@ public interface StorageService {
     StoredObjectMetadata headObject(String objectKey);
     DownloadTarget createPresignedDownload(String objectKey);
     void deleteObject(String objectKey);
-    String resolvePublicUrl(String objectKey);
 
     record UploadTarget(String url, Instant expiresAt, Map<String, String> requiredHeaders) {}
     record DownloadTarget(String url, Instant expiresAt) {}

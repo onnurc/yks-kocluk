@@ -23,12 +23,12 @@ public class PublicMediaController {
 
     public PublicMediaController(MediaService mediaService) { this.mediaService = mediaService; }
 
-    @GetMapping("/{assetId}")
-    public ResponseEntity<Void> redirectToAsset(@PathVariable Long assetId) {
+    @GetMapping("/{publicToken}")
+    public ResponseEntity<Void> redirectToAsset(@PathVariable String publicToken) {
         // Never cached: the redirect target expires, so a cached copy would eventually point at a
         // signature the storage provider rejects.
         return ResponseEntity.status(HttpStatus.FOUND)
-                .location(URI.create(mediaService.publicPresignedUrl(assetId)))
+                .location(URI.create(mediaService.publicPresignedUrl(publicToken)))
                 .cacheControl(CacheControl.noStore())
                 .build();
     }

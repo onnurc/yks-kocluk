@@ -46,7 +46,7 @@ export interface CoachProfileResponse {
   payoutAccountReady: boolean;
   profileImageUrl: string | null;
   profileImageAssetId: number | null;
-  introVideoUrl: string | null;
+  introVideoEmbedUrl: string | null;
 }
 
 export interface CoachProfileUpdateRequest {

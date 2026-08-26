@@ -88,17 +88,19 @@ app:
     secret-access-key: ${R2_SECRET_ACCESS_KEY:}
     bucket: ${R2_BUCKET:}
     endpoint: ${R2_ENDPOINT:}
-    public-base-url: ${R2_PUBLIC_BASE_URL:}
     upload-url-expiration-minutes: ${R2_UPLOAD_URL_EXPIRATION_MINUTES:10}
     download-url-expiration-minutes: ${R2_DOWNLOAD_URL_EXPIRATION_MINUTES:10}
   media:
     # This backend's own externally reachable origin. Public media URLs handed to clients point
-    # at GET /api/v1/public/media/{assetId} here, which redirects to a freshly signed storage
+    # at GET /api/v1/public/media/{opaqueToken} here, which redirects to a freshly signed storage
     # URL, so the bucket's own hostname never has to be reachable by the browser.
     public-base-url: ${MEDIA_PUBLIC_BASE_URL:http://localhost:8080}
     profile-image-max-bytes: ${MEDIA_PROFILE_IMAGE_MAX_BYTES:5242880}
-    coach-video-max-bytes: ${MEDIA_COACH_VIDEO_MAX_BYTES:20971520}
     document-max-bytes: ${MEDIA_DOCUMENT_MAX_BYTES:10485760}
+    cleanup:
+      pending-upload-expiration: ${MEDIA_PENDING_UPLOAD_EXPIRATION:24h}
+      batch-size: ${MEDIA_PENDING_CLEANUP_BATCH_SIZE:100}
+      cron: ${MEDIA_PENDING_CLEANUP_CRON:0 10 * * * *}
   cors:
     # Comma-separated exact origins. Set CORS_ALLOWED_ORIGINS to the deployed frontend
     # origin(s), e.g. https://app.example.com,https://www.example.com. Wildcards are rejected.
@@ -146,6 +148,9 @@ app:
       ip-limit: ${RATE_LIMIT_COACH_APPLICATION_IP_LIMIT:10}
       identifier-limit: ${RATE_LIMIT_COACH_APPLICATION_EMAIL_LIMIT:3}
       window-seconds: ${RATE_LIMIT_COACH_APPLICATION_WINDOW_SECONDS:3600}
+    media-presign:
+      user-limit: ${RATE_LIMIT_MEDIA_PRESIGN_USER_LIMIT:12}
+      window-seconds: ${RATE_LIMIT_MEDIA_PRESIGN_WINDOW_SECONDS:600}
   demo-seed-enabled: ${DEMO_SEED_ENABLED:false}
   jwt:
     # HS256 signing key (>= 32 bytes). Supplied via JWT_SECRET (application-local.yml / env).

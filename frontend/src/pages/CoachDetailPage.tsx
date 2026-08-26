@@ -15,6 +15,7 @@ import { canMessageWithSubscription } from "../access/subscriptionAccess";
 import { messagingApi } from "../messaging/messagingApi";
 import { ReportModal } from "../safety/ReportModal";
 import { ApiError } from "../api/ApiError";
+import { safeYoutubeEmbedUrl, YouTubeEmbed } from "../coaches/YouTubeEmbed";
 import "../public/home-page.css";
 import "../coaches/coach-list-page.css";
 import "../coaches/coach-detail-page.css";
@@ -319,10 +320,9 @@ export const CoachDetailPage: React.FC = () => {
               {/* Right column */}
               <div>
                 <div className="coach-detail-video">
-                  {coach.introVideoUrl ? (
+                  {safeYoutubeEmbedUrl(coach.introVideoEmbedUrl) ? (
                     <>
-                      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                      <video src={coach.introVideoUrl} controls preload="metadata" />
+                      <YouTubeEmbed url={coach.introVideoEmbedUrl} title={`${coach.fullName} tanıtım videosu`} />
                       <div className="coach-detail-video__caption">
                         <h3>Kendini Tanıt</h3>
                         <p>Bu kısa videoda koçunuzu daha yakından tanıyabilirsiniz.</p>

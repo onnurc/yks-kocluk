@@ -1,0 +1,31 @@
+@import url("https://fonts.googleapis.com/css2?family=Afacad:wght@400;600&family=Righteous&display=swap");
+
+.confirmation-modal__backdrop,
+.confirmation-modal__backdrop * { box-sizing: border-box; }
+.confirmation-modal__backdrop { position: fixed; inset: 0; z-index: 10000; padding: 20px; display: grid; place-items: center; background: rgba(0, 14, 50, .62); backdrop-filter: blur(4px); }
+.confirmation-modal { width: min(520px, 100%); padding: clamp(25px, 4vw, 38px); border: 1px solid rgba(201, 162, 93, .3); border-radius: 24px; color: #000e32; background: #fff; box-shadow: 0 28px 76px rgba(0, 14, 50, .3); font: 17px/1.5 "Afacad", system-ui, sans-serif; text-align: left; }
+.confirmation-modal h2 { margin: 0; color: #000e32; font: 400 clamp(27px, 4vw, 34px)/1.1 "Righteous", sans-serif; letter-spacing: -.025em; }
+.confirmation-modal__content { margin-top: 15px; color: #565965; }
+.confirmation-modal__content p { margin: 0; }
+.confirmation-modal__actions { margin-top: 28px; display: flex; justify-content: flex-end; gap: 11px; }
+.confirmation-modal__actions button { min-height: 47px; padding: 10px 20px; border-radius: 12px; font: 600 15px/1.2 "Afacad", sans-serif; cursor: pointer; transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
+.confirmation-modal__actions button:hover:not(:disabled) { transform: translateY(-1px); }
+.confirmation-modal__actions button:focus-visible { outline: 2px solid #c9a25d; outline-offset: 3px; }
+.confirmation-modal__actions button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.confirmation-modal__cancel { border: 1px solid rgba(198, 198, 207, .65); color: #000e32; background: #fff; }
+.confirmation-modal__cancel:hover:not(:disabled) { background: #f5f3f3; }
+.confirmation-modal__confirm { border: 1px solid #000e32; color: #fff; background: #000e32; }
+.confirmation-modal__confirm:hover:not(:disabled) { box-shadow: 0 11px 24px rgba(0, 14, 50, .18); }
+.confirmation-modal__confirm--destructive { border-color: #9f454b; background: #9f454b; }
+.confirmation-modal__confirm--destructive:hover:not(:disabled) { border-color: #87363c; background: #87363c; box-shadow: 0 11px 23px rgba(135, 54, 60, .2); }
+
+@media (max-width: 560px) {
+  .confirmation-modal__backdrop { padding: 16px; }
+  .confirmation-modal { padding: 25px 20px 20px; border-radius: 20px; }
+  .confirmation-modal__actions { flex-direction: column-reverse; }
+  .confirmation-modal__actions button { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confirmation-modal__actions button { transition: none; }
+}

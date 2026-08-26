@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.controller;
 
 import com.ykskocluk.demo.dto.*;
+import com.ykskocluk.demo.security.ratelimit.MediaPresignRateLimitService;
 import com.ykskocluk.demo.service.MediaService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -11,10 +12,15 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/media")
 public class MediaController {
     private final MediaService mediaService;
-    public MediaController(MediaService mediaService) { this.mediaService = mediaService; }
+    private final MediaPresignRateLimitService presignRateLimit;
+    public MediaController(MediaService mediaService, MediaPresignRateLimitService presignRateLimit) {
+        this.mediaService = mediaService;
+        this.presignRateLimit = presignRateLimit;
+    }
 
     @PostMapping("/uploads/presign") @ResponseStatus(HttpStatus.CREATED)
     public MediaPresignResponse presign(@AuthenticationPrincipal Long userId, @Valid @RequestBody MediaPresignRequest request) {
+        presignRateLimit.check(userId);
         return mediaService.presign(userId, request);
     }
 

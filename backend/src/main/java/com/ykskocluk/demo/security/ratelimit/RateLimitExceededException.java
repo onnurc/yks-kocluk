@@ -7,7 +7,11 @@ public class RateLimitExceededException extends ApiException {
     private final long retryAfterSeconds;
 
     public RateLimitExceededException(long retryAfterSeconds) {
-        super(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMIT_EXCEEDED", "Too many requests. Please try again later.");
+        this(retryAfterSeconds, "RATE_LIMIT_EXCEEDED", "Too many requests. Please try again later.");
+    }
+
+    public RateLimitExceededException(long retryAfterSeconds, String errorCode, String message) {
+        super(HttpStatus.TOO_MANY_REQUESTS, errorCode, message);
         this.retryAfterSeconds = retryAfterSeconds;
     }
 

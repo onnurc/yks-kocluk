@@ -5,12 +5,13 @@ import com.ykskocluk.demo.dto.CoachSummaryResponse;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.enums.Track;
 import com.ykskocluk.demo.service.MediaAssetUrlResolver;
+import com.ykskocluk.demo.service.YoutubeEmbedUrlResolver;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import java.util.Set;
 
-@Mapper(componentModel = "spring", uses = MediaAssetUrlResolver.class)
+@Mapper(componentModel = "spring", uses = {MediaAssetUrlResolver.class, YoutubeEmbedUrlResolver.class})
 public interface CoachSearchMapper {
 
     @Mapping(target = "fullName", source = "profile.user.fullName")
@@ -21,7 +22,7 @@ public interface CoachSearchMapper {
     @Mapping(target = "acceptingNewStudents",
             expression = "java(profile.getActiveStudentCount() < profile.getMaxStudentCapacity())")
     @Mapping(target = "profileImageUrl", source = "profile.profileImageAsset", qualifiedByName = "publicMediaUrl")
-    @Mapping(target = "introVideoUrl", source = "profile.introVideoAsset", qualifiedByName = "publicMediaUrl")
+    @Mapping(target = "introVideoEmbedUrl", source = "profile.introYoutubeVideoId", qualifiedByName = "youtubeEmbedUrl")
     CoachSummaryResponse toSummary(CoachProfile profile, Set<Track> tracks, Double rating, int totalSessions);
 
     @Mapping(target = "userId", source = "profile.user.id")
@@ -33,6 +34,6 @@ public interface CoachSearchMapper {
     @Mapping(target = "acceptingNewStudents",
             expression = "java(profile.getActiveStudentCount() < profile.getMaxStudentCapacity())")
     @Mapping(target = "profileImageUrl", source = "profile.profileImageAsset", qualifiedByName = "publicMediaUrl")
-    @Mapping(target = "introVideoUrl", source = "profile.introVideoAsset", qualifiedByName = "publicMediaUrl")
+    @Mapping(target = "introVideoEmbedUrl", source = "profile.introYoutubeVideoId", qualifiedByName = "youtubeEmbedUrl")
     CoachDetailResponse toDetail(CoachProfile profile, Set<Track> tracks, Double rating, int totalSessions);
 }

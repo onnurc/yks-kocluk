@@ -59,7 +59,7 @@ class PublicCoachControllerTest {
         CoachDetailResponse coach = new CoachDetailResponse(11L, 22L, "Ayşe Yılmaz", "YKS Mentörü",
                 "Öğrencilerin planlı çalışmasına yardımcı olur.", "Boğaziçi Üniversitesi", "Matematik",
                 2025, Set.of(Track.NUMERICAL), null, 14, true,
-                "https://media.example/profile.jpg", "https://media.example/intro.mp4");
+                "https://media.example/profile.jpg", "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ");
         given(coachSearchService.getApprovedCoach(11L)).willReturn(coach);
 
         mockMvc.perform(get("/api/v1/public/coaches/11"))
@@ -67,7 +67,7 @@ class PublicCoachControllerTest {
                 .andExpect(jsonPath("$.id").value(11))
                 .andExpect(jsonPath("$.fullName").value("Ayşe Yılmaz"))
                 .andExpect(jsonPath("$.totalSessions").value(14))
-                .andExpect(jsonPath("$.introVideoUrl").value("https://media.example/intro.mp4"))
+                .andExpect(jsonPath("$.introVideoEmbedUrl").value("https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"))
                 .andExpect(jsonPath("$.email").doesNotExist())
                 .andExpect(jsonPath("$.phone").doesNotExist())
                 .andExpect(jsonPath("$.status").doesNotExist())

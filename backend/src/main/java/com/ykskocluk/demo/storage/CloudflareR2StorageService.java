@@ -62,7 +62,4 @@ public class CloudflareR2StorageService implements StorageService {
         client.deleteObject(DeleteObjectRequest.builder().bucket(properties.bucket()).key(key).build());
     }
 
-    @Override public String resolvePublicUrl(String key) {
-        return properties.publicBaseUrl() == null ? null : properties.publicBaseUrl() + "/" + key;
-    }
 }

@@ -1,12 +1,15 @@
 package com.ykskocluk.demo.controller;
 
 import com.ykskocluk.demo.dto.CoachProfileResponse;
+import com.ykskocluk.demo.dto.CoachYoutubeIntroRequest;
+import com.ykskocluk.demo.dto.CoachYoutubeIntroResponse;
 import com.ykskocluk.demo.dto.PageResponse;
 import com.ykskocluk.demo.dto.RejectRequest;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.service.CoachProfileService;
 import com.ykskocluk.demo.service.AdminDashboardService;
 import com.ykskocluk.demo.service.CoachDashboardService;
+import com.ykskocluk.demo.service.CoachYoutubeIntroService;
 import com.ykskocluk.demo.dto.CoachStudentResponse;
 import com.ykskocluk.demo.dto.AdminCoachDirectoryResponse;
 import com.ykskocluk.demo.enums.AdminCoachFilter;
@@ -15,13 +18,18 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ResponseStatus;
 
 @RestController
 @RequestMapping("/api/v1/admin/coaches")
@@ -31,13 +39,16 @@ public class AdminCoachController {
     private final CoachProfileService coachProfileService;
     private final AdminDashboardService adminDashboardService;
     private final CoachDashboardService coachDashboardService;
+    private final CoachYoutubeIntroService youtubeIntroService;
 
     public AdminCoachController(CoachProfileService coachProfileService,
                                 AdminDashboardService adminDashboardService,
-                                CoachDashboardService coachDashboardService) {
+                                CoachDashboardService coachDashboardService,
+                                CoachYoutubeIntroService youtubeIntroService) {
         this.coachProfileService = coachProfileService;
         this.adminDashboardService = adminDashboardService;
         this.coachDashboardService = coachDashboardService;
+        this.youtubeIntroService = youtubeIntroService;
     }
 
     @GetMapping
@@ -69,5 +80,18 @@ public class AdminCoachController {
     @PostMapping("/{id}/reject")
     public CoachProfileResponse reject(@PathVariable Long id, @Valid @RequestBody RejectRequest request) {
         return coachProfileService.reject(id, request.reason());
+    }
+
+    @PutMapping("/{id}/youtube-intro")
+    public CoachYoutubeIntroResponse setYoutubeIntro(@AuthenticationPrincipal Long adminUserId,
+                                                     @PathVariable Long id,
+                                                     @Valid @RequestBody CoachYoutubeIntroRequest request) {
+        return youtubeIntroService.set(adminUserId, id, request.youtubeUrlOrVideoId());
+    }
+
+    @DeleteMapping("/{id}/youtube-intro")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void clearYoutubeIntro(@AuthenticationPrincipal Long adminUserId, @PathVariable Long id) {
+        youtubeIntroService.clear(adminUserId, id);
     }
 }

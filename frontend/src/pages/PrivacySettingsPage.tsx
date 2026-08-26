@@ -8,6 +8,7 @@ import { LegalDocumentViewer } from "../legal/LegalDocumentViewer";
 import { useLegalDocuments } from "../legal/useLegalDocuments";
 import { privacyApi } from "../privacy/privacyApi";
 import type { AccountDeletionResponse, MarketingPreferences, PrivacyPreferences } from "../privacy/privacyTypes";
+import "./privacy-settings.css";
 
 export const PrivacySettingsPage: React.FC = () => {
   const { refreshCurrentUser, clearSession } = useAuth();
@@ -118,46 +119,76 @@ export const PrivacySettingsPage: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: "760px", margin: "0 auto", padding: "2rem" }}>
-      <h1>Gizlilik ve hukuki tercihler</h1>
-      <p>İsteğe bağlı iletişim ve çerez tercihlerinizi yönetin. İşlemsel hizmet iletileri bu pazarlama tercihlerinden etkilenmez.</p>
-      <FormError error={error} />
-      {success && <div role="status" style={{ padding: ".75rem", marginBottom: "1rem", background: "#dcfce7", color: "#166534", borderRadius: "6px" }}>{success}</div>}
-      {loading && <p role="status">Tercihler yükleniyor…</p>}
+    <div className="privacy-page">
+      <header className="privacy-page__header">
+        <h1>Gizlilik ve hukuki tercihler</h1>
+        <p>İsteğe bağlı iletişim ve çerez tercihlerinizi yönetin. İşlemsel hizmet iletileri bu pazarlama tercihlerinden etkilenmez.</p>
+      </header>
 
-      {marketing && (
-        <section style={{ padding: "1.25rem", marginBottom: "1rem", border: "1px solid #cbd5e1", borderRadius: "8px", background: "white" }}>
-          <h2>Pazarlama tercihleri</h2>
-          <label style={{ display: "flex", gap: ".75rem", margin: "1rem 0" }}><input type="checkbox" checked={marketing.email.granted} disabled={saving !== null} onChange={(event) => void saveMarketing("email", event.target.checked)} /> E-posta ile kampanya iletileri</label>
-          <label style={{ display: "flex", gap: ".75rem", margin: "1rem 0" }}><input type="checkbox" checked={marketing.sms.granted} disabled={saving !== null} onChange={(event) => void saveMarketing("sms", event.target.checked)} /> SMS ile kampanya iletileri</label>
-          {saving === "email" || saving === "sms" ? <small>Kaydediliyor…</small> : null}
+      <div className="privacy-page__notices">
+        <div className="privacy-page__error"><FormError error={error} /></div>
+        {success && <div className="privacy-page__success" role="status">{success}</div>}
+      </div>
+
+      {loading && <div className="privacy-page__loading" role="status">Tercihler yükleniyor…</div>}
+
+      <div className="privacy-page__preference-grid">
+        {marketing && (
+          <section className="privacy-page__card" aria-labelledby="marketing-preferences-title" aria-busy={saving === "email" || saving === "sms"}>
+            <div className="privacy-page__section-heading">
+              <h2 id="marketing-preferences-title">Pazarlama tercihleri</h2>
+            </div>
+            <div className="privacy-page__options">
+              <label className="privacy-page__option">
+                <input type="checkbox" checked={marketing.email.granted} disabled={saving !== null} onChange={(event) => void saveMarketing("email", event.target.checked)} />
+                <span>E-posta ile kampanya iletileri</span>
+              </label>
+              <label className="privacy-page__option">
+                <input type="checkbox" checked={marketing.sms.granted} disabled={saving !== null} onChange={(event) => void saveMarketing("sms", event.target.checked)} />
+                <span>SMS ile kampanya iletileri</span>
+              </label>
+            </div>
+            {saving === "email" || saving === "sms" ? <small className="privacy-page__saving">Kaydediliyor…</small> : null}
+          </section>
+        )}
+
+        {privacy && (
+          <section className="privacy-page__card" aria-labelledby="cookie-preferences-title" aria-busy={saving === "cookies"}>
+            <div className="privacy-page__section-heading privacy-page__section-heading--with-link">
+              <h2 id="cookie-preferences-title">Çerez tercihleri</h2>
+              <p className="privacy-page__policy-link"><LegalDocumentViewer label="Çerez Politikası" document={cookieDocument.documents.COOKIE_POLICY} loading={cookieDocument.loading} error={cookieDocument.error} onRetry={() => void cookieDocument.reload()} /></p>
+            </div>
+            <div className="privacy-page__options">
+              <label className="privacy-page__option privacy-page__option--locked"><input type="checkbox" checked disabled /> <span>Zorunlu — her zaman açık</span></label>
+              <label className="privacy-page__option"><input type="checkbox" checked={privacy.analyticsAllowed} disabled={saving !== null} onChange={(event) => setPrivacy({ ...privacy, analyticsAllowed: event.target.checked })} /> <span>Analitik — isteğe bağlı</span></label>
+              <label className="privacy-page__option"><input type="checkbox" checked={privacy.marketingAllowed} disabled={saving !== null} onChange={(event) => setPrivacy({ ...privacy, marketingAllowed: event.target.checked })} /> <span>Pazarlama — isteğe bağlı</span></label>
+            </div>
+            <div className="privacy-page__card-actions">
+              <button className="privacy-page__button privacy-page__button--primary" type="button" onClick={() => void saveCookies()} disabled={saving !== null || !cookieDocument.ready}>{saving === "cookies" ? "Kaydediliyor…" : "Çerez tercihlerini kaydet"}</button>
+            </div>
+            <p className="privacy-page__helper">Giriş yapmadan önceki çerez tercihleriniz bu tarayıcıda yerel olarak yönetilir.</p>
+          </section>
+        )}
+      </div>
+
+      <div className="privacy-page__action-grid">
+        <section className="privacy-page__action-card privacy-page__action-card--warning" aria-labelledby="withdraw-consent-title">
+          <div>
+            <h2 id="withdraw-consent-title">Açık rızayı geri çekme</h2>
+            <p>Geri çektiğinizde hesabınız silinmez; ödeme ve hukuki kayıtlar saklanır. Yeniden onay verene kadar ödeme, rezervasyon ve mesajlaşma gibi korunan işlemleri kullanamazsınız.</p>
+          </div>
+          <button className="privacy-page__button privacy-page__button--warning" type="button" disabled={saving !== null} onClick={() => setWithdrawOpen(true)}>Açık rızayı geri çek</button>
         </section>
-      )}
 
-      {privacy && (
-        <section style={{ padding: "1.25rem", marginBottom: "1rem", border: "1px solid #cbd5e1", borderRadius: "8px", background: "white" }}>
-          <h2>Çerez tercihleri</h2>
-          <p><LegalDocumentViewer label="Çerez Politikası" document={cookieDocument.documents.COOKIE_POLICY} loading={cookieDocument.loading} error={cookieDocument.error} onRetry={() => void cookieDocument.reload()} /></p>
-          <label style={{ display: "flex", gap: ".75rem", margin: "1rem 0" }}><input type="checkbox" checked disabled /> Zorunlu — her zaman açık</label>
-          <label style={{ display: "flex", gap: ".75rem", margin: "1rem 0" }}><input type="checkbox" checked={privacy.analyticsAllowed} disabled={saving !== null} onChange={(event) => setPrivacy({ ...privacy, analyticsAllowed: event.target.checked })} /> Analitik — isteğe bağlı</label>
-          <label style={{ display: "flex", gap: ".75rem", margin: "1rem 0" }}><input type="checkbox" checked={privacy.marketingAllowed} disabled={saving !== null} onChange={(event) => setPrivacy({ ...privacy, marketingAllowed: event.target.checked })} /> Pazarlama — isteğe bağlı</label>
-          <button type="button" onClick={() => void saveCookies()} disabled={saving !== null || !cookieDocument.ready}>{saving === "cookies" ? "Kaydediliyor…" : "Çerez tercihlerini kaydet"}</button>
-          <p style={{ color: "#64748b", fontSize: ".85rem" }}>Giriş yapmadan önceki çerez tercihleriniz bu tarayıcıda yerel olarak yönetilir.</p>
+        <section className="privacy-page__action-card privacy-page__action-card--danger" aria-labelledby="delete-account-title">
+          <div>
+            <h2 id="delete-account-title">Hesabı sil</h2>
+            <p>Bu işlem hesabınızı anonimleştirir ve oturumunuzu kapatır. Yasal olarak tutulması gereken finansal ve sözleşmesel kayıtlar saklanabilir.</p>
+            {deletionStatus && <p className="privacy-page__deletion-status"><strong>Mevcut talep durumu:</strong> {deletionStatus.status}</p>}
+          </div>
+          <button className="privacy-page__button privacy-page__button--danger" type="button" disabled={saving !== null} onClick={() => setDeleteOpen(true)}>Hesabımı sil</button>
         </section>
-      )}
-
-      <section style={{ padding: "1.25rem", marginBottom: "1rem", border: "1px solid #f59e0b", borderRadius: "8px", background: "#fffbeb" }}>
-        <h2>Açık rızayı geri çekme</h2>
-        <p>Geri çektiğinizde hesabınız silinmez; ödeme ve hukuki kayıtlar saklanır. Yeniden onay verene kadar ödeme, rezervasyon ve mesajlaşma gibi korunan işlemleri kullanamazsınız.</p>
-        <button type="button" onClick={() => setWithdrawOpen(true)}>Açık rızayı geri çek</button>
-      </section>
-
-      <section style={{ padding: "1.25rem", border: "1px solid #dc2626", borderRadius: "8px", background: "#fef2f2" }}>
-        <h2>Hesabı sil</h2>
-        <p>Bu işlem hesabınızı anonimleştirir ve oturumunuzu kapatır. Yasal olarak tutulması gereken finansal ve sözleşmesel kayıtlar saklanabilir.</p>
-        {deletionStatus && <p><strong>Mevcut talep durumu:</strong> {deletionStatus.status}</p>}
-        <button type="button" onClick={() => setDeleteOpen(true)} style={{ color: "#b91c1c" }}>Hesabımı sil</button>
-      </section>
+      </div>
 
       <ConfirmationModal open={withdrawOpen} title="Açık rızayı geri çek" confirmLabel="Rızayı geri çek" busy={saving === "withdraw"} onClose={() => setWithdrawOpen(false)} onConfirm={() => void withdrawConsent()}>
         <p>Korunan işlemler yeniden hukuki onay verene kadar kullanılamaz. Hesabınız otomatik olarak silinmez ve mevcut finansal/hukuki kayıtlar korunur.</p>
@@ -165,7 +196,7 @@ export const PrivacySettingsPage: React.FC = () => {
 
       <ConfirmationModal open={deleteOpen} title="Hesabı kalıcı olarak anonimleştir" confirmLabel="Hesabı sil" destructive busy={saving === "delete"} confirmDisabled={deleteConfirmation !== "DELETE"} onClose={() => { setDeleteOpen(false); setDeleteConfirmation(""); }} onConfirm={() => void deleteAccount()}>
         <p>Devam etmek için aşağıdaki alana <strong>DELETE</strong> yazın.</p>
-        <input aria-label="Hesap silme onayı" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} autoComplete="off" style={{ width: "100%", boxSizing: "border-box", padding: ".65rem" }} />
+        <input className="privacy-page__confirmation-input" aria-label="Hesap silme onayı" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} autoComplete="off" />
       </ConfirmationModal>
     </div>
   );

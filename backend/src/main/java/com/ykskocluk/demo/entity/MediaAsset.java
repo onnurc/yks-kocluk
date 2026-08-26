@@ -12,6 +12,13 @@ import lombok.Setter;
 @Table(name = "media_assets")
 @Getter @Setter @NoArgsConstructor
 public class MediaAsset extends BaseEntity {
+    /**
+     * Opaque locator used only by the anonymous public-media redirect. Internal ownership and
+     * lifecycle operations continue to use the database id.
+     */
+    @Column(name = "public_token", nullable = false, unique = true, length = 64, updatable = false)
+    private String publicToken;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "owner_user_id", nullable = false)
     private User owner;

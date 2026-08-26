@@ -75,7 +75,9 @@ app:
     secret-access-key: <R2_SECRET_ACCESS_KEY>
     bucket: <R2_BUCKET>
     endpoint: <R2_ENDPOINT>              # e.g. https://<account-id>.r2.cloudflarestorage.com
-    public-base-url: <R2_PUBLIC_BASE_URL> # e.g. https://media.yourdomain.com or the r2.dev URL
+  media:
+    # The externally reachable backend origin, not an R2 bucket/custom-domain URL.
+    public-base-url: http://localhost:8080
 
 spring:
   flyway:
