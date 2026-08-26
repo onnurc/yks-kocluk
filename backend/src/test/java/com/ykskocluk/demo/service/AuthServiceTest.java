@@ -53,6 +53,7 @@ class AuthServiceTest {
     @Mock LegalAcceptanceService legalAcceptanceService;
     @Mock AccountDeletionRequestRepository accountDeletionRequestRepository;
     @Mock EmailVerificationService emailVerificationService;
+    @Mock StudentProfileProvisioningService studentProfileProvisioningService;
     @Mock org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     AuthService authService;
@@ -61,7 +62,8 @@ class AuthServiceTest {
     void setUp() {
         authService = new AuthService(userRepository, refreshTokenRepository,
                 passwordEncoder, jwtService, userMapper, jwtProperties, oauth2LoginCodeService,
-                legalAcceptanceService, accountDeletionRequestRepository, emailVerificationService, eventPublisher);
+                legalAcceptanceService, accountDeletionRequestRepository, emailVerificationService,
+                studentProfileProvisioningService, eventPublisher);
         // Common stubs for the issueTokens() path; lenient so failure tests don't trip strict stubbing.
         lenient().when(jwtService.generateAccessToken(any())).thenReturn("access-token");
         lenient().when(jwtService.getAccessTtlSeconds()).thenReturn(900L);
@@ -112,6 +114,7 @@ class AuthServiceTest {
         assertThat(captor.getValue().getPasswordHash()).isEqualTo("hashed-pw");
         assertThat(captor.getValue().getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(captor.getValue().isEmailVerified()).isFalse();
+        verify(studentProfileProvisioningService).ensureForStudent(captor.getValue());
         verify(emailVerificationService).issueForRegistration(captor.getValue());
         verify(refreshTokenRepository).save(any(RefreshToken.class));
     }
@@ -307,6 +310,7 @@ class AuthServiceTest {
         assertThat(captor.getValue().getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(captor.getValue().isEmailVerified()).isTrue();
         assertThat(captor.getValue().isLegalOnboardingCompleted()).isFalse();
+        verify(studentProfileProvisioningService).ensureForStudent(captor.getValue());
         verify(emailVerificationService, never()).issueForRegistration(any());
         verify(eventPublisher).publishEvent(new WelcomeMailEvent("new@example.com", "New User"));
     }
@@ -316,6 +320,20 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.upsertGoogleUser("unverified@example.com", "sub-111", "Unverified", false))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("E-posta adresi doğrulanmamış");
+    }
+
+    @Test
+    void upsertGoogleUser_existingStudentEnsuresHistoricalProfile() {
+        User existing = activeUser(null);
+        existing.setGoogleSub("sub-existing");
+        when(userRepository.findByGoogleSub("sub-existing")).thenReturn(Optional.of(existing));
+
+        User linked = authService.upsertGoogleUser(
+                "user@example.com", "sub-existing", "Existing Student", true);
+
+        assertThat(linked).isSameAs(existing);
+        verify(studentProfileProvisioningService).ensureForStudent(existing);
+        verify(userRepository, never()).save(any());
     }
 
     @Test

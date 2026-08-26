@@ -47,6 +47,7 @@ class MinorConsentServiceTest {
     @Mock private LegalAcceptanceService legalAcceptanceService;
     @Mock private AccountDeletionRequestRepository accountDeletionRequestRepository;
     @Mock private EmailVerificationService emailVerificationService;
+    @Mock private StudentProfileProvisioningService studentProfileProvisioningService;
     @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @InjectMocks private ConsentService consentService;
@@ -56,7 +57,8 @@ class MinorConsentServiceTest {
     void setUp() {
         authService = new AuthService(userRepository, refreshTokenRepository, passwordEncoder, jwtService,
                 userMapper, jwtProperties, oauth2LoginCodeService, legalAcceptanceService,
-                accountDeletionRequestRepository, emailVerificationService, eventPublisher);
+                accountDeletionRequestRepository, emailVerificationService,
+                studentProfileProvisioningService, eventPublisher);
         lenient().when(jwtService.generateAccessToken(any())).thenReturn("dummy-access");
         lenient().when(jwtProperties.refreshTtl()).thenReturn(java.time.Duration.ofDays(30));
         lenient().when(refreshTokenRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));

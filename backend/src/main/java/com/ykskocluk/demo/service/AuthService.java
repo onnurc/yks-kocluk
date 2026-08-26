@@ -48,6 +48,7 @@ public class AuthService {
     private final LegalAcceptanceService legalAcceptanceService;
     private final AccountDeletionRequestRepository accountDeletionRequestRepository;
     private final EmailVerificationService emailVerificationService;
+    private final StudentProfileProvisioningService studentProfileProvisioningService;
     private final ApplicationEventPublisher eventPublisher;
 
     public AuthService(UserRepository userRepository,
@@ -60,6 +61,7 @@ public class AuthService {
                        LegalAcceptanceService legalAcceptanceService,
                        AccountDeletionRequestRepository accountDeletionRequestRepository,
                        EmailVerificationService emailVerificationService,
+                       StudentProfileProvisioningService studentProfileProvisioningService,
                        ApplicationEventPublisher eventPublisher) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -71,6 +73,7 @@ public class AuthService {
         this.legalAcceptanceService = legalAcceptanceService;
         this.accountDeletionRequestRepository = accountDeletionRequestRepository;
         this.emailVerificationService = emailVerificationService;
+        this.studentProfileProvisioningService = studentProfileProvisioningService;
         this.eventPublisher = eventPublisher;
     }
 
@@ -207,6 +210,7 @@ public class AuthService {
             }
         }
         ensureActive(user);
+        studentProfileProvisioningService.ensureForStudent(user);
         return user;
     }
 
@@ -220,6 +224,7 @@ public class AuthService {
     // --- helpers ---
 
     private AuthResponse issueTokens(User user) {
+        studentProfileProvisioningService.ensureForStudent(user);
         String accessToken = jwtService.generateAccessToken(user);
         String rawRefresh = generateRawRefreshToken();
 

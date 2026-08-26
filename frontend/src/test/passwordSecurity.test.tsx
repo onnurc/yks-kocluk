@@ -61,21 +61,71 @@ describe("password recovery and security pages", () => {
     expect(screen.getByRole("button", { name: "Sıfırlama Bağlantısı Gönder" })).toBeEnabled();
   });
 
-  it("reset password validates confirmation before API call", () => {
-    render(<MemoryRouter initialEntries={["/reset-password?token=abc"]}><ResetPasswordPage /></MemoryRouter>);
-    fireEvent.change(screen.getByLabelText("Yeni şifre"), { target: { value: "password-one" } });
-    fireEvent.change(screen.getByLabelText("Yeni şifre tekrar"), { target: { value: "password-two" } });
-    fireEvent.click(screen.getByRole("button", { name: "Şifreyi yenile" }));
-    expect(screen.getByText("Şifreler eşleşmiyor.")).toBeInTheDocument(); expect(mocks.resetPassword).not.toHaveBeenCalled();
+  it("renders a valid reset link inside the Uniform auth shell", () => {
+    const { container } = render(<MemoryRouter initialEntries={["/reset-password?token=abc"]}><ResetPasswordPage /></MemoryRouter>);
+
+    expect(container.querySelector(".auth-shell")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Yeni Parola Belirle" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Yeni Parola")).toHaveAttribute("type", "password");
+    expect(screen.getByLabelText("Yeni Parola Tekrar")).toHaveAttribute("type", "password");
   });
 
-  it("successful reset offers a login link", async () => {
+  it("shows in-app validation for a too-short password and does not submit", () => {
+    render(<MemoryRouter initialEntries={["/reset-password?token=abc"]}><ResetPasswordPage /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("Yeni Parola"), { target: { value: "short" } });
+    fireEvent.change(screen.getByLabelText("Yeni Parola Tekrar"), { target: { value: "short" } });
+    fireEvent.click(screen.getByRole("button", { name: "Parolayı Yenile" }));
+
+    expect(screen.getByText("Parola 8–72 karakter arasında olmalıdır.", { selector: ".auth-field-error" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Yeni Parola")).toHaveAttribute("aria-invalid", "true");
+    expect(mocks.resetPassword).not.toHaveBeenCalled();
+  });
+
+  it("shows in-app mismatch validation before the API call", () => {
+    render(<MemoryRouter initialEntries={["/reset-password?token=abc"]}><ResetPasswordPage /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("Yeni Parola"), { target: { value: "password-one" } });
+    fireEvent.change(screen.getByLabelText("Yeni Parola Tekrar"), { target: { value: "password-two" } });
+    fireEvent.click(screen.getByRole("button", { name: "Parolayı Yenile" }));
+
+    expect(screen.getByText("Parola tekrarı yeni parolayla eşleşmiyor.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Yeni Parola Tekrar")).toHaveAttribute("aria-describedby", "confirm-password-error");
+    expect(mocks.resetPassword).not.toHaveBeenCalled();
+  });
+
+  it("submits the existing reset API contract for a valid form", async () => {
     mocks.resetPassword.mockResolvedValue({ message: "ok", reloginRequired: true });
     render(<MemoryRouter initialEntries={["/reset-password?token=abc"]}><ResetPasswordPage /></MemoryRouter>);
-    fireEvent.change(screen.getByLabelText("Yeni şifre"), { target: { value: "password-one" } });
-    fireEvent.change(screen.getByLabelText("Yeni şifre tekrar"), { target: { value: "password-one" } });
-    fireEvent.click(screen.getByRole("button", { name: "Şifreyi yenile" }));
-    expect(await screen.findByRole("link", { name: "Giriş yap" })).toHaveAttribute("href", "/login");
+    fireEvent.change(screen.getByLabelText("Yeni Parola"), { target: { value: "password-one" } });
+    fireEvent.change(screen.getByLabelText("Yeni Parola Tekrar"), { target: { value: "password-one" } });
+    fireEvent.click(screen.getByRole("button", { name: "Parolayı Yenile" }));
+
+    await waitFor(() => expect(mocks.resetPassword).toHaveBeenCalledWith("abc", "password-one"));
+  });
+
+  it("shows a styled success state with a login action", async () => {
+    mocks.resetPassword.mockResolvedValue({ message: "ok", reloginRequired: true });
+    render(<MemoryRouter initialEntries={["/reset-password?token=abc"]}><ResetPasswordPage /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("Yeni Parola"), { target: { value: "password-one" } });
+    fireEvent.change(screen.getByLabelText("Yeni Parola Tekrar"), { target: { value: "password-one" } });
+    fireEvent.click(screen.getByRole("button", { name: "Parolayı Yenile" }));
+
+    expect(await screen.findByRole("heading", { name: "Parolanız Yenilendi" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Parolanız başarıyla yenilendi");
+    expect(screen.getByRole("link", { name: "Giriş Yap" })).toHaveAttribute("href", "/login");
+  });
+
+  it("returns from reset password to the login route", () => {
+    render(
+      <MemoryRouter initialEntries={["/reset-password?token=abc"]}>
+        <Routes>
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/login" element={<div>Giriş hedefi</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "Giriş sayfasına dön" }));
+    expect(screen.getByText("Giriş hedefi")).toBeInTheDocument();
   });
 
   it("Google-only account does not see change-password form", () => {
