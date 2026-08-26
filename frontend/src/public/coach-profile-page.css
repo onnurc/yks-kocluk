@@ -15,6 +15,7 @@
 .coach-profile-badges .is-full { color: #7a3030; background: #fae7e7; }
 .coach-profile-media { grid-area: media; }
 .coach-profile-media__frame { aspect-ratio: 16/9; overflow: hidden; border-radius: 24px; background: #e4e2e2; }
+.coach-profile-media__frame iframe { width: 100%; height: 100%; border: 0; }
 .coach-profile-media video { width: 100%; height: 100%; display: block; object-fit: cover; }
 .coach-profile-media__empty { width: 100%; height: 100%; display: grid; place-content: center; justify-items: center; color: #625c5d; text-align: center; }
 .coach-profile-media__empty span { width: 72px; height: 72px; display: grid; place-items: center; border-radius: 50%; color: #000; background: #fff; font-size: 34px; }

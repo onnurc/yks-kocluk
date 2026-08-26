@@ -25,6 +25,6 @@ public record CoachProfileResponse(
         boolean payoutAccountReady,
         String profileImageUrl,
         Long profileImageAssetId,
-        String introVideoUrl
+        String introVideoEmbedUrl
 ) {
 }

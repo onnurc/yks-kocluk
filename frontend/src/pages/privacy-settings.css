@@ -1,0 +1,125 @@
+@import url("https://fonts.googleapis.com/css2?family=Afacad:wght@400;600&family=Righteous&display=swap");
+
+.privacy-page,
+.privacy-page * { box-sizing: border-box; }
+
+.privacy-page {
+  width: min(1120px, 100%);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: clamp(30px, 4vw, 60px) clamp(20px, 4vw, 52px) 72px;
+  color: var(--app-ink, #000e32);
+  font: 17px/1.5 "Afacad", system-ui, sans-serif;
+  text-align: left;
+}
+
+.privacy-page__header { max-width: 790px; margin-bottom: clamp(28px, 4vw, 44px); }
+.privacy-page__header::before {
+  content: "";
+  width: 46px;
+  height: 3px;
+  display: block;
+  margin-bottom: 17px;
+  border-radius: 999px;
+  background: var(--app-gold, #c9a25d);
+}
+.privacy-page__header h1 { margin: 0; color: var(--app-ink, #000e32); font: 400 clamp(38px, 5vw, 56px)/1.06 "Righteous", sans-serif; letter-spacing: -.035em; }
+.privacy-page__header p { max-width: 680px; margin: 13px 0 0; color: var(--app-muted, #666873); font-size: 17px; }
+
+.privacy-page__notices { display: grid; gap: 12px; margin-bottom: 20px; }
+.privacy-page__error:empty { display: none; }
+.privacy-page__error > div { margin: 0 !important; padding: 14px 17px !important; border: 0 !important; border-radius: 14px !important; color: #8b1d27 !important; background: #fff0f1 !important; font-family: inherit; }
+.privacy-page__success { padding: 14px 17px; border-radius: 14px; color: #245d3f; background: #edf8f1; }
+.privacy-page__loading { min-height: 180px; display: grid; place-items: center; border: 1px solid var(--app-border, rgba(198, 198, 207, .52)); border-radius: 24px; color: var(--app-muted, #666873); background: #fff; box-shadow: 0 18px 48px rgba(0, 14, 50, .05); }
+
+.privacy-page__preference-grid,
+.privacy-page__action-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
+.privacy-page__action-grid { margin-top: 22px; }
+
+.privacy-page__card,
+.privacy-page__action-card { min-width: 0; border-radius: 26px; }
+.privacy-page__card { padding: clamp(25px, 3.5vw, 38px); border: 1px solid rgba(198, 198, 207, .42); background: #fff; box-shadow: 0 22px 58px rgba(0, 14, 50, .065); }
+.privacy-page__section-heading { margin-bottom: 25px; padding-bottom: 18px; border-bottom: 1px solid var(--app-border, rgba(198, 198, 207, .52)); }
+.privacy-page__section-heading--with-link { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; }
+.privacy-page__section-heading h2,
+.privacy-page__action-card h2 { margin: 0; color: var(--app-ink, #000e32); font: 400 25px/1.18 "Righteous", sans-serif; letter-spacing: -.015em; }
+.privacy-page__policy-link { margin: 0; flex: 0 0 auto; }
+.privacy-page__policy-link button { color: var(--app-gold-dark, #78591b) !important; font-weight: 600 !important; text-decoration-color: rgba(120, 89, 27, .45) !important; text-underline-offset: 4px; }
+
+.privacy-page__options { display: grid; gap: 12px; }
+.privacy-page__option { min-height: 64px; padding: 15px 17px; display: flex; align-items: center; gap: 14px; border: 1px solid #e5e2e2; border-radius: 15px; color: #353743; background: #fff; font-weight: 600; cursor: pointer; transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease; }
+.privacy-page__option:hover:not(:has(input:disabled)) { border-color: rgba(201, 162, 93, .62); background: #fffdf8; }
+.privacy-page__option:has(input:focus-visible) { border-color: var(--app-gold, #c9a25d); box-shadow: 0 0 0 3px rgba(201, 162, 93, .16); }
+.privacy-page__option:has(input:disabled) { cursor: not-allowed; }
+.privacy-page__option--locked { color: #65666d; background: #f5f3f1; }
+.privacy-page__option input {
+  appearance: none;
+  width: 23px;
+  height: 23px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: 0;
+  border: 1.5px solid #b7b4b5;
+  border-radius: 7px;
+  outline: 0;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+.privacy-page__option input::after { content: ""; width: 5px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0; opacity: 0; transform: translateY(-1px) rotate(45deg) scale(.7); transition: opacity 120ms ease, transform 120ms ease; }
+.privacy-page__option input:checked { border-color: var(--app-ink, #000e32); background: var(--app-ink, #000e32); }
+.privacy-page__option input:checked::after { opacity: 1; transform: translateY(-1px) rotate(45deg) scale(1); }
+.privacy-page__option input:disabled { cursor: not-allowed; }
+.privacy-page__option--locked input:checked { border-color: var(--app-gold-dark, #78591b); background: var(--app-gold-dark, #78591b); }
+.privacy-page__saving { display: block; margin-top: 13px; color: var(--app-muted, #666873); }
+
+.privacy-page__card-actions { margin-top: 22px; display: flex; justify-content: flex-end; }
+.privacy-page__button { min-height: 48px; padding: 11px 21px; border-radius: 13px; font: 600 15px/1.2 "Afacad", sans-serif; cursor: pointer; transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease; }
+.privacy-page__button:hover:not(:disabled) { transform: translateY(-1px); }
+.privacy-page__button:focus-visible { outline: 2px solid var(--app-gold, #c9a25d); outline-offset: 3px; }
+.privacy-page__button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.privacy-page__button--primary { min-width: 210px; border: 1px solid var(--app-ink, #000e32); color: #fff; background: var(--app-ink, #000e32); }
+.privacy-page__button--primary:hover:not(:disabled) { box-shadow: 0 12px 24px rgba(0, 14, 50, .17); }
+.privacy-page__helper { margin: 17px 0 0; padding-top: 17px; border-top: 1px solid #eeebeb; color: var(--app-muted, #666873); font-size: 14px; }
+
+.privacy-page__action-card { min-height: 264px; padding: clamp(25px, 3.5vw, 36px); display: flex; align-items: flex-start; justify-content: space-between; flex-direction: column; gap: 25px; border: 1px solid transparent; box-shadow: 0 18px 46px rgba(0, 14, 50, .045); }
+.privacy-page__action-card h2 { font-size: 23px; }
+.privacy-page__action-card p { margin: 12px 0 0; color: #565965; }
+.privacy-page__action-card--warning { border-color: rgba(201, 162, 93, .32); background: linear-gradient(145deg, #fffdf8, #fff9ec); }
+.privacy-page__action-card--danger { border-color: rgba(180, 71, 77, .2); background: linear-gradient(145deg, #fffafa, #fff3f3); }
+.privacy-page__button--warning { border: 1px solid rgba(120, 89, 27, .38); color: #624916; background: #fff; }
+.privacy-page__button--warning:hover:not(:disabled) { border-color: #9c7935; background: #fffaf0; }
+.privacy-page__button--danger { border: 1px solid #9f454b; color: #fff; background: #9f454b; }
+.privacy-page__button--danger:hover:not(:disabled) { border-color: #87363c; background: #87363c; box-shadow: 0 11px 23px rgba(135, 54, 60, .18); }
+.privacy-page__deletion-status { padding: 11px 13px; border-radius: 11px; color: #753036 !important; background: rgba(255, 255, 255, .7); font-size: 14px; }
+.privacy-page__confirmation-input { width: 100%; min-height: 52px; margin-top: 15px; padding: 0 15px; border: 1px solid #d8d5d5; border-radius: 13px; outline: 0; color: var(--app-ink, #000e32); background: #f7f5f5; font: 600 16px/1 "Afacad", sans-serif; letter-spacing: .04em; }
+.privacy-page__confirmation-input:focus { border-color: var(--app-gold, #c9a25d); background: #fff; box-shadow: 0 0 0 3px rgba(201, 162, 93, .16); }
+
+@media (min-width: 900px) {
+  .privacy-page__preference-grid { grid-template-columns: minmax(0, .86fr) minmax(0, 1.14fr); align-items: start; }
+  .privacy-page__action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 719px) {
+  .privacy-page { padding: 28px 16px 50px; }
+  .privacy-page__header { margin-bottom: 26px; }
+  .privacy-page__header::before { margin-bottom: 14px; }
+  .privacy-page__header h1 { font-size: 36px; }
+  .privacy-page__header p { margin-top: 10px; font-size: 15px; }
+  .privacy-page__card,
+  .privacy-page__action-card { padding: 23px 19px; border-radius: 21px; }
+  .privacy-page__section-heading--with-link { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .privacy-page__section-heading h2,
+  .privacy-page__action-card h2 { font-size: 22px; }
+  .privacy-page__option { min-height: 60px; padding: 13px 14px; }
+  .privacy-page__card-actions { justify-content: stretch; }
+  .privacy-page__button { width: 100%; min-height: 51px; }
+  .privacy-page__action-card { min-height: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .privacy-page__option,
+  .privacy-page__option input,
+  .privacy-page__button { transition: none; }
+}

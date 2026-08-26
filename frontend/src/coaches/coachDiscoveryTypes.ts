@@ -17,7 +17,7 @@ export interface CoachSummaryResponse {
   totalSessions: number;
   acceptingNewStudents: boolean;
   profileImageUrl: string | null;
-  introVideoUrl: string | null;
+  introVideoEmbedUrl: string | null;
 }
 
 export interface CoachDetailResponse {
@@ -34,7 +34,7 @@ export interface CoachDetailResponse {
   totalSessions: number;
   acceptingNewStudents: boolean;
   profileImageUrl: string | null;
-  introVideoUrl: string | null;
+  introVideoEmbedUrl: string | null;
 }
 
 export type PublicCoachDetailResponse = Omit<CoachDetailResponse, "userId">;

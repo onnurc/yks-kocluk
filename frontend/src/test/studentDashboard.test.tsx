@@ -107,7 +107,7 @@ const coachDetail = {
   totalSessions: 42,
   acceptingNewStudents: false,
   profileImageUrl: "https://cdn.example/coach-9.jpg",
-  introVideoUrl: null,
+  introVideoEmbedUrl: null,
 };
 
 const Location = () => <output data-testid="location">{useLocation().pathname}</output>;

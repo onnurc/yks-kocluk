@@ -1,9 +1,9 @@
 package com.ykskocluk.demo.service;
 
+import com.ykskocluk.demo.config.MediaPublicUrlProperties;
 import com.ykskocluk.demo.entity.MediaAsset;
 import com.ykskocluk.demo.enums.MediaStatus;
 import com.ykskocluk.demo.enums.MediaVisibility;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.mapstruct.Named;
 
@@ -11,8 +11,8 @@ import org.mapstruct.Named;
 public class MediaAssetUrlResolver {
     private final String publicBaseUrl;
 
-    public MediaAssetUrlResolver(@Value("${app.media.public-base-url}") String publicBaseUrl) {
-        this.publicBaseUrl = publicBaseUrl.endsWith("/") ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1) : publicBaseUrl;
+    public MediaAssetUrlResolver(MediaPublicUrlProperties properties) {
+        this.publicBaseUrl = properties.publicBaseUrl();
     }
 
     /**
@@ -22,9 +22,9 @@ public class MediaAssetUrlResolver {
      */
     @Named("publicMediaUrl")
     public String publicUrl(MediaAsset asset) {
-        if (asset == null || asset.getId() == null) return null;
+        if (asset == null || asset.getPublicToken() == null || publicBaseUrl == null) return null;
         if (asset.getStatus() != MediaStatus.ACTIVE || asset.getVisibility() != MediaVisibility.PUBLIC) return null;
-        return publicBaseUrl + "/api/v1/public/media/" + asset.getId();
+        return publicBaseUrl + "/api/v1/public/media/" + asset.getPublicToken();
     }
 
     @Named("activeAssetId")

@@ -1,0 +1,76 @@
+.legal-onboarding,
+.legal-onboarding * { box-sizing: border-box; }
+
+.legal-onboarding { width: 100%; color: var(--auth-ink); }
+.legal-onboarding__error:empty { display: none; }
+.legal-onboarding__error > div { margin: 0 0 18px !important; padding: 14px 16px !important; border: 0 !important; border-radius: 13px !important; color: #8b1d27 !important; background: #fff0f1 !important; font-family: inherit; }
+.legal-onboarding__state { margin-bottom: 18px; padding: 14px 16px; border-radius: 13px; color: #4c5260; background: #efeded; font-size: 14px; }
+.legal-onboarding__state--error { display: flex; align-items: center; justify-content: space-between; gap: 14px; color: #8b1d27; background: #fff0f1; }
+.legal-onboarding__state button { flex: 0 0 auto; padding: 7px 11px; border: 1px solid rgba(139, 29, 39, .28); border-radius: 9px; color: #8b1d27; background: #fff; font: 600 13px/1.2 "Afacad", sans-serif; cursor: pointer; }
+
+.legal-onboarding__form { width: 100%; }
+.legal-onboarding__kvkk { margin: 0 0 24px; padding: 15px 18px; border-left: 3px solid var(--auth-gold); border-radius: 0 13px 13px 0; color: #565c68; background: #fbf8f1; font-size: 15px; }
+.legal-onboarding__kvkk button,
+.legal-onboarding__choice-content button { color: #75561b !important; font-weight: 600 !important; text-decoration-color: rgba(117, 86, 27, .42) !important; text-underline-offset: 4px; }
+
+.legal-onboarding__group { margin-top: 18px; padding: 21px; border: 1px solid rgba(201, 162, 93, .3); border-radius: 20px; background: #fffdf8; }
+.legal-onboarding__group--optional { border-color: var(--auth-border); background: #fafafa; }
+.legal-onboarding__group h2 { margin: 0 0 15px; color: var(--auth-ink); font: 400 20px/1.2 "Righteous", system-ui, sans-serif; letter-spacing: -.01em; }
+.legal-onboarding__choices { display: grid; gap: 11px; }
+.legal-onboarding__choice { min-width: 0; min-height: 66px; padding: 14px 15px; display: flex; align-items: flex-start; gap: 13px; border: 1px solid #e3e0df; border-radius: 15px; color: #424753; background: #fff; font-size: 15px; line-height: 1.42; cursor: pointer; transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease; }
+.legal-onboarding__choice:hover:not(:has(input:disabled)) { border-color: rgba(201, 162, 93, .68); }
+.legal-onboarding__choice:has(input:focus-visible) { border-color: var(--auth-gold); box-shadow: 0 0 0 3px rgba(201, 162, 93, .15); }
+.legal-onboarding__choice:has(input:disabled) { cursor: not-allowed; opacity: .68; }
+.legal-onboarding__choice--required:has(input:checked) { border-color: rgba(201, 162, 93, .6); background: #fffcf5; }
+.legal-onboarding__choice input {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin: 1px 0 0;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1.5px solid #aaa8aa;
+  border-radius: 7px;
+  outline: 0;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+.legal-onboarding__choice input::after { content: ""; width: 5px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0; opacity: 0; transform: translateY(-1px) rotate(45deg) scale(.7); transition: opacity 120ms ease, transform 120ms ease; }
+.legal-onboarding__choice input:checked { border-color: var(--auth-ink); background: var(--auth-ink); }
+.legal-onboarding__choice input:checked::after { opacity: 1; transform: translateY(-1px) rotate(45deg) scale(1); }
+.legal-onboarding__choice input:disabled { cursor: not-allowed; }
+.legal-onboarding__choice-content { min-width: 0; flex: 1; }
+.legal-onboarding__choice label { display: block; cursor: pointer; }
+.legal-onboarding__choice-content button { width: fit-content; margin-top: 6px; display: block; font-size: 13px !important; }
+.legal-onboarding__choice strong { display: inline-flex; margin-left: 5px; padding: 3px 8px; border-radius: 999px; color: #694e18; background: #fff2d8; font-size: 10px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
+.legal-onboarding__group--optional .legal-onboarding__choice strong { color: #5f6470; background: #efeded; }
+
+.legal-onboarding__actions { margin-top: 26px; display: grid; gap: 11px; }
+.legal-onboarding__actions button { width: 100%; min-height: 54px; border-radius: 999px; font: 600 13px/1 "Afacad", system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease; }
+.legal-onboarding__actions button:hover:not(:disabled) { transform: translateY(-1px); }
+.legal-onboarding__actions button:focus-visible,
+.legal-onboarding__state button:focus-visible { outline: 2px solid var(--auth-gold); outline-offset: 3px; }
+.legal-onboarding__actions button:disabled { opacity: .48; cursor: not-allowed; transform: none; }
+.legal-onboarding__primary { border: 1px solid var(--auth-ink); color: #fff; background: var(--auth-ink); }
+.legal-onboarding__primary:hover:not(:disabled) { box-shadow: 0 11px 25px rgba(0, 14, 50, .18); }
+.legal-onboarding__secondary { border: 1px solid var(--auth-border); color: var(--auth-ink); background: #fff; }
+.legal-onboarding__secondary:hover:not(:disabled) { border-color: rgba(201, 162, 93, .65); background: #fbf8f1; }
+
+@media (max-width: 767px) {
+  .legal-onboarding__kvkk { padding: 13px 14px; font-size: 14px; }
+  .legal-onboarding__group { padding: 17px 14px; border-radius: 17px; }
+  .legal-onboarding__group h2 { font-size: 19px; }
+  .legal-onboarding__choice { min-height: 62px; padding: 13px; font-size: 14px; }
+  .legal-onboarding__choice strong { margin: 6px 0 0; display: flex; width: fit-content; }
+  .legal-onboarding__state--error { align-items: flex-start; flex-direction: column; }
+  .legal-onboarding__state button { width: 100%; min-height: 42px; }
+  .legal-onboarding__actions button { min-height: 52px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .legal-onboarding__choice,
+  .legal-onboarding__choice input,
+  .legal-onboarding__actions button { transition: none; }
+}

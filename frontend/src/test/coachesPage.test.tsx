@@ -30,7 +30,7 @@ const coach = {
   totalSessions: 0,
   acceptingNewStudents: true,
   profileImageUrl: null,
-  introVideoUrl: null,
+  introVideoEmbedUrl: null,
 };
 
 const page = { content: [coach], page: 0, size: 9, totalElements: 1, totalPages: 1, last: true };

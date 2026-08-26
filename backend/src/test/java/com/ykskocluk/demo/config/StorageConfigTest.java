@@ -28,4 +28,34 @@ class StorageConfigTest {
         contextRunner.withPropertyValues("app.r2.enabled=true").run(context ->
                 assertThat(context).hasFailed());
     }
+
+    @Test void productionR2FailsStartupWithLocalMediaBaseUrl() {
+        contextRunner.withPropertyValues(
+                "app.r2.enabled=true",
+                "app.r2.account-id=account",
+                "app.r2.access-key-id=key",
+                "app.r2.secret-access-key=secret",
+                "app.r2.bucket=bucket",
+                "app.r2.endpoint=https://account.r2.cloudflarestorage.com",
+                "app.media.public-base-url=http://localhost:8080"
+        ).run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).hasRootCauseMessage(
+                    "MEDIA_PUBLIC_BASE_URL must be a non-local absolute HTTPS origin when R2 is enabled outside local development");
+        });
+    }
+
+    @Test void localProfileR2StartsWithLocalMediaBaseUrl() {
+        contextRunner
+                .withInitializer(context -> context.getEnvironment().setActiveProfiles("local"))
+                .withPropertyValues(
+                        "app.r2.enabled=true",
+                        "app.r2.account-id=account",
+                        "app.r2.access-key-id=key",
+                        "app.r2.secret-access-key=secret",
+                        "app.r2.bucket=bucket",
+                        "app.r2.endpoint=https://account.r2.cloudflarestorage.com",
+                        "app.media.public-base-url=http://localhost:8080"
+                ).run(context -> assertThat(context).hasNotFailed());
+    }
 }

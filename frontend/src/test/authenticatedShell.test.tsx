@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CurrentUser } from "../auth/authTypes";
 import { AppLayout } from "../components/AppLayout";
+import { PrivacySettingsPage } from "../pages/PrivacySettingsPage";
 import { TestAuthProvider } from "./TestAuthProvider";
 
 const mocks = vi.hoisted(() => ({
@@ -11,6 +12,13 @@ const mocks = vi.hoisted(() => ({
   useNotificationSocket: vi.fn(),
   getStudentProfile: vi.fn(),
   getCoachProfile: vi.fn(),
+  getMarketing: vi.fn(),
+  updateMarketing: vi.fn(),
+  getPrivacy: vi.fn(),
+  updatePrivacy: vi.fn(),
+  getDeletion: vi.fn(),
+  deleteAccount: vi.fn(),
+  withdraw: vi.fn(),
 }));
 
 vi.mock("../messaging/messagingApi", () => ({
@@ -25,8 +33,25 @@ vi.mock("../account/accountApi", () => ({
     getCoachProfile: mocks.getCoachProfile,
   },
 }));
+vi.mock("../privacy/privacyApi", () => ({
+  privacyApi: {
+    getMarketingPreferences: mocks.getMarketing,
+    updateMarketingPreferences: mocks.updateMarketing,
+    getPrivacyPreferences: mocks.getPrivacy,
+    updatePrivacyPreferences: mocks.updatePrivacy,
+    getAccountDeletion: mocks.getDeletion,
+    deleteAccount: mocks.deleteAccount,
+    withdrawExplicitConsent: mocks.withdraw,
+  },
+}));
 vi.mock("../legal/useLegalDocuments", () => ({
-  useLegalDocuments: () => ({ documents: {}, loading: false, error: null, reload: vi.fn() }),
+  useLegalDocuments: () => ({
+    documents: { COOKIE_POLICY: { id: 5, type: "COOKIE_POLICY", version: "1.0", title: "Çerez Politikası", content: "Metin", contentHash: "hash", effectiveAt: "2026-01-01T00:00:00Z" } },
+    loading: false,
+    error: null,
+    ready: true,
+    reload: vi.fn(),
+  }),
 }));
 
 const student: CurrentUser = {
@@ -49,6 +74,7 @@ function renderShell(path: string, user: CurrentUser = student) {
             <Route path="/dashboard" element={<div>Dashboard body</div>} />
             <Route path="/messages" element={<div>Messages body</div>} />
             <Route path="/messages/:conversationId" element={<div>Conversation body</div>} />
+            <Route path="/privacy" element={<PrivacySettingsPage />} />
             <Route path="/admin" element={<div>Admin body</div>} />
           </Route>
           <Route path="/login" element={<div>Login body</div>} />
@@ -67,6 +93,9 @@ describe("shared authenticated product shell", () => {
     mocks.logout.mockResolvedValue(undefined);
     mocks.getStudentProfile.mockResolvedValue({ profileImageUrl: null });
     mocks.getCoachProfile.mockResolvedValue({ profileImageUrl: null });
+    mocks.getMarketing.mockResolvedValue({ email: { granted: true }, sms: { granted: false } });
+    mocks.getPrivacy.mockResolvedValue({ necessaryAllowed: true, analyticsAllowed: false, marketingAllowed: false, cookiePolicyDocumentId: 5, policyVersion: "1.0", grantedAt: null, updatedAt: null });
+    mocks.getDeletion.mockResolvedValue(null);
   });
 
   it("renders the student's saved profile image in every responsive avatar slot", async () => {
@@ -106,6 +135,7 @@ describe("shared authenticated product shell", () => {
     ["/dashboard", "Dashboard body"],
     ["/messages", "Messages body"],
     ["/messages/12", "Conversation body"],
+    ["/privacy", "Gizlilik ve hukuki tercihler"],
   ])("keeps the same Uniform shell at %s", (path, body) => {
     const { container } = renderShell(path);
 
@@ -115,6 +145,14 @@ describe("shared authenticated product shell", () => {
     expect(screen.getByRole("link", { name: "Uniform Akademi ana sayfa" })).toBeInTheDocument();
     expect(screen.getByText("Mentorluk")).toBeInTheDocument();
     expect(screen.queryByText("YKS Koçluk")).not.toBeInTheDocument();
+  });
+
+  it("keeps the privacy page available to coaches in the authenticated shell", () => {
+    const { container } = renderShell("/privacy", { ...student, role: "COACH", fullName: "Ece Koç" });
+
+    expect(screen.getByRole("heading", { level: 1, name: "Gizlilik ve hukuki tercihler" })).toBeInTheDocument();
+    expect(container.querySelector(".app-layout__header")).toBeInTheDocument();
+    expect(container.querySelector(".app-layout__sidebar")).toBeInTheDocument();
   });
 
   it("renders the responsive authenticated header and opens its real mobile menu", () => {

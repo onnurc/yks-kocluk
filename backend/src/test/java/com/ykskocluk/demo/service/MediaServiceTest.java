@@ -30,15 +30,19 @@ class MediaServiceTest {
     @Mock StudentProfileRepository students;
     @Mock StorageService storage;
     @Mock MediaAssetUrlResolver resolver;
+    @Mock MediaPublicTokenGenerator tokenGenerator;
+    @Mock AfterCommitStorageDeletionService storageDeletion;
     MediaService service;
     User coach;
 
     @BeforeEach void setUp() {
         service = new MediaService(assets, users, coaches, students, storage,
-                new MediaPolicyProperties(5L * 1024 * 1024, 20L * 1024 * 1024, 10L * 1024 * 1024), resolver);
+                new MediaPolicyProperties(5L * 1024 * 1024, 10L * 1024 * 1024),
+                resolver, tokenGenerator, storageDeletion);
         coach = user(7L, Role.COACH);
         lenient().when(users.findById(7L)).thenReturn(Optional.of(coach));
         lenient().when(coaches.existsByUserId(7L)).thenReturn(true);
+        lenient().when(tokenGenerator.generate()).thenReturn("a".repeat(64));
         lenient().when(assets.save(any())).thenAnswer(i -> {
             MediaAsset saved = i.getArgument(0);
             ReflectionTestUtils.setField(saved, "id", 99L);
@@ -58,6 +62,7 @@ class MediaServiceTest {
         verify(assets).save(captor.capture());
         assertThat(captor.getValue().getVisibility()).isEqualTo(MediaVisibility.PUBLIC);
         assertThat(captor.getValue().getStatus()).isEqualTo(MediaStatus.PENDING_UPLOAD);
+        assertThat(captor.getValue().getPublicToken()).isEqualTo("a".repeat(64));
     }
 
     @Test void unsupportedMimeIsRejected() {
@@ -73,19 +78,18 @@ class MediaServiceTest {
         assertThat(ex.getErrorCode()).isEqualTo("MEDIA_SIZE_EXCEEDED");
     }
 
-    @Test void coachVideoBoundaryAcceptedButOversizeRejected() {
-        assertThatCode(() -> service.presign(7L, new MediaPresignRequest(MediaType.COACH_INTRO_VIDEO,
-                "video/mp4", 20L * 1024 * 1024, "intro.mp4"))).doesNotThrowAnyException();
+    @Test void legacyCoachVideoUploadsAreDisabled() {
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.presign(7L,
-                new MediaPresignRequest(MediaType.COACH_INTRO_VIDEO, "video/mp4", 20L * 1024 * 1024 + 1, "intro.mp4")));
-        assertThat(ex.getErrorCode()).isEqualTo("MEDIA_SIZE_EXCEEDED");
+                new MediaPresignRequest(MediaType.COACH_INTRO_VIDEO, "video/mp4", 100, "intro.mp4")));
+        assertThat(ex.getErrorCode()).isEqualTo("MEDIA_TYPE_NOT_ALLOWED");
+        verifyNoInteractions(storage);
     }
 
     @Test void nonCoachCannotUploadCoachVideo() {
         User student = user(8L, Role.STUDENT); when(users.findById(8L)).thenReturn(Optional.of(student));
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.presign(8L,
                 new MediaPresignRequest(MediaType.COACH_INTRO_VIDEO, "video/mp4", 10, "x.mp4")));
-        assertThat(ex.getErrorCode()).isEqualTo("MEDIA_OWNER_INVALID");
+        assertThat(ex.getErrorCode()).isEqualTo("MEDIA_TYPE_NOT_ALLOWED");
     }
 
     @Test void documentVisibilityIsAlwaysPrivate() {
@@ -122,7 +126,8 @@ class MediaServiceTest {
         assertThat(fresh.getStatus()).isEqualTo(MediaStatus.ACTIVE);
         assertThat(old.getStatus()).isEqualTo(MediaStatus.DELETED);
         assertThat(profile.getProfileImageAsset()).isSameAs(fresh);
-        verify(storage).deleteObject(old.getObjectKey());
+        verify(storageDeletion).deleteAfterCommit(old.getObjectKey());
+        verify(storage, never()).deleteObject(old.getObjectKey());
     }
 
     @Test void completeSkipsStorageDeleteWhenNoPriorActiveImageExists() {
@@ -133,7 +138,7 @@ class MediaServiceTest {
         when(coaches.findByUserId(7L)).thenReturn(Optional.of(profile));
         service.complete(7L, 20L);
         assertThat(profile.getProfileImageAsset()).isSameAs(fresh);
-        verify(storage, never()).deleteObject(anyString());
+        verify(storageDeletion, never()).deleteAfterCommit(anyString());
     }
 
     @Test void privateDocumentDownloadOwnerAndAdminAllowedUnrelatedDenied() {
@@ -167,24 +172,38 @@ class MediaServiceTest {
 
     @Test void publicPresignedUrlNeedsNoRequesterButRejectsPrivateAssets() {
         MediaAsset image = asset(31L, coach, MediaType.PROFILE_IMAGE, MediaVisibility.PUBLIC, MediaStatus.ACTIVE);
-        when(assets.findById(31L)).thenReturn(Optional.of(image));
+        when(assets.findByPublicTokenAndStatusAndVisibility(
+                image.getPublicToken(), MediaStatus.ACTIVE, MediaVisibility.PUBLIC)).thenReturn(Optional.of(image));
         when(storage.createPresignedDownload(image.getObjectKey()))
                 .thenReturn(new StorageService.DownloadTarget("https://stub/presigned", Instant.now().plusSeconds(600)));
-        assertThat(service.publicPresignedUrl(31L)).isEqualTo("https://stub/presigned");
+        assertThat(service.publicPresignedUrl(image.getPublicToken())).isEqualTo("https://stub/presigned");
         verify(users, never()).findById(anyLong());
 
         MediaAsset document = asset(32L, coach, MediaType.DOCUMENT, MediaVisibility.PRIVATE, MediaStatus.ACTIVE);
-        when(assets.findById(32L)).thenReturn(Optional.of(document));
-        assertThatThrownBy(() -> service.publicPresignedUrl(32L)).isInstanceOf(ApiException.class)
+        when(assets.findByPublicTokenAndStatusAndVisibility(
+                document.getPublicToken(), MediaStatus.ACTIVE, MediaVisibility.PUBLIC)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.publicPresignedUrl(document.getPublicToken())).isInstanceOf(ApiException.class)
                 .extracting(e -> ((ApiException) e).getErrorCode()).isEqualTo("MEDIA_NOT_FOUND");
         verify(storage, never()).createPresignedDownload(document.getObjectKey());
+    }
+
+    @Test void numericDatabaseIdsAndInactiveTokensCannotResolvePublicMedia() {
+        assertThatThrownBy(() -> service.publicPresignedUrl("31")).isInstanceOf(ApiException.class)
+                .extracting(error -> ((ApiException) error).getErrorCode()).isEqualTo("MEDIA_NOT_FOUND");
+
+        String deletedToken = "d".repeat(64);
+        when(assets.findByPublicTokenAndStatusAndVisibility(
+                deletedToken, MediaStatus.ACTIVE, MediaVisibility.PUBLIC)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.publicPresignedUrl(deletedToken)).isInstanceOf(ApiException.class)
+                .extracting(error -> ((ApiException) error).getErrorCode()).isEqualTo("MEDIA_NOT_FOUND");
+        verify(storage, never()).createPresignedDownload(anyString());
     }
 
     @Test void cannotDeleteAnotherUsersAsset() {
         MediaAsset asset = asset(40L, coach, MediaType.DOCUMENT, MediaVisibility.PRIVATE, MediaStatus.ACTIVE);
         when(assets.findById(40L)).thenReturn(Optional.of(asset));
         assertThatThrownBy(() -> service.delete(2L, 40L)).isInstanceOf(ApiException.class);
-        verify(storage, never()).deleteObject(anyString());
+        verify(storageDeletion, never()).deleteAfterCommit(anyString());
         assertThat(asset.getStatus()).isEqualTo(MediaStatus.ACTIVE);
     }
 
@@ -194,7 +213,8 @@ class MediaServiceTest {
         when(coaches.findByUserId(7L)).thenReturn(Optional.empty());
         when(students.findByUserId(7L)).thenReturn(Optional.empty());
         service.delete(7L, 41L);
-        verify(storage).deleteObject(asset.getObjectKey());
+        verify(storageDeletion).deleteAfterCommit(asset.getObjectKey());
+        verify(storage, never()).deleteObject(asset.getObjectKey());
         assertThat(asset.getStatus()).isEqualTo(MediaStatus.DELETED);
     }
 
@@ -208,14 +228,27 @@ class MediaServiceTest {
 
         service.delete(7L, 42L);
 
-        verify(storage).deleteObject(asset.getObjectKey());
+        verify(storageDeletion).deleteAfterCommit(asset.getObjectKey());
         assertThat(profile.getProfileImageAsset()).isNull();
         assertThat(asset.getStatus()).isEqualTo(MediaStatus.DELETED);
+    }
+
+    @Test void completingProfileImageWithoutProfileReturnsMeaningfulConflict() {
+        MediaAsset fresh = asset(50L, coach, MediaType.PROFILE_IMAGE, MediaVisibility.PUBLIC, MediaStatus.PENDING_UPLOAD);
+        when(assets.findById(50L)).thenReturn(Optional.of(fresh));
+        when(storage.headObject(fresh.getObjectKey())).thenReturn(new StorageService.StoredObjectMetadata(true, "image/jpeg", 100));
+        when(coaches.findByUserId(7L)).thenReturn(Optional.empty());
+
+        ApiException error = catchThrowableOfType(ApiException.class, () -> service.complete(7L, 50L));
+
+        assertThat(error.getStatus()).isEqualTo(org.springframework.http.HttpStatus.CONFLICT);
+        assertThat(error.getErrorCode()).isEqualTo("MEDIA_PROFILE_MISSING");
     }
 
     private User user(Long id, Role role) { User u = new User(); ReflectionTestUtils.setField(u, "id", id); u.setRole(role); return u; }
     private MediaAsset asset(Long id, User owner, MediaType type, MediaVisibility visibility, MediaStatus status) {
         MediaAsset a = new MediaAsset(); ReflectionTestUtils.setField(a, "id", id); a.setOwner(owner);
+        a.setPublicToken(String.format("%064x", id));
         a.setObjectKey((visibility == MediaVisibility.PUBLIC ? "public/" : "private/") + id + ".jpg");
         a.setContentType("image/jpeg"); a.setSizeBytes(100); a.setMediaType(type); a.setVisibility(visibility); a.setStatus(status); return a;
     }

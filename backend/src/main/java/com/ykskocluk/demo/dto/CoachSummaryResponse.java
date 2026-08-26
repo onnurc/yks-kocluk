@@ -18,6 +18,6 @@ public record CoachSummaryResponse(
         int totalSessions,
         boolean acceptingNewStudents,
         String profileImageUrl,
-        String introVideoUrl
+        String introVideoEmbedUrl
 ) {
 }

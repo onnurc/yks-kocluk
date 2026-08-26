@@ -4,12 +4,13 @@ import com.ykskocluk.demo.dto.CoachProfileResponse;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.enums.Track;
 import com.ykskocluk.demo.service.MediaAssetUrlResolver;
+import com.ykskocluk.demo.service.YoutubeEmbedUrlResolver;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import java.util.Set;
 
-@Mapper(componentModel = "spring", uses = MediaAssetUrlResolver.class)
+@Mapper(componentModel = "spring", uses = {MediaAssetUrlResolver.class, YoutubeEmbedUrlResolver.class})
 public interface CoachProfileMapper {
 
     @Mapping(target = "userId", source = "profile.user.id")
@@ -20,6 +21,6 @@ public interface CoachProfileMapper {
     @Mapping(target = "tracks", source = "tracks")
     @Mapping(target = "profileImageUrl", source = "profile.profileImageAsset", qualifiedByName = "publicMediaUrl")
     @Mapping(target = "profileImageAssetId", source = "profile.profileImageAsset", qualifiedByName = "activeAssetId")
-    @Mapping(target = "introVideoUrl", source = "profile.introVideoAsset", qualifiedByName = "publicMediaUrl")
+    @Mapping(target = "introVideoEmbedUrl", source = "profile.introYoutubeVideoId", qualifiedByName = "youtubeEmbedUrl")
     CoachProfileResponse toResponse(CoachProfile profile, Set<Track> tracks);
 }

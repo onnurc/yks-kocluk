@@ -72,5 +72,10 @@ public class CoachProfile extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "intro_video_asset_id")
+    @Deprecated(forRemoval = false)
     private MediaAsset introVideoAsset;
+
+    /** Admin-managed YouTube id; embed HTML/URLs are never persisted. */
+    @Column(name = "intro_youtube_video_id", length = 11)
+    private String introYoutubeVideoId;
 }

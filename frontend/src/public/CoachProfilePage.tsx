@@ -8,6 +8,7 @@ import { studentDashboardApi } from "../studentDashboard/studentDashboardApi";
 import type { StudentDashboardResponse } from "../studentDashboard/studentDashboardTypes";
 import { canMessageWithSubscription } from "../access/subscriptionAccess";
 import { messagingApi } from "../messaging/messagingApi";
+import { safeYoutubeEmbedUrl, YouTubeEmbed } from "../coaches/YouTubeEmbed";
 import "./coach-profile-page.css";
 
 const trackLabels: Record<string, string> = {
@@ -167,11 +168,8 @@ export function CoachProfilePage() {
 
           <section className="coach-profile-media" aria-labelledby="coach-profile-media-title">
             <div className="coach-profile-media__frame">
-              {coach.introVideoUrl ? (
-                <video controls preload="metadata" poster={coach.profileImageUrl ?? undefined} aria-label={`${coach.fullName} tanıtım videosu`}>
-                  <source src={coach.introVideoUrl} />
-                  Tarayıcınız video oynatmayı desteklemiyor.
-                </video>
+              {safeYoutubeEmbedUrl(coach.introVideoEmbedUrl) ? (
+                <YouTubeEmbed url={coach.introVideoEmbedUrl} title={`${coach.fullName} tanıtım videosu`} />
               ) : (
                 <div className="coach-profile-media__empty"><span aria-hidden="true">▷</span><p>Tanıtım videosu henüz eklenmedi.</p></div>
               )}

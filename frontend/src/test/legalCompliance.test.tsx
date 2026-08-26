@@ -106,6 +106,7 @@ beforeEach(() => {
   mocks.getPrivacy.mockResolvedValue({ necessaryAllowed: true, analyticsAllowed: false, marketingAllowed: false, cookiePolicyDocumentId: 5, policyVersion: "1.0", grantedAt: null, updatedAt: null });
   mocks.updatePrivacy.mockImplementation(async (request: object) => ({ ...request, policyVersion: "1.0", grantedAt: null, updatedAt: null }));
   mocks.getDeletion.mockRejectedValue(new ApiError(404, "Not found", "Talep yok", "ACCOUNT_DELETION_NOT_REQUESTED"));
+  mocks.auth.logout.mockResolvedValue(undefined);
 });
 
 describe("registration legal flow", () => {
@@ -180,16 +181,62 @@ describe("OAuth and onboarding gates", () => {
     expect(await screen.findByText("Onboarding ekranı")).toBeInTheDocument();
   });
 
-  it("sends current Terms and Explicit Consent IDs during onboarding", async () => {
+  it("blocks continuation until both required approvals and keeps marketing permissions optional", async () => {
     Object.assign(mocks.auth, { user: { id: 9, email: "oauth@example.com", fullName: "OAuth User", role: "STUDENT", status: "ACTIVE", emailVerified: true, legalOnboardingCompleted: false }, isAuthenticated: true });
     mocks.completeOnboarding.mockResolvedValue({ legalOnboardingCompleted: true });
     mocks.getCurrentUser.mockResolvedValue({ ...mocks.auth.user, legalOnboardingCompleted: true });
-    render(<MemoryRouter><LegalOnboardingPage /></MemoryRouter>);
+    render(
+      <MemoryRouter initialEntries={["/legal-onboarding"]}>
+        <Routes>
+          <Route path="/legal-onboarding" element={<LegalOnboardingPage />} />
+          <Route path="/dashboard" element={<p>Öğrenci paneli</p>} />
+        </Routes>
+      </MemoryRouter>
+    );
+    const continueButton = screen.getByRole("button", { name: "Onayla ve devam et" });
+    expect(continueButton).toBeDisabled();
     fireEvent.click(screen.getByLabelText(/Kullanım Koşulları.*Zorunlu/));
+    expect(continueButton).toBeDisabled();
     fireEvent.click(screen.getByLabelText(/Açık Rıza Metni.*Zorunlu/));
-    fireEvent.click(screen.getByRole("button", { name: "Onayla ve devam et" }));
-    await waitFor(() => expect(mocks.completeOnboarding).toHaveBeenCalledWith(expect.objectContaining({ termsDocumentId: 3, explicitConsentDocumentId: 2 })));
+    expect(continueButton).toBeEnabled();
+    fireEvent.click(continueButton);
+    await waitFor(() => expect(mocks.completeOnboarding).toHaveBeenCalledWith({
+      termsDocumentId: 3,
+      explicitConsentDocumentId: 2,
+      marketingEmailOptIn: false,
+      marketingSmsOptIn: false,
+    }));
     expect(mocks.auth.refreshCurrentUser).toHaveBeenCalled();
+    expect(await screen.findByText("Öğrenci paneli")).toBeInTheDocument();
+  });
+
+  it("renders the legal documents as working contextual links", () => {
+    Object.assign(mocks.auth, { user: { id: 9, email: "oauth@example.com", fullName: "OAuth User", role: "STUDENT", status: "ACTIVE", emailVerified: true, legalOnboardingCompleted: false }, isAuthenticated: true });
+    render(<MemoryRouter><LegalOnboardingPage /></MemoryRouter>);
+
+    expect(screen.getByRole("heading", { level: 1, name: "Hukuki onayları tamamlayın" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "KVKK Aydınlatma Metni" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("KVKK Aydınlatma Metni backend içeriği");
+    fireEvent.click(screen.getByLabelText("Hukuki metni kapat"));
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Metni görüntüle" })[0]);
+    expect(screen.getByRole("dialog")).toHaveTextContent("Kullanım Koşulları backend içeriği");
+  });
+
+  it("keeps logout available from legal onboarding", async () => {
+    Object.assign(mocks.auth, { user: { id: 9, email: "oauth@example.com", fullName: "OAuth User", role: "COACH", status: "ACTIVE", emailVerified: true, legalOnboardingCompleted: false }, isAuthenticated: true });
+    render(
+      <MemoryRouter initialEntries={["/legal-onboarding"]}>
+        <Routes>
+          <Route path="/legal-onboarding" element={<LegalOnboardingPage />} />
+          <Route path="/login" element={<p>Giriş ekranı</p>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Çıkış yap" }));
+    await waitFor(() => expect(mocks.auth.logout).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Giriş ekranı")).toBeInTheDocument();
   });
 });
 
@@ -234,9 +281,12 @@ describe("privacy settings", () => {
     expect(necessary).toBeDisabled();
     fireEvent.click(screen.getByLabelText(/E-posta ile kampanya/));
     await waitFor(() => expect(mocks.updateMarketing).toHaveBeenCalledWith({ email: false }));
+    fireEvent.click(screen.getByLabelText(/SMS ile kampanya/));
+    await waitFor(() => expect(mocks.updateMarketing).toHaveBeenCalledWith({ sms: true }));
     fireEvent.click(screen.getByLabelText(/Analitik/));
+    fireEvent.click(screen.getByLabelText(/Pazarlama — isteğe bağlı/));
     fireEvent.click(screen.getByRole("button", { name: "Çerez tercihlerini kaydet" }));
-    await waitFor(() => expect(mocks.updatePrivacy).toHaveBeenCalledWith(expect.objectContaining({ necessaryAllowed: true, analyticsAllowed: true, cookiePolicyDocumentId: 5 })));
+    await waitFor(() => expect(mocks.updatePrivacy).toHaveBeenCalledWith(expect.objectContaining({ necessaryAllowed: true, analyticsAllowed: true, marketingAllowed: true, cookiePolicyDocumentId: 5 })));
   });
 
   it("requires DELETE and clears the local session after successful deletion", async () => {

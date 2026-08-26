@@ -21,6 +21,7 @@ public class RateLimitProperties {
     private LimitRule emailVerification = new LimitRule(30, 10, 600);
     private LimitRule emailVerificationResend = new LimitRule(20, 5, 3600);
     private LimitRule coachApplication = new LimitRule(10, 3, 3600);
+    private UserLimitRule mediaPresign = new UserLimitRule(12, 600);
 
     @Getter
     @Setter
@@ -48,6 +49,19 @@ public class RateLimitProperties {
         public RefreshLimitRule(int ipLimit, int tokenLimit, int windowSeconds) {
             this.ipLimit = ipLimit;
             this.tokenLimit = tokenLimit;
+            this.windowSeconds = windowSeconds;
+        }
+    }
+
+    @Getter
+    @Setter
+    public static class UserLimitRule {
+        private int userLimit;
+        private int windowSeconds;
+
+        public UserLimitRule() {}
+        public UserLimitRule(int userLimit, int windowSeconds) {
+            this.userLimit = userLimit;
             this.windowSeconds = windowSeconds;
         }
     }

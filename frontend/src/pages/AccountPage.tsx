@@ -5,6 +5,8 @@ import { useAuth } from "../auth/AuthProvider";
 import { accountApi } from "../account/accountApi";
 import { useAccountProfile } from "../account/accountProfileContext";
 import type { CoachProfileResponse, StudentProfileResponse } from "../account/accountTypes";
+import { mediaErrorMessage } from "../account/mediaErrors";
+import { isSupportedProfileImage, PROFILE_IMAGE_MAX_LABEL } from "../account/mediaPolicy";
 import "./account-page.css";
 
 type StudentDraft = {
@@ -120,7 +122,7 @@ export function AccountPage() {
     if (coachProfile) setCoach(coachDraft(coachProfile));
   }, [coachProfile, studentProfile]);
 
-  // profileImageUrl points at the backend's own /api/v1/public/media/{assetId} redirect, which
+  // profileImageUrl points at the backend's own /api/v1/public/media/{opaqueToken} redirect, which
   // signs a fresh storage URL per request — so it stays valid however long this page is open.
   const profileImageUrl = studentProfile?.profileImageUrl ?? coachProfile?.profileImageUrl ?? null;
   const profileImageAssetId = studentProfile?.profileImageAssetId ?? coachProfile?.profileImageAssetId ?? null;
@@ -171,12 +173,12 @@ export function AccountPage() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (![/^image\/(jpeg|png|webp)$/.test(file.type), file.size <= 2 * 1024 * 1024].every(Boolean)) {
-      setError("Profil fotoğrafı JPG, PNG veya WEBP olmalı ve 2 MB’ı geçmemeli."); return;
+    if (!isSupportedProfileImage(file)) {
+      setError(`Profil fotoğrafı JPG, PNG veya WEBP olmalı ve ${PROFILE_IMAGE_MAX_LABEL}’ı geçmemeli.`); return;
     }
     setUploading(true); setError(null); setNotice(null);
     try { await accountApi.uploadProfileImage(file); await refreshProfile(); setNotice("Profil fotoğrafınız güncellendi."); }
-    catch { setError("Profil fotoğrafı yüklenemedi. Lütfen yeniden deneyin."); }
+    catch (caught) { setError(mediaErrorMessage(caught, "Profil fotoğrafı yüklenemedi. Lütfen yeniden deneyin.")); }
     finally { setUploading(false); }
   };
 
@@ -200,7 +202,7 @@ export function AccountPage() {
       }
       setRemovePhotoModalOpen(false);
       setNotice("Profil fotoğrafınız kaldırıldı.");
-    } catch { setError("Profil fotoğrafı kaldırılamadı. Lütfen yeniden deneyin."); }
+    } catch (caught) { setError(mediaErrorMessage(caught, "Profil fotoğrafı kaldırılamadı. Lütfen yeniden deneyin.")); }
     finally { setRemovingPhoto(false); }
   };
 
@@ -217,7 +219,7 @@ export function AccountPage() {
             <div className="account-page__avatar">{availableProfileImageUrl ? <img src={availableProfileImageUrl} alt="Profil fotoğrafı" onError={() => setFailedProfileImageUrl(availableProfileImageUrl)} /> : <span>{initials(user.fullName)}</span>}</div>
             <div>
               <h2 id="profile-photo-title">Profil Fotoğrafı</h2>
-              <p>JPG, PNG veya WEBP · En fazla 2 MB</p>
+              <p>JPG, PNG veya WEBP · En fazla {PROFILE_IMAGE_MAX_LABEL}</p>
               <div className="account-page__photo-actions">
                 <button type="button" disabled={uploading || removingPhoto} onClick={() => fileInput.current?.click()}>{uploading ? "Yükleniyor…" : "Fotoğraf Yükle"}</button>
                 {profileImageAssetId != null && (

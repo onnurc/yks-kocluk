@@ -10,7 +10,6 @@ public record R2Properties(
         String secretAccessKey,
         String bucket,
         String endpoint,
-        String publicBaseUrl,
         int uploadUrlExpirationMinutes,
         int downloadUrlExpirationMinutes
 ) {
@@ -24,7 +23,6 @@ public record R2Properties(
             require(bucket, "bucket");
             require(endpoint, "endpoint");
         }
-        publicBaseUrl = trimTrailingSlash(publicBaseUrl);
     }
 
     private static int positive(int value, int fallback, String name) {
@@ -37,10 +35,4 @@ public record R2Properties(
         if (value == null || value.isBlank()) throw new IllegalArgumentException("R2 " + name + " is required when R2 is enabled");
     }
 
-    private static String trimTrailingSlash(String value) {
-        if (value == null || value.isBlank()) return null;
-        String result = value.trim();
-        while (result.endsWith("/")) result = result.substring(0, result.length() - 1);
-        return result;
-    }
 }
