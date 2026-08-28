@@ -71,6 +71,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return pd;
     }
 
+    @ExceptionHandler(PaymentProviderException.class)
+    public ProblemDetail handlePaymentProvider(PaymentProviderException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_GATEWAY, "Ödeme sağlayıcısıyla iletişim kurulamadı. Lütfen tekrar deneyin.");
+        pd.setProperty("errorCode", "PAYMENT_PROVIDER_ERROR");
+        pd.setProperty("timestamp", Instant.now());
+        return pd;
+    }
+
     /** Catch-all so unexpected exceptions still return our standard format, not a stack trace. */
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleUnexpected(Exception ex) {

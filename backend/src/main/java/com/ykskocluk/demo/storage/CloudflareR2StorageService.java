@@ -51,6 +51,14 @@ public class CloudflareR2StorageService implements StorageService {
     }
 
     @Override
+    public byte[] readObjectPrefix(String key, int maxBytes) {
+        if (maxBytes < 1) throw new IllegalArgumentException("maxBytes must be positive");
+        return client.getObjectAsBytes(GetObjectRequest.builder()
+                        .bucket(properties.bucket()).key(key).range("bytes=0-" + (maxBytes - 1)).build())
+                .asByteArray();
+    }
+
+    @Override
     public DownloadTarget createPresignedDownload(String key) {
         Duration duration = Duration.ofMinutes(properties.downloadUrlExpirationMinutes());
         var signed = presigner.presignGetObject(GetObjectPresignRequest.builder().signatureDuration(duration)

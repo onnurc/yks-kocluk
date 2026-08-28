@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -50,6 +51,8 @@ class MediaServiceTest {
         });
         lenient().when(storage.createPresignedUpload(anyString(), anyString(), anyLong())).thenReturn(
                 new StorageService.UploadTarget("https://stub/upload", Instant.now().plusSeconds(600), Map.of("Content-Type", "image/jpeg")));
+        lenient().when(storage.readObjectPrefix(anyString(), anyInt()))
+                .thenReturn(new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff});
     }
 
     @Test void validProfileImagePresignGeneratesServerKeyWithoutPii() {
@@ -139,6 +142,22 @@ class MediaServiceTest {
         service.complete(7L, 20L);
         assertThat(profile.getProfileImageAsset()).isSameAs(fresh);
         verify(storageDeletion, never()).deleteAfterCommit(anyString());
+    }
+
+    @Test void finalizeRejectsContentWhoseBytesDoNotMatchDeclaredMimeType() {
+        MediaAsset fresh = asset(20L, coach, MediaType.PROFILE_IMAGE, MediaVisibility.PUBLIC, MediaStatus.PENDING_UPLOAD);
+        when(assets.findById(20L)).thenReturn(Optional.of(fresh));
+        when(storage.headObject(fresh.getObjectKey()))
+                .thenReturn(new StorageService.StoredObjectMetadata(true, "image/jpeg", 100));
+        when(storage.readObjectPrefix(fresh.getObjectKey(), 12))
+                .thenReturn("<script>".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+
+        ApiException error = catchThrowableOfType(ApiException.class, () -> service.complete(7L, 20L));
+
+        assertThat(error.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(error.getErrorCode()).isEqualTo("MEDIA_CONTENT_INVALID");
+        assertThat(fresh.getStatus()).isEqualTo(MediaStatus.PENDING_UPLOAD);
+        verifyNoInteractions(storageDeletion);
     }
 
     @Test void privateDocumentDownloadOwnerAndAdminAllowedUnrelatedDenied() {

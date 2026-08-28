@@ -3,6 +3,7 @@ package com.ykskocluk.demo.integration;
 import com.iyzipay.model.CheckoutFormInitialize;
 import com.iyzipay.model.Status;
 import com.ykskocluk.demo.config.IyzicoProperties;
+import com.ykskocluk.demo.exception.PaymentProviderException;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -40,7 +41,7 @@ class RealIyzicoClientTest {
     }
 
     @Test
-    void initializeCheckout_failure_throwsRuntimeException() {
+    void initializeCheckout_failure_doesNotExposeProviderMessage() {
         RealIyzicoClient client = new RealIyzicoClient(properties);
 
         CheckoutFormInitialize mockResponse = Mockito.mock(CheckoutFormInitialize.class);
@@ -52,8 +53,34 @@ class RealIyzicoClientTest {
             mockedStatic.when(() -> CheckoutFormInitialize.create(any(), any())).thenReturn(mockResponse);
 
             assertThatThrownBy(() -> client.initializeCheckout(1L, 2L, new BigDecimal("150.00"), "idemp-key"))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Iyzico checkout form initialization failed: Signature mismatch or generic error");
+                    .isInstanceOf(PaymentProviderException.class)
+                    .hasMessage("Iyzico rejected checkout initialization")
+                    .hasMessageNotContaining("Signature mismatch");
         }
+    }
+
+    @Test
+    void initializeCheckout_successWithoutRequiredProviderFields_isRejected() {
+        RealIyzicoClient client = new RealIyzicoClient(properties);
+        CheckoutFormInitialize mockResponse = Mockito.mock(CheckoutFormInitialize.class);
+        Mockito.when(mockResponse.getStatus()).thenReturn(Status.SUCCESS.getValue());
+        Mockito.when(mockResponse.getToken()).thenReturn(null);
+        Mockito.when(mockResponse.getPaymentPageUrl()).thenReturn("https://sandbox-checkout.iyzico.com/pay");
+
+        try (MockedStatic<CheckoutFormInitialize> mockedStatic = Mockito.mockStatic(CheckoutFormInitialize.class)) {
+            mockedStatic.when(() -> CheckoutFormInitialize.create(any(), any())).thenReturn(mockResponse);
+            assertThatThrownBy(() -> client.initializeCheckout(1L, 2L, new BigDecimal("150.00"), "idemp-key"))
+                    .isInstanceOf(PaymentProviderException.class)
+                    .hasMessage("Iyzico returned incomplete checkout data");
+        }
+    }
+
+    @Test
+    void recurringChargeFailsClosedInsteadOfReturningSyntheticSuccess() {
+        RealIyzicoClient client = new RealIyzicoClient(properties);
+
+        assertThatThrownBy(() -> client.charge("saved-card-token", new BigDecimal("150.00"), "idemp-key"))
+                .isInstanceOf(PaymentProviderException.class)
+                .hasMessage("Iyzico recurring charge is not implemented");
     }
 }

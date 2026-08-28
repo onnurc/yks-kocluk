@@ -151,7 +151,7 @@ class IyzicoWebhookSignatureTest {
 
     @Test
     void processWebhook_missingSignature_unauthorized() throws Exception {
-        IyzicoWebhookRequest request = new IyzicoWebhookRequest(payment.getId(), "SUCCESS", "ref-1", "PAYMENT_API", "conv-1");
+        IyzicoWebhookRequest request = new IyzicoWebhookRequest(payment.getId(), "SUCCESS", "ref-1", "PAYMENT_API", payment.getId().toString());
 
         mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -166,7 +166,7 @@ class IyzicoWebhookSignatureTest {
 
     @Test
     void processWebhook_invalidSignature_unauthorized() throws Exception {
-        IyzicoWebhookRequest request = new IyzicoWebhookRequest(payment.getId(), "SUCCESS", "ref-1", "PAYMENT_API", "conv-1");
+        IyzicoWebhookRequest request = new IyzicoWebhookRequest(payment.getId(), "SUCCESS", "ref-1", "PAYMENT_API", payment.getId().toString());
 
         mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
                         .header("X-IYZ-SIGNATURE-V3", "wrongsignaturevalue")
@@ -183,7 +183,7 @@ class IyzicoWebhookSignatureTest {
     @Test
     void processWebhook_validSignature_success() throws Exception {
         String eventType = "PAYMENT_API";
-        String convId = "conv-1";
+        String convId = payment.getId().toString();
         String status = "SUCCESS";
         String signature = calculateSignature(eventType, payment.getId(), convId, status);
 
@@ -205,7 +205,7 @@ class IyzicoWebhookSignatureTest {
     @Test
     void processWebhook_unsupportedStatus_badRequest() throws Exception {
         String eventType = "PAYMENT_API";
-        String convId = "conv-1";
+        String convId = payment.getId().toString();
         String status = "PENDING"; // Only SUCCESS and FAILURE are supported
         String signature = calculateSignature(eventType, payment.getId(), convId, status);
 
@@ -223,7 +223,7 @@ class IyzicoWebhookSignatureTest {
     void processWebhook_wrongPaymentId_notFound() throws Exception {
         Long wrongPaymentId = 999999L;
         String eventType = "PAYMENT_API";
-        String convId = "conv-1";
+        String convId = wrongPaymentId.toString();
         String status = "SUCCESS";
         String signature = calculateSignature(eventType, wrongPaymentId, convId, status);
 
@@ -240,7 +240,7 @@ class IyzicoWebhookSignatureTest {
     @Test
     void processWebhook_validSignatureFailureStatus_processedAndIdempotent() throws Exception {
         String eventType = "PAYMENT_API";
-        String convId = "conv-1";
+        String convId = payment.getId().toString();
         String status = "FAILURE";
         String signature = calculateSignature(eventType, payment.getId(), convId, status);
 
@@ -271,9 +271,49 @@ class IyzicoWebhookSignatureTest {
     }
 
     @Test
+    void processWebhook_signedButMismatchedConversationId_isRejectedWithoutStateChange() throws Exception {
+        String eventType = "PAYMENT_API";
+        String convId = "different-payment";
+        String status = "SUCCESS";
+        String signature = calculateSignature(eventType, payment.getId(), convId, status);
+        IyzicoWebhookRequest request = new IyzicoWebhookRequest(
+                payment.getId(), status, "ref-real", eventType, convId);
+
+        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
+                        .header("X-IYZ-SIGNATURE-V3", signature)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("PAYMENT_CONVERSATION_MISMATCH"));
+
+        assertThat(paymentRepository.findById(payment.getId()).orElseThrow().getStatus())
+                .isEqualTo(PaymentStatus.PENDING);
+    }
+
+    @Test
+    void processWebhook_successWithoutProviderReference_isRejectedWithoutStateChange() throws Exception {
+        String eventType = "PAYMENT_API";
+        String convId = payment.getId().toString();
+        String status = "SUCCESS";
+        String signature = calculateSignature(eventType, payment.getId(), convId, status);
+        IyzicoWebhookRequest request = new IyzicoWebhookRequest(
+                payment.getId(), status, null, eventType, convId);
+
+        mockMvc.perform(post("/api/v1/payments/iyzico/webhook")
+                        .header("X-IYZ-SIGNATURE-V3", signature)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("PROVIDER_REFERENCE_MISSING"));
+
+        assertThat(paymentRepository.findById(payment.getId()).orElseThrow().getStatus())
+                .isEqualTo(PaymentStatus.PENDING);
+    }
+
+    @Test
     void processWebhook_duplicateWebhook_idempotent() throws Exception {
         String eventType = "PAYMENT_API";
-        String convId = "conv-1";
+        String convId = payment.getId().toString();
         String status = "SUCCESS";
         String signature = calculateSignature(eventType, payment.getId(), convId, status);
 

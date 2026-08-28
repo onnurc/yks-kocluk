@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.HtmlUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
@@ -69,8 +70,8 @@ public class ResendMailClient implements MailClient {
                   <p>Tutar: <strong>%s %s</strong><br>Satın alma: <strong>%s</strong><br>
                      Mevcut dönem sonu: <strong>%s</strong></p>
                 </div>
-                """.formatted(studentName, packageName, coachName, amount.toPlainString(), currency,
-                        purchased, periodEnd));
+                """.formatted(html(studentName), html(packageName), html(coachName), html(amount.toPlainString()), html(currency),
+                        html(purchased), html(periodEnd)));
     }
 
     @Override
@@ -84,7 +85,7 @@ public class ResendMailClient implements MailClient {
                   <p><strong>%s</strong>, <strong>%s</strong> planı ile size abone oldu.</p>
                   <p>Abonelik tarihi: <strong>%s</strong></p>
                 </div>
-                """.formatted(coachName, studentName, packageName, purchased));
+                """.formatted(html(coachName), html(studentName), html(packageName), html(purchased)));
     }
 
     @Override
@@ -96,7 +97,7 @@ public class ResendMailClient implements MailClient {
                   <p>Koçunuz <strong>%s</strong> ile görüşmeniz <strong>%s</strong> tarihinde planlandı.</p>
                   <p><a href="%s">Görüşmeye katıl</a></p>
                 </div>
-                """.formatted(coachName, when, meetLink));
+                """.formatted(html(coachName), html(when), html(meetLink)));
     }
 
     @Override
@@ -110,7 +111,7 @@ public class ResendMailClient implements MailClient {
                   <p>Öğrenciniz <strong>%s</strong> ile görüşmeniz <strong>%s</strong> tarihinde planlandı.</p>
                   <p><a href="%s">Görüşmeye katıl</a></p>
                 </div>
-                """.formatted(coachName, studentName, when, meetLink));
+                """.formatted(html(coachName), html(studentName), html(when), html(meetLink)));
     }
 
     @Override
@@ -125,7 +126,7 @@ public class ResendMailClient implements MailClient {
                   <p>Koçunuz <strong>%s</strong> ile <strong>%s</strong> tarihindeki görüşmeniz iptal edildi.</p>
                   <p>%s</p>
                 </div>
-                """.formatted(coachName, when, note));
+                """.formatted(html(coachName), html(when), html(note)));
     }
 
     @Override
@@ -142,7 +143,7 @@ public class ResendMailClient implements MailClient {
                   <p>Öğrenciniz <strong>%s</strong>, <strong>%s</strong> tarihindeki görüşmenizi iptal etti.</p>
                   <p>%s</p>
                 </div>
-                """.formatted(coachName, studentName, when, note));
+                """.formatted(html(coachName), html(studentName), html(when), html(note)));
     }
 
     @Override
@@ -154,7 +155,7 @@ public class ResendMailClient implements MailClient {
                   <p>Koçunuz <strong>%s</strong> ile <strong>%s</strong> tarihinde bir görüşmeniz var.</p>
                   <p><a href="%s">Görüşmeye katıl</a></p>
                 </div>
-                """.formatted(coachName, when, meetLink));
+                """.formatted(html(coachName), html(when), html(meetLink)));
     }
 
     @Override
@@ -167,7 +168,7 @@ public class ResendMailClient implements MailClient {
                   <p>Mesajınızı okumak için platforma giriş yapın:</p>
                   <p><a href="%s">Mesajı görüntüle</a></p>
                 </div>
-                """.formatted(senderName, conversationLink));
+                """.formatted(html(senderName), html(conversationLink)));
     }
 
     @Override
@@ -179,7 +180,7 @@ public class ResendMailClient implements MailClient {
                   <p>Koçunuz <strong>%s</strong> ile aboneliğiniz yenilendi. Tahsil edilen tutar:
                      <strong>%s TL</strong>. Sonraki yenileme tarihi: <strong>%s</strong>.</p>
                 </div>
-                """.formatted(coachName, amount.toPlainString(), next));
+                """.formatted(html(coachName), html(amount.toPlainString()), html(next)));
     }
 
     @Override
@@ -190,7 +191,7 @@ public class ResendMailClient implements MailClient {
                   <p>Koçunuz <strong>%s</strong> ile aboneliğinizin yenileme ödemesi alınamadı
                      (deneme %d/%d). Lütfen kart bilgilerinizi kontrol edin — erişiminiz şimdilik açık.</p>
                 </div>
-                """.formatted(coachName, attemptNumber, maxAttempts));
+                """.formatted(html(coachName), attemptNumber, maxAttempts));
     }
 
     @Override
@@ -201,7 +202,7 @@ public class ResendMailClient implements MailClient {
                   <p>Koçunuz <strong>%s</strong> ile aboneliğiniz sona erdi ve erişiminiz kapandı.
                      Devam etmek için yeniden abone olabilirsiniz.</p>
                 </div>
-                """.formatted(coachName));
+                """.formatted(html(coachName)));
     }
 
     @Override
@@ -213,7 +214,7 @@ public class ResendMailClient implements MailClient {
                   <p>Koçunuz <strong>%s</strong> ile aboneliğiniz yenilenmeyecek. Erişiminiz
                      <strong>%s</strong> tarihine kadar açık kalacaktır.</p>
                 </div>
-                """.formatted(coachName, until));
+                """.formatted(html(coachName), html(until)));
     }
 
     @Override
@@ -246,7 +247,7 @@ public class ResendMailClient implements MailClient {
                   <h2>%s</h2>
                   <p>%s</p>
                 </div>
-                """.formatted(subject, body));
+                """.formatted(html(subject), html(body)));
     }
 
     @Override
@@ -269,7 +270,7 @@ public class ResendMailClient implements MailClient {
                   <p>Bu tek kullanımlık bağlantı 30 dakika sonra geçersiz olur.</p>
                   <p>Bu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz.</p>
                 </div>
-                """.formatted(resetLink));
+                """.formatted(html(resetLink)));
     }
 
     @Override
@@ -282,7 +283,7 @@ public class ResendMailClient implements MailClient {
                   <p>Bu kod 10 dakika geçerlidir ve yalnızca bir kez kullanılabilir.</p>
                   <p>Bu kaydı siz yapmadıysanız bu e-postayı yok sayabilirsiniz.</p>
                 </div>
-                """.formatted(code));
+                """.formatted(html(code)));
     }
 
     @Override
@@ -292,7 +293,7 @@ public class ResendMailClient implements MailClient {
                   <h2>Uniform Akademi'ye hoş geldiniz, %s!</h2>
                   <p>Hesabınız kullanıma hazır. Koçunuzu seçip planınızı belirleyerek hemen başlayabilirsiniz.</p>
                 </div>
-                """.formatted(fullName));
+                """.formatted(html(fullName)));
     }
 
     /** Single best-effort POST to Resend — swallows-and-logs every error (timeouts included). */
@@ -306,12 +307,15 @@ public class ResendMailClient implements MailClient {
                     .body(request)
                     .retrieve()
                     .body(ResendEmailResponse.class);
-            log.info("[Resend] '{}' sent to {} (id {})", subject, toEmail,
-                    response != null ? response.id() : "<none>");
+            log.info("[Resend] transactional email accepted by provider");
         } catch (Exception e) {
             // Best-effort: the originating DB tx is already committed. Log and move on, never throw.
-            log.error("[Resend] failed to send '{}' to {}: {}", subject, toEmail, e.getMessage(), e);
+            log.error("[Resend] transactional email failed; exceptionType={}", e.getClass().getName());
         }
+    }
+
+    private static String html(String value) {
+        return HtmlUtils.htmlEscape(value == null ? "" : value, java.nio.charset.StandardCharsets.UTF_8.name());
     }
 
     /** Resend send-email request body. {@code replyTo} null (never blank) omits the field entirely. */

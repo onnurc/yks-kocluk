@@ -18,6 +18,7 @@ import com.ykskocluk.demo.enums.PaymentStatus;
 import com.ykskocluk.demo.enums.PaymentType;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.exception.ApiException;
+import com.ykskocluk.demo.exception.PaymentProviderException;
 import com.ykskocluk.demo.integration.CheckoutResult;
 import com.ykskocluk.demo.integration.IyzicoClient;
 import com.ykskocluk.demo.mapper.SubscriptionMapper;
@@ -224,6 +225,26 @@ class SubscriptionServiceTest {
         verify(legalAcceptanceService).validateCheckout(checkoutRequest());
         verify(legalAcceptanceService).recordCheckoutAcceptances(any(User.class), any(Subscription.class),
                 any(Payment.class), any());
+    }
+
+    @Test
+    void checkout_rejectsProviderRedirectOutsideTrustedHosts() {
+        when(subscriptionRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            Subscription subscription = invocation.getArgument(0);
+            ReflectionTestUtils.setField(subscription, "id", 11L);
+            return subscription;
+        });
+        when(paymentRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            Payment payment = invocation.getArgument(0);
+            ReflectionTestUtils.setField(payment, "id", 12L);
+            return payment;
+        });
+        when(iyzicoClient.initializeCheckout(any(), any(), any(), any()))
+                .thenReturn(new CheckoutResult("token", "https://attacker.example/checkout"));
+
+        assertThat(catchThrowableOfType(PaymentProviderException.class,
+                () -> service.checkout(STUDENT_ID, checkoutRequest())))
+                .hasMessageContaining("untrusted checkout URL");
     }
 
     @Test
@@ -434,6 +455,7 @@ class SubscriptionServiceTest {
         Payment payment = new Payment();
         ReflectionTestUtils.setField(payment, "id", 100L);
         payment.setStatus(PaymentStatus.PENDING);
+        payment.setType(PaymentType.CHARGE);
         payment.setSubscription(sub);
 
         when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
@@ -462,6 +484,7 @@ class SubscriptionServiceTest {
         Payment payment = new Payment();
         ReflectionTestUtils.setField(payment, "id", 100L);
         payment.setStatus(PaymentStatus.SUCCESS);
+        payment.setType(PaymentType.CHARGE);
         payment.setSubscription(sub);
 
         when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
@@ -483,6 +506,7 @@ class SubscriptionServiceTest {
         Payment payment = new Payment();
         ReflectionTestUtils.setField(payment, "id", 100L);
         payment.setStatus(PaymentStatus.PENDING);
+        payment.setType(PaymentType.CHARGE);
         payment.setSubscription(sub);
 
         when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
@@ -507,6 +531,7 @@ class SubscriptionServiceTest {
         Payment payment = new Payment();
         ReflectionTestUtils.setField(payment, "id", 100L);
         payment.setStatus(PaymentStatus.FAILED);
+        payment.setType(PaymentType.CHARGE);
         payment.setSubscription(sub);
 
         when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
@@ -520,11 +545,6 @@ class SubscriptionServiceTest {
 
     @Test
     void processWebhook_invalidStatus_throwsBadRequest() {
-        Payment payment = new Payment();
-        ReflectionTestUtils.setField(payment, "id", 100L);
-
-        when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
-
         IyzicoWebhookRequest request = new IyzicoWebhookRequest(100L, "INVALID_STATUS", null);
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.processWebhook(request));
 
@@ -686,7 +706,7 @@ class SubscriptionServiceTest {
     }
 
     @Test
-    void refund_providerCallFails_throwsBadRequest_andRecordsFailedRefundRow() {
+    void refund_providerCallFails_returnsSafeGatewayError_andRecordsFailedRefundRow() {
         Subscription sub = new Subscription();
         Payment original = new Payment();
         ReflectionTestUtils.setField(original, "id", 100L);
@@ -706,7 +726,8 @@ class SubscriptionServiceTest {
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.refund(100L, new BigDecimal("50.00"), "Reason"));
         assertThat(ex.getErrorCode()).isEqualTo("PROVIDER_REFUND_FAILED");
-        assertThat(ex.getStatus()).isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST);
+        assertThat(ex.getStatus()).isEqualTo(org.springframework.http.HttpStatus.BAD_GATEWAY);
+        assertThat(ex.getMessage()).doesNotContain("Invalid transaction state");
 
         // The reservation (PENDING) is still recorded, then finalized to FAILED — an audit trail
         // of the attempt, and it frees the reserved amount back up for a future refund attempt.

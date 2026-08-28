@@ -19,6 +19,7 @@ import java.util.regex.Pattern;
 
 @Service
 public class MediaService {
+    private static final int CONTENT_SIGNATURE_BYTES = 12;
     private static final Set<String> IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
     private static final Set<String> DOCUMENT_TYPES = Set.of("application/pdf", "image/jpeg", "image/png");
     private static final Pattern PUBLIC_TOKEN = Pattern.compile("^[0-9a-f]{64}$");
@@ -73,6 +74,11 @@ public class MediaService {
         if (!actual.exists()) throw new ApiException(HttpStatus.CONFLICT, "MEDIA_UPLOAD_NOT_FOUND", "Uploaded object was not found");
         if (actual.sizeBytes() != asset.getSizeBytes() || !asset.getContentType().equalsIgnoreCase(actual.contentType())) {
             throw new ApiException(HttpStatus.CONFLICT, "MEDIA_METADATA_MISMATCH", "Uploaded object metadata does not match the presign request");
+        }
+        byte[] prefix = storage.readObjectPrefix(asset.getObjectKey(), CONTENT_SIGNATURE_BYTES);
+        if (!hasExpectedSignature(asset.getContentType(), prefix)) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "MEDIA_CONTENT_INVALID",
+                    "Uploaded content does not match its declared content type");
         }
         asset.setStatus(MediaStatus.ACTIVE);
         attachToProfile(asset);
@@ -129,6 +135,27 @@ public class MediaService {
         }
         if (!allowed.contains(contentType)) throw new ApiException(HttpStatus.BAD_REQUEST, "MEDIA_TYPE_NOT_ALLOWED", "Content type is not allowed for this media type");
         if (size > max) throw new ApiException(HttpStatus.BAD_REQUEST, "MEDIA_SIZE_EXCEEDED", "Media exceeds the configured size limit", Map.of("maxBytes", max));
+    }
+
+    private boolean hasExpectedSignature(String contentType, byte[] bytes) {
+        if (bytes == null) return false;
+        return switch (contentType.toLowerCase(java.util.Locale.ROOT)) {
+            case "image/jpeg" -> startsWith(bytes, 0xff, 0xd8, 0xff);
+            case "image/png" -> startsWith(bytes, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
+            case "image/webp" -> startsWith(bytes, 0x52, 0x49, 0x46, 0x46)
+                    && bytes.length >= 12
+                    && bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50;
+            case "application/pdf" -> startsWith(bytes, 0x25, 0x50, 0x44, 0x46, 0x2d);
+            default -> false;
+        };
+    }
+
+    private boolean startsWith(byte[] bytes, int... expected) {
+        if (bytes.length < expected.length) return false;
+        for (int i = 0; i < expected.length; i++) {
+            if ((bytes[i] & 0xff) != expected[i]) return false;
+        }
+        return true;
     }
 
     private void requireProfileOwner(User owner) {

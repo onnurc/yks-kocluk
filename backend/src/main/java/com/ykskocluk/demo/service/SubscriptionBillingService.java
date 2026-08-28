@@ -10,6 +10,7 @@ import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.mapper.SubscriptionMapper;
 import com.ykskocluk.demo.integration.ChargeResult;
 import com.ykskocluk.demo.integration.IyzicoClient;
+import com.ykskocluk.demo.exception.PaymentProviderException;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PaymentRepository;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
@@ -104,6 +105,9 @@ public class SubscriptionBillingService {
 
         // External call — outside any transaction. Same key whether fresh or resumed → idempotent.
         ChargeResult result = iyzicoClient.charge(reserve.savedCardToken(), reserve.amount(), reserve.idempotencyKey());
+        if (result == null) {
+            throw new PaymentProviderException("Iyzico returned no recurring-charge response");
+        }
 
         return tx.execute(status -> finalizeCharge(subscriptionId, reserve.paymentId(), result, now));
     }
