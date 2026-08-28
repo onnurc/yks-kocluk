@@ -9,6 +9,7 @@ import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.security.JwtService;
+import com.ykskocluk.demo.security.RefreshTokenCookieService;
 import com.ykskocluk.demo.security.ratelimit.AuthRateLimitService;
 import com.ykskocluk.demo.service.AuthService;
 import org.junit.jupiter.api.Test;
@@ -58,6 +59,9 @@ class AuthControllerOAuth2ExchangeTest {
     @MockitoBean
     private UserRepository userRepository;
 
+    @MockitoBean
+    private RefreshTokenCookieService refreshTokenCookieService;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
@@ -68,6 +72,8 @@ class AuthControllerOAuth2ExchangeTest {
         AuthResponse authResponse = new AuthResponse("access-token", "refresh-token", "Bearer", 900L, userResponse);
 
         when(authService.exchangeOAuth2Code("valid-code-123")).thenReturn(authResponse);
+        when(refreshTokenCookieService.setCookieHeader("refresh-token"))
+                .thenReturn("yks_refresh_token=refresh-token; Path=/api/v1/auth; HttpOnly; SameSite=Lax");
 
         mockMvc.perform(post("/api/v1/auth/oauth2/exchange")
                         .with(csrf())
@@ -75,7 +81,8 @@ class AuthControllerOAuth2ExchangeTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value("access-token"))
-                .andExpect(jsonPath("$.refreshToken").value("refresh-token"))
+                .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("HttpOnly")))
+                .andExpect(jsonPath("$.refreshToken").doesNotExist())
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.user.email").value("student@example.com"));
     }

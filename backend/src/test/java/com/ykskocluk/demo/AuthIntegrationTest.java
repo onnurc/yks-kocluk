@@ -7,6 +7,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
+import org.springframework.mock.web.MockCookie;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -30,22 +32,25 @@ class AuthIntegrationTest {
 
     private String registerBody(String email) {
         return """
-                {"email":"%s","password":"password123","fullName":"Test User","role":"STUDENT","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
+                {"email":"%s","password":"SecurePassphrase42!","fullName":"Test User","role":"STUDENT","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
                 """.formatted(email);
     }
 
     @Test
     void fullLifecycle_register_me_refresh_rotation_logout() throws Exception {
         // register -> 201 with tokens
-        String registerJson = mockMvc.perform(post("/api/v1/auth/register")
+        var registerResult = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON).content(registerBody("flow@example.com")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.refreshToken").doesNotExist())
                 .andExpect(jsonPath("$.user.email").value("flow@example.com"))
                 .andExpect(jsonPath("$.user.role").value("STUDENT"))
-                .andReturn().getResponse().getContentAsString();
+                .andReturn();
+        String registerJson = registerResult.getResponse().getContentAsString();
         String accessToken = JsonPath.read(registerJson, "$.accessToken");
-        String refreshToken = JsonPath.read(registerJson, "$.refreshToken");
+        MockCookie refreshCookie = MockCookie.parse(
+                registerResult.getResponse().getHeader(HttpHeaders.SET_COOKIE));
 
         // /me with bearer -> 200
         mockMvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + accessToken))
@@ -53,30 +58,28 @@ class AuthIntegrationTest {
                 .andExpect(jsonPath("$.email").value("flow@example.com"));
 
         // refresh -> 200 with new tokens
-        String refreshJson = mockMvc.perform(post("/api/v1/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+        var refreshResult = mockMvc.perform(post("/api/v1/auth/refresh").cookie(refreshCookie))
                 .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        String newRefresh = JsonPath.read(refreshJson, "$.refreshToken");
+                .andExpect(jsonPath("$.refreshToken").doesNotExist())
+                .andReturn();
+        String refreshJson = refreshResult.getResponse().getContentAsString();
+        MockCookie newRefreshCookie = MockCookie.parse(
+                refreshResult.getResponse().getHeader(HttpHeaders.SET_COOKIE));
         String newAccess = JsonPath.read(refreshJson, "$.accessToken");
 
         // old refresh token is now revoked (rotation) -> 401
-        mockMvc.perform(post("/api/v1/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+        mockMvc.perform(post("/api/v1/auth/refresh").cookie(refreshCookie))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_REFRESH_TOKEN"));
 
         // logout (authenticated) with the new refresh -> 204, then it cannot be refreshed
-        mockMvc.perform(post("/api/v1/auth/logout")
+        mockMvc.perform(post("/api/v1/auth/logout").cookie(newRefreshCookie)
                         .header("Authorization", "Bearer " + newAccess)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refreshToken\":\"" + newRefresh + "\"}"))
-                .andExpect(status().isNoContent());
-        mockMvc.perform(post("/api/v1/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refreshToken\":\"" + newRefresh + "\"}"))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNoContent())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("Max-Age=0")));
+        mockMvc.perform(post("/api/v1/auth/refresh").cookie(newRefreshCookie))
                 .andExpect(status().isUnauthorized());
     }
 

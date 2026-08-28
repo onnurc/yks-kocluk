@@ -145,6 +145,18 @@ class AdminUserControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
+    void admin_suspendUser_rejectsOversizedReasonBeforeServiceCall() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/users/5/suspend")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SuspendRequest("x".repeat(2001)))))
+                .andExpect(status().isBadRequest());
+
+        org.mockito.Mockito.verifyNoInteractions(userService);
+    }
+
+    @Test
     @WithMockUser(roles = "STUDENT")
     void student_cannotUnsuspendUser() throws Exception {
         mockMvc.perform(post("/api/v1/admin/users/5/unsuspend").with(csrf()))

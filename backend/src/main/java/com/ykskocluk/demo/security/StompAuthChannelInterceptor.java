@@ -21,6 +21,8 @@ import org.springframework.stereotype.Component;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * STOMP authentication & authorization on the client inbound channel.
@@ -33,8 +35,9 @@ import java.util.List;
  *       participant; authenticated ADMIN may observe an existing conversation read-only.
  *       {@code /user/queue/**} needs no check — Spring resolves it to the caller's own session —
  *       but a raw {@code /queue/**} subscription is refused outright.</li>
- *   <li><b>SEND</b>: ADMIN is rejected at the channel boundary. Participant sends still pass
- *       through {@code MessageService.sendMessage} for membership/subscription enforcement.</li>
+ *   <li><b>SEND</b>: only the exact application destination is accepted. Broker-owned and
+ *       unknown destinations are rejected; ADMIN remains read-only and participants are checked
+ *       before the controller/service path.</li>
  * </ul>
  *
  * <p>All successful participant messages fan out on the existing shared conversation topic;
@@ -44,7 +47,8 @@ import java.util.List;
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private static final String TOPIC_PREFIX = "/topic/conversations/";
-    private static final String SEND_PREFIX = "/app/conversations/";
+    private static final Pattern SEND_DESTINATION =
+            Pattern.compile("^/app/conversations/([1-9]\\d*)/send$");
     // Broker-side user destination. Clients subscribe to "/user/queue/..."; Spring resolves that
     // to "/queue/...-user{sessionId}" internally — see rejectRawUserQueue.
     private static final String QUEUE_PREFIX = "/queue/";
@@ -136,10 +140,21 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private void authorizeSend(StompHeaderAccessor accessor) {
         String destination = accessor.getDestination();
+        Matcher matcher = destination == null ? null : SEND_DESTINATION.matcher(destination);
+        if (matcher == null || !matcher.matches()) {
+            throw new MessagingException("Bu hedefe istemci mesajı gönderilemez");
+        }
         Authentication authentication = currentAuthentication(accessor);
-        if (destination != null && destination.startsWith(SEND_PREFIX)
-                && destination.endsWith("/send") && authentication != null && isAdmin(authentication)) {
+        if (authentication == null) {
+            throw new MessagingException("Kimlik doğrulaması gerekli");
+        }
+        if (isAdmin(authentication)) {
             throw new MessagingException("ADMIN konuşma gözlemcisi mesaj gönderemez");
+        }
+        Long userId = currentUserId(authentication);
+        Long conversationId = Long.valueOf(matcher.group(1));
+        if (userId == null || !messageService.isParticipant(userId, conversationId)) {
+            throw new MessagingException("Bu konuşmaya mesaj gönderemezsiniz");
         }
     }
 

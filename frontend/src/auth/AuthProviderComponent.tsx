@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import type { CurrentUser, RegisterRequest } from "./authTypes";
 import { authApi } from "./authApi";
-import { getAccessToken, setAccessToken, setRefreshToken, clearAllTokens } from "./tokenStorage";
+import { getAccessToken, setAccessToken, clearAllTokens, clearLegacyAuthTokens } from "./tokenStorage";
+import { ensureFreshToken } from "../api/httpClient";
 import { ApiError } from "../api/ApiError";
 import { AuthContext } from "./AuthContext";
 
@@ -51,7 +52,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const response = await authApi.login(email, password);
       setAccessToken(response.accessToken);
-      setRefreshToken(response.refreshToken);
       setAccessTokenState(response.accessToken);
       await refreshCurrentUser();
     } catch (error) {
@@ -69,7 +69,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const response = await authApi.register(request);
       setAccessToken(response.accessToken);
-      setRefreshToken(response.refreshToken);
       setAccessTokenState(response.accessToken);
       await refreshCurrentUser();
     } catch (error) {
@@ -87,7 +86,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const response = await authApi.exchangeOAuthCode(code);
       setAccessToken(response.accessToken);
-      setRefreshToken(response.refreshToken);
       setAccessTokenState(response.accessToken);
       const currentUser = await authApi.getCurrentUser();
       setUser(currentUser);
@@ -113,7 +111,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     const initializeAuth = async () => {
-      const token = getAccessToken();
+      clearLegacyAuthTokens();
+      const token = getAccessToken() ?? await ensureFreshToken();
       if (token) {
         await refreshCurrentUser();
       }

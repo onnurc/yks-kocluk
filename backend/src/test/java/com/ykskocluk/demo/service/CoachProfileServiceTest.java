@@ -25,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 import java.util.Set;
+import java.time.Year;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
@@ -72,6 +73,19 @@ class CoachProfileServiceTest {
         assertThat(captor.getValue().getStatus()).isEqualTo(CoachProfileStatus.PENDING);
         assertThat(captor.getValue().getMaxStudentCapacity()).isEqualTo(10);
         assertThat(captor.getValue().getActiveStudentCount()).isZero();
+    }
+
+    @Test
+    void create_rejectsGraduationYearBeyondNextCalendarYear() {
+        CoachProfileCreateRequest request = new CoachProfileCreateRequest(
+                "Deneyimli koç", "bio", 5L, "Bilgisayar", Year.now().getValue() + 2,
+                Set.of(Track.NUMERICAL));
+
+        ApiException error = catchThrowableOfType(ApiException.class,
+                () -> service.createOwn(1L, request));
+
+        assertThat(error.getErrorCode()).isEqualTo("INVALID_GRADUATION_YEAR");
+        verify(coachProfileRepository, never()).save(any());
     }
 
     @Test

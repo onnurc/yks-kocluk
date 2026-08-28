@@ -1,40 +1,37 @@
-const ACCESS_TOKEN_KEY = "yks_coaching_access_token";
-const REFRESH_TOKEN_KEY = "yks_coaching_refresh_token";
-
 /**
- * Retrieves the stored access token from localStorage.
- * 
- * TODO: Evaluate transitioning to a secure HttpOnly cookie strategy in production
- * to mitigate XSS exposure risks.
+ * The short-lived access token is deliberately process-memory only. Page reload continuity comes
+ * from the server-managed HttpOnly refresh cookie; no authentication token is persisted in Web
+ * Storage or exposed to frontend code beyond the access token needed for Bearer/STOMP auth.
  */
-export const getAccessToken = (): string | null => {
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
-};
+let accessToken: string | null = null;
+
+const LEGACY_ACCESS_TOKEN_KEY = "yks_coaching_access_token";
+const LEGACY_REFRESH_TOKEN_KEY = "yks_coaching_refresh_token";
+
+export const getAccessToken = (): string | null => accessToken;
 
 export const setAccessToken = (token: string): void => {
-  localStorage.setItem(ACCESS_TOKEN_KEY, token);
+  accessToken = token;
 };
 
 export const clearAccessToken = (): void => {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  accessToken = null;
 };
 
 /**
- * Retrieves the stored refresh token from localStorage.
+ * Removes only tokens persisted by frontend builds that predate cookie-based refresh sessions.
+ * Legacy refresh tokens are intentionally never read or reused.
  */
-export const getRefreshToken = (): string | null => {
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
-};
+export const clearLegacyAuthTokens = (): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
 
-export const setRefreshToken = (token: string): void => {
-  localStorage.setItem(REFRESH_TOKEN_KEY, token);
-};
-
-export const clearRefreshToken = (): void => {
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  window.localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+  window.localStorage.removeItem(LEGACY_REFRESH_TOKEN_KEY);
 };
 
 export const clearAllTokens = (): void => {
   clearAccessToken();
-  clearRefreshToken();
+  clearLegacyAuthTokens();
 };

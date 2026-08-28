@@ -9,6 +9,7 @@ import { isStaleLegalDocumentError, legalErrorMessage } from "../legal/legalErro
 import { readinessPathForUser } from "../auth/authNavigation";
 import { getApiBaseUrl } from "../api/httpClient";
 import { AuthPageShell } from "./AuthPageShell";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "../auth/passwordPolicy";
 import "./auth-page.css";
 
 const REGISTRATION_DOCUMENT_TYPES = ["TERMS_OF_USE", "EXPLICIT_CONSENT", "KVKK_NOTICE"] as const;
@@ -45,8 +46,8 @@ export const RegisterPage: React.FC = () => {
       setError("E-posta ve şifre gereklidir.");
       return;
     }
-    if (password.length < 8) {
-      setError("Şifre en az 8 karakter olmalıdır.");
+    if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+      setError("Şifre 12–72 karakter arasında olmalıdır.");
       return;
     }
     if (!dateOfBirth) {
@@ -116,7 +117,7 @@ export const RegisterPage: React.FC = () => {
           <label className="auth-field" htmlFor="last-name"><span>Soyad:</span><input id="last-name" type="text" autoComplete="family-name" value={lastName} onChange={(event) => setLastName(event.target.value)} required disabled={loading} /></label>
         </div>
         <label className="auth-field" htmlFor="register-email"><span>E-posta:</span><input id="register-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required disabled={loading} /></label>
-        <label className="auth-field" htmlFor="register-password"><span>Şifre (Min 8 karakter):</span><input id="register-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required disabled={loading} /></label>
+        <label className="auth-field" htmlFor="register-password"><span>Şifre (12–72 karakter):</span><input id="register-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={MIN_PASSWORD_LENGTH} maxLength={MAX_PASSWORD_LENGTH} required disabled={loading} /></label>
         <label className="auth-field" htmlFor="date-of-birth"><span>Doğum Tarihi:</span><input id="date-of-birth" type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} required disabled={loading} /></label>
 
         <fieldset className="auth-legal">

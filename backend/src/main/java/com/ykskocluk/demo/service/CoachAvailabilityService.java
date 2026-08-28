@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -24,6 +25,10 @@ import java.util.List;
  */
 @Service
 public class CoachAvailabilityService {
+
+    private static final Duration MIN_SLOT_DURATION = Duration.ofMinutes(15);
+    private static final Duration MAX_SLOT_DURATION = Duration.ofHours(8);
+    private static final Duration MAX_SCHEDULING_HORIZON = Duration.ofDays(366);
 
     private final CoachAvailabilityRepository availabilityRepository;
     private final CoachProfileRepository coachProfileRepository;
@@ -98,13 +103,23 @@ public class CoachAvailabilityService {
     // --- helpers ---
 
     private void validateRange(Instant startTime, Instant endTime) {
-        if (!startTime.isAfter(Instant.now())) {
+        Instant now = Instant.now();
+        if (!startTime.isAfter(now)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "SLOT_IN_PAST",
                     "Geçmiş bir zaman için uygunluk oluşturulamaz");
         }
         if (!endTime.isAfter(startTime)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SLOT_RANGE",
                     "Bitiş zamanı başlangıçtan sonra olmalı");
+        }
+        Duration duration = Duration.between(startTime, endTime);
+        if (duration.compareTo(MIN_SLOT_DURATION) < 0 || duration.compareTo(MAX_SLOT_DURATION) > 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SLOT_DURATION",
+                    "Uygunluk süresi 15 dakika ile 8 saat arasında olmalı");
+        }
+        if (startTime.isAfter(now.plus(MAX_SCHEDULING_HORIZON))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "SLOT_TOO_FAR_IN_FUTURE",
+                    "Uygunluk en fazla 366 gün ileriye oluşturulabilir");
         }
     }
 

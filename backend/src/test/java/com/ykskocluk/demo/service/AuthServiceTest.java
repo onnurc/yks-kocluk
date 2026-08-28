@@ -99,10 +99,10 @@ class AuthServiceTest {
     @Test
     void register_hashesPasswordAndIssuesTokens() {
         when(userRepository.existsByEmail("user@example.com")).thenReturn(false);
-        when(passwordEncoder.encode("password123")).thenReturn("hashed-pw");
+        when(passwordEncoder.encode("SecurePassphrase42!")).thenReturn("hashed-pw");
 
         AuthResponse res = authService.register(
-                new RegisterRequest("user@example.com", "password123", "Test User", Role.STUDENT, java.time.LocalDate.of(2005, 1, 1)));
+                new RegisterRequest("user@example.com", "SecurePassphrase42!", "Test User", Role.STUDENT, java.time.LocalDate.of(2005, 1, 1)));
 
         assertThat(res.accessToken()).isEqualTo("access-token");
         assertThat(res.refreshToken()).isNotBlank();
@@ -126,12 +126,12 @@ class AuthServiceTest {
         var documents = new LegalAcceptanceService.RequiredDocuments(terms, explicit);
         when(legalAcceptanceService.validateRequired(3L, 2L)).thenReturn(documents);
         when(userRepository.existsByEmail("atomic@example.com")).thenReturn(false);
-        when(passwordEncoder.encode("password123")).thenReturn("hashed");
+        when(passwordEncoder.encode("SecurePassphrase42!")).thenReturn("hashed");
         doThrow(new RuntimeException("acceptance write failed")).when(legalAcceptanceService)
                 .recordRegistrationAcceptances(any(User.class), org.mockito.ArgumentMatchers.same(documents),
                         org.mockito.ArgumentMatchers.eq(false), org.mockito.ArgumentMatchers.eq(false));
 
-        RegisterRequest request = new RegisterRequest("atomic@example.com", "password123", "Atomic User",
+        RegisterRequest request = new RegisterRequest("atomic@example.com", "SecurePassphrase42!", "Atomic User",
                 Role.STUDENT, java.time.LocalDate.of(2005, 1, 1), 3L, 2L, false, false);
         assertThatThrownBy(() -> authService.register(request)).hasMessage("acceptance write failed");
         verify(refreshTokenRepository, never()).save(any());
@@ -142,7 +142,7 @@ class AuthServiceTest {
         when(userRepository.existsByEmail("user@example.com")).thenReturn(true);
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> authService.register(
-                new RegisterRequest("user@example.com", "password123", "Test User", Role.STUDENT, java.time.LocalDate.of(2005, 1, 1))));
+                new RegisterRequest("user@example.com", "SecurePassphrase42!", "Test User", Role.STUDENT, java.time.LocalDate.of(2005, 1, 1))));
         assertThat(ex.getErrorCode()).isEqualTo("EMAIL_ALREADY_EXISTS");
         verify(userRepository, never()).save(any());
     }
@@ -150,13 +150,13 @@ class AuthServiceTest {
     @Test
     void register_adminRole_rejected() {
         ApiException ex = catchThrowableOfType(ApiException.class, () -> authService.register(
-                new RegisterRequest("user@example.com", "password123", "Admin", Role.ADMIN)));
+                new RegisterRequest("user@example.com", "SecurePassphrase42!", "Admin", Role.ADMIN)));
         assertThat(ex.getErrorCode()).isEqualTo("ROLE_NOT_ALLOWED");
     }
 
     @Test
     void register_studentNullDob_throwsDateOfBirthRequired() {
-        RegisterRequest req = new RegisterRequest("student@example.com", "pass1234", "Student", Role.STUDENT, null);
+        RegisterRequest req = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", Role.STUDENT, null);
         ApiException ex = catchThrowableOfType(ApiException.class, () -> authService.register(req));
         assertThat(ex.getErrorCode()).isEqualTo("DATE_OF_BIRTH_REQUIRED");
     }
@@ -164,7 +164,7 @@ class AuthServiceTest {
     @Test
     void register_studentFutureDob_throwsInvalidDateOfBirth() {
         java.time.LocalDate futureDob = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Istanbul")).plusDays(1);
-        RegisterRequest req = new RegisterRequest("student@example.com", "pass1234", "Student", Role.STUDENT, futureDob);
+        RegisterRequest req = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", Role.STUDENT, futureDob);
         ApiException ex = catchThrowableOfType(ApiException.class, () -> authService.register(req));
         assertThat(ex.getErrorCode()).isEqualTo("INVALID_DATE_OF_BIRTH");
     }
@@ -172,7 +172,7 @@ class AuthServiceTest {
     @Test
     void register_studentValidDob_succeeds() {
         java.time.LocalDate dob = java.time.LocalDate.of(2008, 1, 1);
-        RegisterRequest req = new RegisterRequest("student@example.com", "pass1234", "Student", Role.STUDENT, dob);
+        RegisterRequest req = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", Role.STUDENT, dob);
         when(userRepository.existsByEmail(req.email())).thenReturn(false);
         when(passwordEncoder.encode(req.password())).thenReturn("hashed");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -184,7 +184,7 @@ class AuthServiceTest {
     void register_coachRole_rejected() {
         // Coaches no longer self-register; accounts are created by an admin from an approved
         // CoachApplication (see CoachApplicationService.approve).
-        RegisterRequest req = new RegisterRequest("coach@example.com", "pass1234", "Coach", Role.COACH, null);
+        RegisterRequest req = new RegisterRequest("coach@example.com", "SecurePassphrase42!", "Coach", Role.COACH, null);
         ApiException ex = catchThrowableOfType(ApiException.class, () -> authService.register(req));
         assertThat(ex.getErrorCode()).isEqualTo("ROLE_NOT_ALLOWED");
     }

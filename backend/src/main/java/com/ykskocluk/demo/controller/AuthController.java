@@ -20,9 +20,12 @@ import com.ykskocluk.demo.service.EmailVerificationService;
 import com.ykskocluk.demo.dto.EmailVerificationResponse;
 import com.ykskocluk.demo.dto.VerifyEmailRequest;
 import com.ykskocluk.demo.security.ratelimit.AuthRateLimitService;
+import com.ykskocluk.demo.security.RefreshTokenCookieService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -43,19 +46,22 @@ public class AuthController {
     private final LegalAcceptanceService legalAcceptanceService;
     private final PasswordSecurityService passwordSecurityService;
     private final EmailVerificationService emailVerificationService;
+    private final RefreshTokenCookieService refreshCookieService;
 
     public AuthController(AuthService authService,
                           AuthRateLimitService rateLimitService,
                           HttpServletRequest httpServletRequest,
                           LegalAcceptanceService legalAcceptanceService,
                           PasswordSecurityService passwordSecurityService,
-                          EmailVerificationService emailVerificationService) {
+                          EmailVerificationService emailVerificationService,
+                          RefreshTokenCookieService refreshCookieService) {
         this.authService = authService;
         this.rateLimitService = rateLimitService;
         this.httpServletRequest = httpServletRequest;
         this.legalAcceptanceService = legalAcceptanceService;
         this.passwordSecurityService = passwordSecurityService;
         this.emailVerificationService = emailVerificationService;
+        this.refreshCookieService = refreshCookieService;
     }
 
     @PostMapping("/verify-email")
@@ -96,32 +102,44 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         rateLimitService.checkRegister(request.email(), httpServletRequest);
-        return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
+        return authResponse(authService.register(request), HttpStatus.CREATED);
     }
 
     @PostMapping("/login")
-    public AuthResponse login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         rateLimitService.checkLogin(request.email(), httpServletRequest);
-        return authService.login(request);
+        return authResponse(authService.login(request), HttpStatus.OK);
     }
 
     @PostMapping("/refresh")
-    public AuthResponse refresh(@Valid @RequestBody RefreshRequest request) {
-        rateLimitService.checkRefresh(request.refreshToken(), httpServletRequest);
-        return authService.refresh(request);
+    public ResponseEntity<AuthResponse> refresh(HttpServletResponse response) {
+        refreshCookieService.requireTrustedBrowserOrigin(httpServletRequest);
+        String rawRefreshToken = refreshCookieService.requireToken(httpServletRequest);
+        rateLimitService.checkRefresh(rawRefreshToken, httpServletRequest);
+        try {
+            return authResponse(authService.refresh(new RefreshRequest(rawRefreshToken)), HttpStatus.OK);
+        } catch (RuntimeException exception) {
+            response.addHeader(HttpHeaders.SET_COOKIE, refreshCookieService.clearCookieHeader());
+            throw exception;
+        }
     }
 
     @PostMapping("/oauth2/exchange")
-    public AuthResponse exchangeOAuth2Code(@Valid @RequestBody OAuth2ExchangeRequest request) {
+    public ResponseEntity<AuthResponse> exchangeOAuth2Code(@Valid @RequestBody OAuth2ExchangeRequest request) {
         rateLimitService.checkOAuth2Exchange(httpServletRequest);
-        return authService.exchangeOAuth2Code(request.code());
+        return authResponse(authService.exchangeOAuth2Code(request.code()), HttpStatus.OK);
     }
 
     @PostMapping("/logout")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("isAuthenticated()")
-    public void logout(@Valid @RequestBody LogoutRequest request) {
-        authService.logout(request);
+    public ResponseEntity<Void> logout() {
+        refreshCookieService.requireTrustedBrowserOrigin(httpServletRequest);
+        String rawRefreshToken = refreshCookieService.readToken(httpServletRequest);
+        if (rawRefreshToken != null && !rawRefreshToken.isBlank()) {
+            authService.logout(new LogoutRequest(rawRefreshToken));
+        }
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, refreshCookieService.clearCookieHeader())
+                .build();
     }
 
     @GetMapping("/me")
@@ -137,5 +155,11 @@ public class AuthController {
             @Valid @RequestBody LegalOnboardingRequest request) {
         legalAcceptanceService.completeOnboarding(userId, request);
         return new LegalOnboardingResponse(true);
+    }
+
+    private ResponseEntity<AuthResponse> authResponse(AuthResponse response, HttpStatus status) {
+        return ResponseEntity.status(status)
+                .header(HttpHeaders.SET_COOKIE, refreshCookieService.setCookieHeader(response.refreshToken()))
+                .body(response);
     }
 }

@@ -76,7 +76,7 @@ describe("password recovery and security pages", () => {
     fireEvent.change(screen.getByLabelText("Yeni Parola Tekrar"), { target: { value: "short" } });
     fireEvent.click(screen.getByRole("button", { name: "Parolayı Yenile" }));
 
-    expect(screen.getByText("Parola 8–72 karakter arasında olmalıdır.", { selector: ".auth-field-error" })).toBeInTheDocument();
+    expect(screen.getByText("Parola 12–72 karakter arasında olmalıdır.", { selector: ".auth-field-error" })).toBeInTheDocument();
     expect(screen.getByLabelText("Yeni Parola")).toHaveAttribute("aria-invalid", "true");
     expect(mocks.resetPassword).not.toHaveBeenCalled();
   });

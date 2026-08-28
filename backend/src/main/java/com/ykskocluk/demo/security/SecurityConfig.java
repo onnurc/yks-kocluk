@@ -56,6 +56,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/register",
                                 "/api/v1/auth/login",
                                 "/api/v1/auth/refresh",
+                                "/api/v1/auth/logout",
                                 "/api/v1/auth/forgot-password",
                                 "/api/v1/auth/reset-password",
                                 "/api/v1/auth/oauth2/exchange",
@@ -95,9 +96,9 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(corsProperties.allowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-        // Frontend tokens are JSON payloads and API auth uses the Authorization header.
-        // OAuth2 uses top-level redirects, so cross-origin cookie credentials are unnecessary.
-        configuration.setAllowCredentials(false);
+        // Only the HttpOnly refresh cookie uses credentials and its Path is restricted to /auth.
+        // Origins remain an exact allowlist; CorsProperties rejects wildcard configuration.
+        configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

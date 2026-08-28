@@ -93,7 +93,7 @@ class MinorConsentServiceTest {
 
     @Test
     void register_studentNullDob_throwsDateOfBirthRequired() {
-        RegisterRequest req = new RegisterRequest("student@example.com", "pass1234", "Student", Role.STUDENT, null);
+        RegisterRequest req = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", Role.STUDENT, null);
         
         ApiException ex = catchThrowableOfType(
                 ApiException.class,
@@ -108,7 +108,7 @@ class MinorConsentServiceTest {
     @Test
     void register_studentFutureDob_throwsInvalidDateOfBirth() {
         LocalDate futureDob = LocalDate.now(ZoneId.of("Europe/Istanbul")).plusDays(1);
-        RegisterRequest req = new RegisterRequest("student@example.com", "pass1234", "Student", Role.STUDENT, futureDob);
+        RegisterRequest req = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", Role.STUDENT, futureDob);
 
         ApiException ex = catchThrowableOfType(
                 ApiException.class,
@@ -123,7 +123,7 @@ class MinorConsentServiceTest {
     @Test
     void register_studentValidDob_succeeds() {
         LocalDate dob = LocalDate.of(2008, 1, 1);
-        RegisterRequest req = new RegisterRequest("student@example.com", "pass1234", "Student", Role.STUDENT, dob);
+        RegisterRequest req = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", Role.STUDENT, dob);
         
         when(userRepository.existsByEmail(req.email())).thenReturn(false);
         when(passwordEncoder.encode(req.password())).thenReturn("hashed");
@@ -136,7 +136,7 @@ class MinorConsentServiceTest {
     void register_coachRole_rejected() {
         // Coaches no longer self-register; accounts are created by an admin from an approved
         // CoachApplication (see CoachApplicationService.approve).
-        RegisterRequest req = new RegisterRequest("coach@example.com", "pass1234", "Coach", Role.COACH, null);
+        RegisterRequest req = new RegisterRequest("coach@example.com", "SecurePassphrase42!", "Coach", Role.COACH, null);
         ApiException ex = catchThrowableOfType(ApiException.class, () -> authService.register(req));
         assertThat(ex.getErrorCode()).isEqualTo("ROLE_NOT_ALLOWED");
     }

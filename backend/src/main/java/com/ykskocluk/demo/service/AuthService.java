@@ -18,6 +18,7 @@ import com.ykskocluk.demo.repository.RefreshTokenRepository;
 import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.repository.AccountDeletionRequestRepository;
 import com.ykskocluk.demo.security.JwtService;
+import com.ykskocluk.demo.security.PasswordPolicy;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -95,6 +96,7 @@ public class AuthService {
                         "Doğum tarihi gelecekte olamaz");
             }
         }
+        PasswordPolicy.validate(request.password());
         if (userRepository.existsByEmail(request.email())) {
             throw new ApiException(HttpStatus.CONFLICT, "EMAIL_ALREADY_EXISTS",
                     "Bu e-posta zaten kayıtlı");

@@ -8,6 +8,7 @@ import com.ykskocluk.demo.dto.RegisterRequest;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.security.JwtService;
+import com.ykskocluk.demo.security.RefreshTokenCookieService;
 import com.ykskocluk.demo.service.AuthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +55,9 @@ class AuthControllerRateLimitTest {
     @MockitoBean
     private UserRepository userRepository;
 
+    @MockitoBean
+    private RefreshTokenCookieService refreshTokenCookieService;
+
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
 
@@ -78,7 +82,7 @@ class AuthControllerRateLimitTest {
     @Test
     @WithMockUser
     void register_rateLimitExceeded_returns429AndRetryAfterHeader() throws Exception {
-        RegisterRequest request = new RegisterRequest("student@example.com", "password123", "FullName", Role.STUDENT, LocalDate.of(2008, 1, 1));
+        RegisterRequest request = new RegisterRequest("student@example.com", "SecurePassphrase42!", "FullName", Role.STUDENT, LocalDate.of(2008, 1, 1));
 
         doThrow(new RateLimitExceededException(30L))
                 .when(rateLimitService).checkRegister(any(), any());
@@ -97,6 +101,9 @@ class AuthControllerRateLimitTest {
     @WithMockUser
     void refresh_rateLimitExceeded_returns429AndRetryAfterHeader() throws Exception {
         RefreshRequest request = new RefreshRequest("some-refresh-token");
+
+        org.mockito.Mockito.when(refreshTokenCookieService.requireToken(any()))
+                .thenReturn("some-refresh-token");
 
         doThrow(new RateLimitExceededException(15L))
                 .when(rateLimitService).checkRefresh(any(), any());

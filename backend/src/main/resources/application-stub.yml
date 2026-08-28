@@ -7,3 +7,9 @@
 app:
   external:
     mode: stub
+
+spring:
+  flyway:
+    placeholders:
+      # Explicit stub-profile-only credential. Production/default configuration has no fallback.
+      admin_password_hash: '$2y$10$yl6BvY2.9REyRTbV.9FYP.2xPDn2C1ZhDaggZQLcYAyRBc9Ri4.HC'
