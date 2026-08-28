@@ -64,7 +64,7 @@ class AuthControllerRateLimitTest {
     @Test
     @WithMockUser
     void login_rateLimitExceeded_returns429AndRetryAfterHeader() throws Exception {
-        LoginRequest request = new LoginRequest("user@example.com", "password123");
+        LoginRequest request = new LoginRequest("user@example.com", "TestPassword123!");
 
         doThrow(new RateLimitExceededException(45L))
                 .when(rateLimitService).checkLogin(any(), any());

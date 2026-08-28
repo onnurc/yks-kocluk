@@ -32,8 +32,8 @@ class AdminDashboardIntegrationTest {
         // Coaches no longer self-register (see AuthService.register) — build the fixture
         // directly and log it in for a real token, same as every other case here.
         String coachEmail = "admin-dashboard-auth-coach@example.com";
-        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, coachEmail, "password123");
-        String coach = login(coachEmail, "password123");
+        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, coachEmail, "TestPassword123!");
+        String coach = login(coachEmail, "TestPassword123!");
 
         mvc.perform(get("/api/v1/admin/dashboard/summary").header("Authorization", "Bearer " + admin))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalStudentCount").isNumber())
@@ -62,7 +62,7 @@ class AdminDashboardIntegrationTest {
     private String register(String email, String role) throws Exception {
         String body = mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"password123","fullName":"Admin Dashboard Test","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
+                                {"email":"%s","password":"TestPassword123!","fullName":"Admin Dashboard Test","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
                                 """.formatted(email, role)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         return JsonPath.read(body, "$.accessToken");

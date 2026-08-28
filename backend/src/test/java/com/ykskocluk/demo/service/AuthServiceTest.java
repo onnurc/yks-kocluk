@@ -194,9 +194,9 @@ class AuthServiceTest {
     @Test
     void login_success() {
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(activeUser("hashed-pw")));
-        when(passwordEncoder.matches("password123", "hashed-pw")).thenReturn(true);
+        when(passwordEncoder.matches("TestPassword123!", "hashed-pw")).thenReturn(true);
 
-        AuthResponse res = authService.login(new LoginRequest("user@example.com", "password123"));
+        AuthResponse res = authService.login(new LoginRequest("user@example.com", "TestPassword123!"));
         assertThat(res.accessToken()).isEqualTo("access-token");
     }
 
@@ -224,10 +224,10 @@ class AuthServiceTest {
         User u = activeUser("hashed-pw");
         u.setStatus(UserStatus.SUSPENDED);
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(u));
-        when(passwordEncoder.matches("password123", "hashed-pw")).thenReturn(true);
+        when(passwordEncoder.matches("TestPassword123!", "hashed-pw")).thenReturn(true);
 
         ApiException ex = catchThrowableOfType(ApiException.class,
-                () -> authService.login(new LoginRequest("user@example.com", "password123")));
+                () -> authService.login(new LoginRequest("user@example.com", "TestPassword123!")));
         assertThat(ex.getErrorCode()).isEqualTo("ACCOUNT_NOT_ACTIVE");
     }
 

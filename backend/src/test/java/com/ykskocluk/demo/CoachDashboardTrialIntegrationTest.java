@@ -90,7 +90,7 @@ class CoachDashboardTrialIntegrationTest {
     private String register(String email, String role) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"password123","fullName":"Test User","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
+                                {"email":"%s","password":"TestPassword123!","fullName":"Test User","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
                                 """.formatted(email, role)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         TestUsers.verifyEmail(userRepository, email);
@@ -107,8 +107,8 @@ class CoachDashboardTrialIntegrationTest {
     private Object[] approvedCoach(String email, String admin) throws Exception {
         // Coaches no longer self-register (see AuthService.register) — build the fixture
         // directly and log it in for a real token.
-        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, email, "password123");
-        String token = login(email, "password123");
+        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, email, "TestPassword123!");
+        String token = login(email, "TestPassword123!");
         Number university = JsonPath.read(mockMvc.perform(get("/api/v1/universities")
                         .header("Authorization", "Bearer " + admin)).andReturn().getResponse().getContentAsString(), "$[0].id");
         String profile = mockMvc.perform(post("/api/v1/coach/profile").header("Authorization", "Bearer " + token)

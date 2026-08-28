@@ -50,10 +50,10 @@ class SessionIntegrationTest {
 
     /** Coaches no longer self-register (see AuthService.register) — build the fixture directly and log it in. */
     private String registerCoach(String email) throws Exception {
-        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, email, "password123");
+        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, email, "TestPassword123!");
         String json = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"%s\",\"password\":\"password123\"}".formatted(email)))
+                        .content("{\"email\":\"%s\",\"password\":\"TestPassword123!\"}".formatted(email)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return JsonPath.read(json, "$.accessToken");
@@ -63,7 +63,7 @@ class SessionIntegrationTest {
         String json = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"password123","fullName":"%s","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
+                                {"email":"%s","password":"TestPassword123!","fullName":"%s","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
                                 """.formatted(email, email.split("@")[0], role)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
