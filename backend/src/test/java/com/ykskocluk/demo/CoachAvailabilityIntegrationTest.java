@@ -43,7 +43,7 @@ class CoachAvailabilityIntegrationTest {
         String json = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"password123","fullName":"%s","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
+                                {"email":"%s","password":"TestPassword123!","fullName":"%s","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
                                 """.formatted(email, email.split("@")[0], role)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
@@ -68,8 +68,8 @@ class CoachAvailabilityIntegrationTest {
         String admin = adminToken();
         // Coaches no longer self-register (see AuthService.register) — build the fixture
         // directly and log it in for a real token.
-        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, email, "password123");
-        String coachToken = loginToken(email, "password123");
+        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, email, "TestPassword123!");
+        String coachToken = loginToken(email, "TestPassword123!");
         long universityId = ((Number) JsonPath.read(
                 mockMvc.perform(get("/api/v1/universities").header("Authorization", "Bearer " + admin))
                         .andReturn().getResponse().getContentAsString(), "$[0].id")).longValue();

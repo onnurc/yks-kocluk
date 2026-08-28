@@ -37,15 +37,15 @@ class Phase2IntegrationTest {
 
     /** Coaches no longer self-register (see AuthService.register) — build the fixture directly and log it in. */
     private String registerCoach(String email) throws Exception {
-        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, email, "password123");
-        return loginToken(email, "password123");
+        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.COACH, email, "TestPassword123!");
+        return loginToken(email, "TestPassword123!");
     }
 
     private String register(String email, String role) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"password123","fullName":"Test User","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
+                                {"email":"%s","password":"TestPassword123!","fullName":"Test User","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
                                 """.formatted(email, role)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
