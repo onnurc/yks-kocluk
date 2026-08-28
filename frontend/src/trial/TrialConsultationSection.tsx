@@ -3,6 +3,7 @@ import { trialConsultationApi } from "./trialConsultationApi";
 import type { TrialConsultationResponse } from "./trialConsultationTypes";
 import type { AvailabilityResponse } from "../booking/bookingTypes";
 import { ApiError } from "../api/ApiError";
+import "./trial-consultation.css";
 
 interface TrialConsultationSectionProps {
   coachId: number;
@@ -142,7 +143,7 @@ export const TrialConsultationSection: React.FC<TrialConsultationSectionProps> =
             </button>
           </div>
         ) : slots.length === 0 ? (
-          <p className="trial-card__hint">Bu koçun şu anda uygun bir deneme görüşmesi saati bulunmuyor.</p>
+          <p className="trial-card__hint">Bu koçun şu anda tanımlı uygun deneme görüşmesi saati bulunmuyor.</p>
         ) : (
           <>
             <div className="trial-card__slots">

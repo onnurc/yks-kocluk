@@ -118,7 +118,8 @@ class SubscriptionServiceTest {
             subscription.getStatus(), subscription.isAutoRenew(), subscription.getStartAt(), subscription.getEndAt());
     });
     lenient().when(iyzicoClient.initializeCheckout(any(), any(), any(), any()))
-        .thenReturn(new CheckoutResult("stub-checkout-token", "https://checkout.stub.local/pay/stub-checkout-token"));
+        .thenReturn(new CheckoutResult("stub-checkout-token",
+                "http://localhost:5173/payment/stub/stub-checkout-22-123e4567-e89b-42d3-a456-426614174000"));
     }
 
     private SubscriptionCreateRequest request() {
@@ -307,9 +308,10 @@ class SubscriptionServiceTest {
         Payment payment = new Payment();
         ReflectionTestUtils.setField(payment, "id", 100L);
         payment.setStatus(PaymentStatus.PENDING);
+        payment.setType(PaymentType.CHARGE);
         payment.setSubscription(sub);
 
-        when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(payment));
         when(coachProfileRepository.incrementActiveStudentCountIfRoom(COACH_ID)).thenReturn(1);
 
         SubscriptionResponse response = service.succeedPayment(100L, STUDENT_ID);
@@ -339,9 +341,10 @@ class SubscriptionServiceTest {
         Payment payment = new Payment();
         ReflectionTestUtils.setField(payment, "id", 100L);
         payment.setStatus(PaymentStatus.SUCCESS);
+        payment.setType(PaymentType.CHARGE);
         payment.setSubscription(sub);
 
-        when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(payment));
 
         SubscriptionResponse response = service.succeedPayment(100L, STUDENT_ID);
 
@@ -361,9 +364,10 @@ class SubscriptionServiceTest {
 
         Payment payment = new Payment();
         ReflectionTestUtils.setField(payment, "id", 100L);
+        payment.setType(PaymentType.CHARGE);
         payment.setSubscription(sub);
 
-        when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(payment));
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.succeedPayment(100L, STUDENT_ID));
         assertThat(ex.getErrorCode()).isEqualTo("NOT_PAYMENT_OWNER");
@@ -380,9 +384,10 @@ class SubscriptionServiceTest {
         Payment payment = new Payment();
         ReflectionTestUtils.setField(payment, "id", 100L);
         payment.setStatus(PaymentStatus.FAILED);
+        payment.setType(PaymentType.CHARGE);
         payment.setSubscription(sub);
 
-        when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(payment));
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.succeedPayment(100L, STUDENT_ID));
         assertThat(ex.getErrorCode()).isEqualTo("INVALID_PAYMENT_STATUS");
@@ -400,9 +405,10 @@ class SubscriptionServiceTest {
         Payment payment = new Payment();
         ReflectionTestUtils.setField(payment, "id", 100L);
         payment.setStatus(PaymentStatus.PENDING);
+        payment.setType(PaymentType.CHARGE);
         payment.setSubscription(sub);
 
-        when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(payment));
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.succeedPayment(100L, STUDENT_ID));
         assertThat(ex.getErrorCode()).isEqualTo("INVALID_SUBSCRIPTION_STATUS");
@@ -423,9 +429,10 @@ class SubscriptionServiceTest {
         Payment payment = new Payment();
         ReflectionTestUtils.setField(payment, "id", 100L);
         payment.setStatus(PaymentStatus.PENDING);
+        payment.setType(PaymentType.CHARGE);
         payment.setSubscription(sub);
 
-        when(paymentRepository.findById(100L)).thenReturn(Optional.of(payment));
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(payment));
         when(coachProfileRepository.incrementActiveStudentCountIfRoom(COACH_ID)).thenReturn(0);
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.succeedPayment(100L, STUDENT_ID));

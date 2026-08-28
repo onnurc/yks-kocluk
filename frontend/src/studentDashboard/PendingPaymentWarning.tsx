@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import type { DashboardPayment } from "./studentDashboardTypes";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
 import { subscriptionCheckoutApi } from "../subscriptionCheckout/subscriptionCheckoutApi";
+import { ApiError } from "../api/ApiError";
 
 interface PendingPaymentWarningProps {
   payment: DashboardPayment | null;
@@ -14,6 +15,7 @@ export const PendingPaymentWarning: React.FC<PendingPaymentWarningProps> = ({
 }) => {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [stubLoading, setStubLoading] = useState<boolean>(false);
+  const [stubError, setStubError] = useState<string | null>(null);
   const [pollCount, setPollCount] = useState<number>(0);
   const maxPolls = 12;
 
@@ -49,11 +51,14 @@ export const PendingPaymentWarning: React.FC<PendingPaymentWarningProps> = ({
   const handleStubSuccess = async () => {
     if (!payment || stubLoading) return;
     setStubLoading(true);
+    setStubError(null);
     try {
       await subscriptionCheckoutApi.stubSucceed(payment.id);
       await onRefresh();
-    } catch {
-      alert("Stub ödeme onayı başarısız oldu.");
+    } catch (error) {
+      setStubError(error instanceof ApiError && error.code === "COACH_FULL"
+        ? "Koçun kontenjanı dolduğu için test ödemesi tamamlanamadı."
+        : "Yerel test ödemesi onaylanamadı. Lütfen backend'in local profille çalıştığını doğrulayın.");
     } finally {
       setStubLoading(false);
     }
@@ -108,6 +113,7 @@ export const PendingPaymentWarning: React.FC<PendingPaymentWarningProps> = ({
           )}
         </div>
       )}
+      {stubError && <p className="pending-subscription__error" role="alert">{stubError}</p>}
     </article>
   );
 };

@@ -105,4 +105,4 @@ To test sandbox stub success transitions locally:
 2. Set `VITE_ENABLE_STUB_PAYMENT_SUCCESS=true` inside `.env.local`.
 3. Start the dev server (`npm run dev`).
 4. Log in as a student with no active subscription, select a package, and click "Ödemeye Geç".
-5. Returning to the dashboard will show "Ödeme İşleminiz Bekleniyor" with a green **"Local Test: Ödemeyi Başarılı Yap"** button. Clicking it triggers the stub success endpoint on the backend and updates the state.
+5. Open the generated local Uniform Akademi payment page and click **"Test Ödemesini Başarılı Yap"**. The dashboard's pending-payment details also retain a local test action as a fallback. Both trigger the same ownership-checked backend state transition.

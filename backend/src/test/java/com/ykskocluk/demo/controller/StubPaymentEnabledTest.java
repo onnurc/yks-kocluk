@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
@@ -23,7 +24,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = {StubPaymentController.class, PaymentController.class}, properties = "payments.stub.success-enabled=true")
+@WebMvcTest(controllers = {StubPaymentController.class, PaymentController.class})
+@ActiveProfiles("test")
 @Import(StubPaymentEnabledTest.SecurityTestConfig.class)
 class StubPaymentEnabledTest {
 

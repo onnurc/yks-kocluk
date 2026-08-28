@@ -32,6 +32,7 @@ import { AboutPage } from "./public/AboutPage";
 import { CoachingPage } from "./public/CoachingPage";
 import { CoachesPage } from "./public/CoachesPage";
 import { CoachProfilePage } from "./public/CoachProfilePage";
+import { StubPaymentPage } from "./subscriptionCheckout/StubPaymentPage";
 import { CoachApplicationPage } from "./public/CoachApplicationPage";
 import { PublicLayout } from "./public/PublicLayout";
 import { AppErrorBoundary } from "./errors/AppErrorBoundary";
@@ -76,6 +77,7 @@ export const AppRoutes: React.FC = () => {
               {/* Student-only Routes */}
               <Route element={<RoleRoute allowedRoles={["STUDENT"]} />}>
                 <Route path="/bookings" element={<BookingsPage />} />
+                <Route path="/payment/stub/:token" element={<StubPaymentPage />} />
               </Route>
 
               {/* Messaging: students and coaches both participate in conversations */}

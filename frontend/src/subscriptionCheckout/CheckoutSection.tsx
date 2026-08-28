@@ -67,10 +67,15 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
             "api.iyzipay.com",
             "www.iyzico.com",
           ];
-          if (import.meta.env.DEV) {
-            allowedHosts.push("checkout.stub.local");
-          }
-          if (parsed.protocol === "https:" && allowedHosts.includes(parsed.hostname)) {
+          const localStubEnabled = import.meta.env.DEV
+            && import.meta.env.VITE_ENABLE_STUB_PAYMENT_SUCCESS === "true";
+          const trustedLocalStub = localStubEnabled
+            && parsed.origin === window.location.origin
+            && /^\/payment\/stub\/stub-checkout-\d+-[0-9a-f-]{36}$/i.test(parsed.pathname)
+            && !parsed.search
+            && !parsed.hash;
+          const trustedProvider = parsed.protocol === "https:" && allowedHosts.includes(parsed.hostname);
+          if (trustedProvider || trustedLocalStub) {
             setCheckoutUrl(response.checkoutUrl);
           } else {
             throw new Error("Güvenli olmayan veya izin verilmeyen ödeme yönlendirme adresi.");
@@ -213,7 +218,9 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
               transition: "background-color 0.2s",
             }}
           >
-            İyzico Ödeme Sayfasını Aç (Yeni Sekmede)
+            {checkoutUrl.startsWith(window.location.origin)
+              ? "Yerel Test Ödeme Sayfasını Aç"
+              : "İyzico Ödeme Sayfasını Aç (Yeni Sekmede)"}
           </a>
         </div>
       )}

@@ -37,10 +37,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-// payments.stub.success-enabled is off by default (it's a prod-closed backdoor) and
-// application-test.yml deliberately doesn't flip it globally, so it's scoped to this class only —
-// the same pattern IyzicoWebhookSignatureTest uses for payments.iyzico.enabled.
-@SpringBootTest(properties = "payments.stub.success-enabled=true")
+// The stub-success controller is profile-gated to local/stub/test and additionally requires the
+// real Iyzico client to be disabled. The test profile exercises that same production-closed gate.
+@SpringBootTest
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("test")
