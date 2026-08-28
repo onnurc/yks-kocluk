@@ -299,4 +299,58 @@ class StompAuthChannelInterceptorTest {
         assertThat(error.getMessage()).contains("mesaj gönderemez");
         verifyNoInteractions(messageService, adminConversationService);
     }
+
+    @Test
+    void preSend_participantMaySendOnlyToApplicationConversationDestination() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SEND);
+        accessor.setLeaveMutable(true);
+        accessor.setDestination("/app/conversations/50/send");
+        accessor.setUser(auth(3L, "ROLE_STUDENT"));
+        when(messageService.isParticipant(3L, 50L)).thenReturn(true);
+
+        assertThat(interceptor.preSend(message(accessor), null)).isNotNull();
+        verify(messageService).isParticipant(3L, 50L);
+    }
+
+    @Test
+    void preSend_nonParticipantCannotSendToApplicationConversationDestination() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SEND);
+        accessor.setLeaveMutable(true);
+        accessor.setDestination("/app/conversations/50/send");
+        accessor.setUser(auth(3L, "ROLE_STUDENT"));
+        when(messageService.isParticipant(3L, 50L)).thenReturn(false);
+
+        assertThatThrownBy(() -> interceptor.preSend(message(accessor), null))
+                .isInstanceOf(MessagingException.class);
+    }
+
+    @Test
+    void preSend_directTopicPublicationIsRejected() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SEND);
+        accessor.setLeaveMutable(true);
+        accessor.setDestination("/topic/conversations/50");
+        accessor.setUser(auth(3L, "ROLE_STUDENT"));
+
+        assertThatThrownBy(() -> interceptor.preSend(message(accessor), null))
+                .isInstanceOf(MessagingException.class);
+        verifyNoInteractions(messageService);
+    }
+
+    @Test
+    void preSend_directQueuePublicationIsRejected() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SEND);
+        accessor.setLeaveMutable(true);
+        accessor.setDestination("/queue/notifications-user9");
+        accessor.setUser(auth(3L, "ROLE_STUDENT"));
+
+        assertThatThrownBy(() -> interceptor.preSend(message(accessor), null))
+                .isInstanceOf(MessagingException.class);
+        verifyNoInteractions(messageService);
+    }
+
+    private Authentication auth(Long userId, String authority) {
+        return new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                userId, null, java.util.List.of(
+                new org.springframework.security.core.authority.SimpleGrantedAuthority(authority)));
+    }
 }

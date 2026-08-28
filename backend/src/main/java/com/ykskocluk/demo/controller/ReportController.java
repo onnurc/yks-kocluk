@@ -5,6 +5,7 @@ import com.ykskocluk.demo.dto.ReportCreationResult;
 import com.ykskocluk.demo.dto.ReportResponse;
 import com.ykskocluk.demo.integration.MailClient;
 import com.ykskocluk.demo.service.ReportService;
+import com.ykskocluk.demo.security.ratelimit.AuthenticatedActionRateLimitService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,10 +28,13 @@ public class ReportController {
 
     private final ReportService reportService;
     private final MailClient mailClient;
+    private final AuthenticatedActionRateLimitService actionRateLimit;
 
-    public ReportController(ReportService reportService, MailClient mailClient) {
+    public ReportController(ReportService reportService, MailClient mailClient,
+                            AuthenticatedActionRateLimitService actionRateLimit) {
         this.reportService = reportService;
         this.mailClient = mailClient;
+        this.actionRateLimit = actionRateLimit;
     }
 
     @PostMapping
@@ -38,6 +42,7 @@ public class ReportController {
     public ReportResponse createReport(
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody ReportCreateRequest request) {
+        actionRateLimit.checkReportCreate(userId);
         ReportCreationResult result = reportService.createReport(userId, request);
         try {
             mailClient.sendReportReceived(result.reporterEmail());

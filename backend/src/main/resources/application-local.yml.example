@@ -32,6 +32,12 @@ NEON_DATABASE_PASSWORD: <NEON_PASSWORD>      # from the same Connection Details 
 # Local-only value; deployed environments set JWT_SECRET as a real env var.
 JWT_SECRET: <JWT_SECRET>
 
+# --- Local admin bootstrap --------------------------------------------------
+# V3 requires a BCrypt hash. Local development may use a disposable credential, but the default
+# profile deliberately has no fallback. Generate a local hash and keep it only in the gitignored
+# application-local.yml. Never reuse this credential outside local development.
+ADMIN_PASSWORD_HASH: <LOCAL_BCRYPT_ADMIN_PASSWORD_HASH>
+
 # --- Resend (transactional email) ------------------------------------------
 # Where: https://resend.com/api-keys -> create a key (starts with "re_").
 # A send-only key is enough. NEVER commit the real value.

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
+import jakarta.validation.Valid;
 import java.time.Instant;
 
 /**
@@ -51,7 +52,7 @@ public class AdminSubscriptionController {
     @PostMapping("/{id}/terminate")
     public AdminSubscriptionTerminateResponse terminate(
             @PathVariable Long id,
-            @RequestBody(required = false) AdminSubscriptionTerminateRequest request) {
+            @Valid @RequestBody(required = false) AdminSubscriptionTerminateRequest request) {
         String reason = (request != null) ? request.reason() : null;
         return subscriptionService.terminateSubscription(id, reason);
     }

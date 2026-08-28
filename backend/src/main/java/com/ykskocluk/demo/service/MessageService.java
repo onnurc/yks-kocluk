@@ -16,6 +16,7 @@ import com.ykskocluk.demo.repository.ConversationRepository;
 import com.ykskocluk.demo.repository.MessageRepository;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
 import com.ykskocluk.demo.repository.UserRepository;
+import com.ykskocluk.demo.security.ratelimit.AuthenticatedActionRateLimitService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -53,6 +54,7 @@ public class MessageService {
     private final AccountReadinessService accountReadinessService;
     private final ApplicationEventPublisher eventPublisher;
     private final ChatPresenceService presenceService;
+    private final AuthenticatedActionRateLimitService actionRateLimit;
 
     public MessageService(ConversationRepository conversationRepository,
                           MessageRepository messageRepository,
@@ -63,7 +65,8 @@ public class MessageService {
                           MessageMapper messageMapper,
                           AccountReadinessService accountReadinessService,
                           ApplicationEventPublisher eventPublisher,
-                          ChatPresenceService presenceService) {
+                          ChatPresenceService presenceService,
+                          AuthenticatedActionRateLimitService actionRateLimit) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.subscriptionRepository = subscriptionRepository;
@@ -74,6 +77,7 @@ public class MessageService {
         this.accountReadinessService = accountReadinessService;
         this.eventPublisher = eventPublisher;
         this.presenceService = presenceService;
+        this.actionRateLimit = actionRateLimit;
     }
 
     /** Student opens (or re-fetches) the conversation with a coach. Gate enforced here. */
@@ -108,6 +112,8 @@ public class MessageService {
     /** Sends a message. Sender must be a participant. Bumps last_message_at in the same tx. */
     @Transactional
     public MessageResponse sendMessage(Long senderUserId, Long conversationId, String content) {
+        validateMessageContent(content);
+        actionRateLimit.checkMessageSend(senderUserId);
         User sender = userRepository.findById(senderUserId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
         accountReadinessService.requireReady(sender);
@@ -136,6 +142,16 @@ public class MessageService {
         // the transaction, because the listener runs with the entities already detached.
         eventPublisher.publishEvent(buildSentEvent(conversation, sender, response));
         return response;
+    }
+
+    private void validateMessageContent(String content) {
+        if (content == null || content.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "MESSAGE_BLANK", "Mesaj boş olamaz");
+        }
+        if (content.length() > 4000) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "MESSAGE_TOO_LONG",
+                    "Mesaj en fazla 4000 karakter olabilir");
+        }
     }
 
     /**

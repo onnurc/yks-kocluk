@@ -6,6 +6,7 @@ import com.ykskocluk.demo.dto.ReportResponse;
 import com.ykskocluk.demo.enums.ReportStatus;
 import com.ykskocluk.demo.enums.ReportTargetType;
 import com.ykskocluk.demo.security.JwtService;
+import com.ykskocluk.demo.security.ratelimit.AuthenticatedActionRateLimitService;
 import com.ykskocluk.demo.service.ReportService;
 import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,9 @@ class ReportControllerTest {
 
     @MockitoBean
     com.ykskocluk.demo.integration.MailClient mailClient;
+
+    @MockitoBean
+    AuthenticatedActionRateLimitService actionRateLimitService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 

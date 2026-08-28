@@ -111,6 +111,19 @@ class AdminSubscriptionControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
+    void admin_terminateSubscription_rejectsOversizedReasonBeforeServiceCall() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/subscriptions/100/terminate")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new AdminSubscriptionTerminateRequest("x".repeat(2001)))))
+                .andExpect(status().isBadRequest());
+
+        org.mockito.Mockito.verifyNoInteractions(subscriptionService);
+    }
+
+    @Test
     @WithMockUser(roles = "STUDENT")
     void student_cannotListSubscriptions_forbidden() throws Exception {
         mockMvc.perform(get("/api/v1/admin/subscriptions")

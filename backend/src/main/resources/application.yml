@@ -36,9 +36,11 @@ spring:
     # See handoff.md "Demo-seed Flyway location + DemoSeedCleanupComponent trap" (2026-08-15).
     locations: classpath:db/migration
     placeholders:
-      # Dev-only default = BCrypt of "admin1234". Override in prod via ADMIN_PASSWORD_HASH
-      # (a pre-computed BCrypt hash, not plaintext). Used by V3__seed_admin.sql.
-      admin_password_hash: '${ADMIN_PASSWORD_HASH:$2y$10$yl6BvY2.9REyRTbV.9FYP.2xPDn2C1ZhDaggZQLcYAyRBc9Ri4.HC}'
+      # Without an explicit value, a fresh local database receives an intentionally unusable
+      # sentinel rather than a known credential. Configure a BCrypt hash in the gitignored local
+      # file when local admin access is needed. Non-local startup additionally requires and
+      # validates ADMIN_PASSWORD_HASH and detects an already-migrated historical default account.
+      admin_password_hash: '${ADMIN_PASSWORD_HASH:LOCAL_ADMIN_DISABLED}'
 
   jackson:
     time-zone: UTC
@@ -151,6 +153,18 @@ app:
     media-presign:
       user-limit: ${RATE_LIMIT_MEDIA_PRESIGN_USER_LIMIT:12}
       window-seconds: ${RATE_LIMIT_MEDIA_PRESIGN_WINDOW_SECONDS:600}
+    message-send:
+      user-limit: ${RATE_LIMIT_MESSAGE_SEND_USER_LIMIT:60}
+      window-seconds: ${RATE_LIMIT_MESSAGE_SEND_WINDOW_SECONDS:60}
+    trial-create:
+      user-limit: ${RATE_LIMIT_TRIAL_CREATE_USER_LIMIT:5}
+      window-seconds: ${RATE_LIMIT_TRIAL_CREATE_WINDOW_SECONDS:3600}
+    report-create:
+      user-limit: ${RATE_LIMIT_REPORT_CREATE_USER_LIMIT:10}
+      window-seconds: ${RATE_LIMIT_REPORT_CREATE_WINDOW_SECONDS:3600}
+    media-complete:
+      user-limit: ${RATE_LIMIT_MEDIA_COMPLETE_USER_LIMIT:30}
+      window-seconds: ${RATE_LIMIT_MEDIA_COMPLETE_WINDOW_SECONDS:600}
   demo-seed-enabled: ${DEMO_SEED_ENABLED:false}
   jwt:
     # HS256 signing key (>= 32 bytes). Supplied via JWT_SECRET (application-local.yml / env).

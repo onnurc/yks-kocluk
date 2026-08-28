@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Min;
 
 import java.util.Set;
 
@@ -24,6 +25,7 @@ public record CoachProfileUpdateRequest(
         @Size(max = 150, message = "Bölüm en fazla 150 karakter olabilir")
         String department,
 
+        @Min(value = 1950, message = "Mezuniyet yılı 1950 veya sonrası olmalı")
         Integer graduationYear,
 
         @Positive(message = "YKS sıralaması pozitif bir sayı olmalı")

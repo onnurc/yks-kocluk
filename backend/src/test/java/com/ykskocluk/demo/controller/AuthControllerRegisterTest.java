@@ -9,6 +9,7 @@ import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.security.JwtService;
+import com.ykskocluk.demo.security.RefreshTokenCookieService;
 import com.ykskocluk.demo.security.ratelimit.AuthRateLimitService;
 import com.ykskocluk.demo.service.AuthService;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,9 @@ class AuthControllerRegisterTest {
     @MockitoBean
     private UserRepository userRepository;
 
+    @MockitoBean
+    private RefreshTokenCookieService refreshTokenCookieService;
+
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
 
@@ -87,7 +91,7 @@ class AuthControllerRegisterTest {
     @Test
     @WithMockUser
     void register_studentNullDob_returnsBadRequest() throws Exception {
-        RegisterRequest request = new RegisterRequest("student@example.com", "password123", "Student", Role.STUDENT, null);
+        RegisterRequest request = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", Role.STUDENT, null);
 
         when(authService.register(any(RegisterRequest.class)))
                 .thenThrow(new ApiException(HttpStatus.BAD_REQUEST, "DATE_OF_BIRTH_REQUIRED", "Öğrenci kaydı için doğum tarihi zorunludur"));
@@ -105,7 +109,7 @@ class AuthControllerRegisterTest {
     @WithMockUser
     void register_studentFutureDob_returnsBadRequest() throws Exception {
         LocalDate future = LocalDate.now().plusDays(5);
-        RegisterRequest request = new RegisterRequest("student@example.com", "password123", "Student", Role.STUDENT, future);
+        RegisterRequest request = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", Role.STUDENT, future);
 
         when(authService.register(any(RegisterRequest.class)))
                 .thenThrow(new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_OF_BIRTH", "Doğum tarihi gelecekte olamaz"));
@@ -123,11 +127,13 @@ class AuthControllerRegisterTest {
     @WithMockUser
     void register_studentValidDob_returnsCreated() throws Exception {
         LocalDate dob = LocalDate.of(2005, 5, 5);
-        RegisterRequest request = new RegisterRequest("student@example.com", "password123", "Student", Role.STUDENT, dob);
+        RegisterRequest request = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", Role.STUDENT, dob);
         UserResponse userResponse = new UserResponse(1L, "student@example.com", "Student", Role.STUDENT, UserStatus.ACTIVE);
         AuthResponse authResponse = new AuthResponse("access-token", "refresh-token", "Bearer", 900L, userResponse);
 
         when(authService.register(any(RegisterRequest.class))).thenReturn(authResponse);
+        when(refreshTokenCookieService.setCookieHeader("refresh-token"))
+                .thenReturn("yks_refresh_token=refresh-token; Path=/api/v1/auth; HttpOnly; SameSite=Lax");
 
         mockMvc.perform(post("/api/v1/auth/register")
                         .with(csrf())

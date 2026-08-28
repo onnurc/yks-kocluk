@@ -15,6 +15,9 @@ spring:
     # excluded here: it polluted @DataJpaTest slice assertions that expect a clean table
     # (DemoSeedCleanupComponent can't clean it up in a slice context — it never loads).
     locations: classpath:db/migration
+    placeholders:
+      # Test-only credential used by integration fixtures. Never active outside the test profile.
+      admin_password_hash: '$2y$10$yl6BvY2.9REyRTbV.9FYP.2xPDn2C1ZhDaggZQLcYAyRBc9Ri4.HC'
 
 app:
   jwt:

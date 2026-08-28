@@ -48,6 +48,7 @@ class MessageServiceTest {
     @Mock AccountReadinessService accountReadinessService;
     @Mock ApplicationEventPublisher eventPublisher;
     @Mock ChatPresenceService presenceService;
+    @Mock com.ykskocluk.demo.security.ratelimit.AuthenticatedActionRateLimitService actionRateLimit;
 
     MessageService service;
 
@@ -60,11 +61,31 @@ class MessageServiceTest {
     private CoachProfile coach;
     private Conversation conversation;
 
+    @Test
+    void sendMessage_blankContentIsRejectedBeforeRateLimitOrPersistence() {
+        ApiException error = catchThrowableOfType(ApiException.class,
+                () -> service.sendMessage(STUDENT_ID, CONVERSATION_ID, "   "));
+
+        assertThat(error.getErrorCode()).isEqualTo("MESSAGE_BLANK");
+        verify(actionRateLimit, never()).checkMessageSend(any());
+        verify(messageRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void sendMessage_overFourThousandCharactersIsRejectedBeforeRateLimitOrPersistence() {
+        ApiException error = catchThrowableOfType(ApiException.class,
+                () -> service.sendMessage(STUDENT_ID, CONVERSATION_ID, "x".repeat(4001)));
+
+        assertThat(error.getErrorCode()).isEqualTo("MESSAGE_TOO_LONG");
+        verify(actionRateLimit, never()).checkMessageSend(any());
+        verify(messageRepository, never()).saveAndFlush(any());
+    }
+
     @BeforeEach
     void setUp() {
         service = new MessageService(conversationRepository, messageRepository, subscriptionRepository,
                 coachProfileRepository, userRepository, conversationMapper, messageMapper, accountReadinessService,
-                eventPublisher, presenceService);
+                eventPublisher, presenceService, actionRateLimit);
 
         User coachUser = new User();
         ReflectionTestUtils.setField(coachUser, "id", COACH_USER_ID);
@@ -228,6 +249,7 @@ class MessageServiceTest {
 
         service.sendMessage(STUDENT_ID, CONVERSATION_ID, "hi");
 
+        verify(actionRateLimit).checkMessageSend(STUDENT_ID);
         verify(messageRepository).saveAndFlush(any(Message.class));
         assertThat(conversation.getLastMessageAt()).isEqualTo(sentAt); // bumped to the message's sent time
     }

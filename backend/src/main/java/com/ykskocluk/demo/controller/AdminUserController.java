@@ -4,6 +4,7 @@ import com.ykskocluk.demo.dto.SuspendRequest;
 import com.ykskocluk.demo.dto.SuspendResponse;
 import com.ykskocluk.demo.integration.MailClient;
 import com.ykskocluk.demo.service.UserService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -36,7 +37,7 @@ public class AdminUserController {
     public SuspendResponse suspendUser(
             @AuthenticationPrincipal Long adminUserId,
             @PathVariable Long id,
-            @RequestBody(required = false) SuspendRequest request) {
+            @Valid @RequestBody(required = false) SuspendRequest request) {
         String reason = (request != null) ? request.reason() : null;
         SuspendResponse response = userService.suspendUser(adminUserId, id, reason);
         try {

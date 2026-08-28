@@ -22,6 +22,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.Year;
+import java.time.ZoneId;
 
 import java.util.Set;
 import java.util.TreeSet;
@@ -52,6 +54,7 @@ public class CoachProfileService {
 
     @Transactional
     public CoachProfileResponse createOwn(Long userId, CoachProfileCreateRequest request) {
+        validateGraduationYear(request.graduationYear());
         var existing = coachProfileRepository.findByUserId(userId);
         if (existing.isPresent()) {
             CoachProfile profile = existing.get();
@@ -100,6 +103,7 @@ public class CoachProfileService {
 
     @Transactional
     public CoachProfileResponse updateOwn(Long userId, CoachProfileUpdateRequest request) {
+        validateGraduationYear(request.graduationYear());
         CoachProfile profile = requireOwnProfile(userId);
         profile.setHeadline(request.headline());
         profile.setBio(request.bio());
@@ -110,6 +114,17 @@ public class CoachProfileService {
         // Status is NOT touched here — only admin changes it (post-approval edits stay APPROVED).
         replaceTracks(profile, request.tracks());
         return coachProfileMapper.toResponse(profile, request.tracks());
+    }
+
+    private void validateGraduationYear(Integer graduationYear) {
+        if (graduationYear == null) {
+            return;
+        }
+        int latestReasonableYear = Year.now(ZoneId.of("Europe/Istanbul")).getValue() + 1;
+        if (graduationYear < 1950 || graduationYear > latestReasonableYear) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_GRADUATION_YEAR",
+                    "Mezuniyet yılı geçerli aralıkta olmalı");
+        }
     }
 
     @Transactional

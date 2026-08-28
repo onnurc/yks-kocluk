@@ -1,4 +1,4 @@
-import { getAccessToken, getRefreshToken, setAccessToken, setRefreshToken, clearAllTokens } from "../auth/tokenStorage";
+import { getAccessToken, setAccessToken, clearAllTokens } from "../auth/tokenStorage";
 import { authApi } from "../auth/authApi";
 import { ApiError } from "./ApiError";
 import type { FieldError } from "./ApiError";
@@ -15,12 +15,9 @@ export const getApiBaseUrl = (): string => {
 let refreshPromise: Promise<string | null> | null = null;
 
 const performTokenRefresh = async (): Promise<string | null> => {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
   try {
-    const response = await authApi.refresh(refreshToken);
+    const response = await authApi.refresh();
     setAccessToken(response.accessToken);
-    setRefreshToken(response.refreshToken);
     return response.accessToken;
   } catch {
     clearAllTokens();
@@ -124,6 +121,13 @@ export const httpClient = {
       method: "POST",
       body: body ? JSON.stringify(body) : undefined,
       headers,
+    }),
+  postWithCredentials: <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
+    request<T>(path, {
+      method: "POST",
+      body: body ? JSON.stringify(body) : undefined,
+      headers,
+      credentials: "include",
     }),
   put: <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
     request<T>(path, {

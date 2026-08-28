@@ -9,6 +9,7 @@ import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.PasswordResetTokenRepository;
 import com.ykskocluk.demo.repository.RefreshTokenRepository;
 import com.ykskocluk.demo.repository.UserRepository;
+import com.ykskocluk.demo.security.PasswordPolicy;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -114,8 +115,7 @@ public class PasswordSecurityService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "PASSWORD_REUSE_NOT_ALLOWED", "Yeni şifre mevcut şifreyle aynı olamaz");
     }
     private void validatePassword(String raw) {
-        if (raw == null || raw.length() < 8 || raw.length() > 72)
-            throw new ApiException(HttpStatus.BAD_REQUEST, "PASSWORD_POLICY_VIOLATION", "Şifre 8 ile 72 karakter arasında olmalı");
+        PasswordPolicy.validate(raw);
     }
     private boolean eligible(User user) { return user.getStatus() == UserStatus.ACTIVE && user.getPasswordHash() != null; }
     private void ensureEligible(User user, String code) { if (!eligible(user)) throw unavailable(code); }

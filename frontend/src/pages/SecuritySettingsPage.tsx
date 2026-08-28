@@ -4,6 +4,7 @@ import { authApi } from "../auth/authApi";
 import { useAuth } from "../auth/AuthProvider";
 import { FormError } from "../components/FormError";
 import "./security-settings.css";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "../auth/passwordPolicy";
 
 function LockIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" /></svg>;
@@ -55,7 +56,7 @@ export const SecuritySettingsPage = () => {
         <div className="security-settings__card">
           <div className="security-settings__card-heading">
             <span className="security-settings__icon"><LockIcon /></span>
-            <div><h2>Hesap şifresi</h2><p>Şifreniz 8–72 karakter arasında olmalıdır.</p></div>
+            <div><h2>Hesap şifresi</h2><p>Şifreniz 12–72 karakter arasında olmalıdır.</p></div>
           </div>
 
           <div className="security-settings__error"><FormError error={error} /></div>
@@ -67,11 +68,11 @@ export const SecuritySettingsPage = () => {
             </label>
             <label htmlFor="new-password">
               <span>Yeni şifre</span>
-              <input id="new-password" type="password" autoComplete="new-password" minLength={8} maxLength={72} required value={newPassword} onChange={(event) => setNewPassword(event.target.value)} disabled={loading} />
+              <input id="new-password" type="password" autoComplete="new-password" minLength={MIN_PASSWORD_LENGTH} maxLength={MAX_PASSWORD_LENGTH} required value={newPassword} onChange={(event) => setNewPassword(event.target.value)} disabled={loading} />
             </label>
             <label htmlFor="new-password-confirmation">
               <span>Yeni şifre tekrar</span>
-              <input id="new-password-confirmation" type="password" autoComplete="new-password" minLength={8} maxLength={72} required value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={loading} />
+              <input id="new-password-confirmation" type="password" autoComplete="new-password" minLength={MIN_PASSWORD_LENGTH} maxLength={MAX_PASSWORD_LENGTH} required value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={loading} />
             </label>
             <button type="submit" disabled={loading}>{loading ? "Değiştiriliyor…" : "Şifreyi Değiştir"}</button>
           </form>

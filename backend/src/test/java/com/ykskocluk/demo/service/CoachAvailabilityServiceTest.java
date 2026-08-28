@@ -81,6 +81,33 @@ class CoachAvailabilityServiceTest {
     }
 
     @Test
+    void create_durationBelowFifteenMinutes_throwsBadRequest() {
+        Instant start = Instant.now().plus(1, ChronoUnit.DAYS);
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.createOwn(COACH_USER_ID, request(start, start.plus(14, ChronoUnit.MINUTES))));
+        assertThat(ex.getErrorCode()).isEqualTo("INVALID_SLOT_DURATION");
+        verify(availabilityRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void create_durationAboveEightHours_throwsBadRequest() {
+        Instant start = Instant.now().plus(1, ChronoUnit.DAYS);
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.createOwn(COACH_USER_ID, request(start, start.plus(9, ChronoUnit.HOURS))));
+        assertThat(ex.getErrorCode()).isEqualTo("INVALID_SLOT_DURATION");
+        verify(availabilityRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void create_moreThanOneYearAhead_throwsBadRequest() {
+        Instant start = Instant.now().plus(367, ChronoUnit.DAYS);
+        ApiException ex = catchThrowableOfType(ApiException.class,
+                () -> service.createOwn(COACH_USER_ID, request(start, start.plus(1, ChronoUnit.HOURS))));
+        assertThat(ex.getErrorCode()).isEqualTo("SLOT_TOO_FAR_IN_FUTURE");
+        verify(availabilityRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void create_duplicateStart_throwsConflict() {
         Instant start = Instant.now().plus(1, ChronoUnit.DAYS);
         when(availabilityRepository.saveAndFlush(any(CoachAvailability.class)))

@@ -22,6 +22,10 @@ public class RateLimitProperties {
     private LimitRule emailVerificationResend = new LimitRule(20, 5, 3600);
     private LimitRule coachApplication = new LimitRule(10, 3, 3600);
     private UserLimitRule mediaPresign = new UserLimitRule(12, 600);
+    private UserLimitRule messageSend = new UserLimitRule(60, 60);
+    private UserLimitRule trialCreate = new UserLimitRule(5, 3600);
+    private UserLimitRule reportCreate = new UserLimitRule(10, 3600);
+    private UserLimitRule mediaComplete = new UserLimitRule(30, 600);
 
     @Getter
     @Setter

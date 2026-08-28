@@ -4,10 +4,9 @@ import { authApi } from "../auth/authApi";
 import { ApiError } from "../api/ApiError";
 import { FormError } from "../components/FormError";
 import { AuthPageShell } from "./AuthPageShell";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, PASSWORD_LENGTH_MESSAGE } from "../auth/passwordPolicy";
 import "./auth-page.css";
 
-const MIN_PASSWORD_LENGTH = 8;
-const MAX_PASSWORD_LENGTH = 72;
 
 type ValidationErrors = {
   password?: string;
@@ -29,7 +28,7 @@ export const ResetPasswordPage: React.FC = () => {
   const validate = (): boolean => {
     const nextErrors: ValidationErrors = {};
     if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
-      nextErrors.password = "Parola 8–72 karakter arasında olmalıdır.";
+      nextErrors.password = PASSWORD_LENGTH_MESSAGE;
     }
     if (password !== confirmation) {
       nextErrors.confirmation = "Parola tekrarı yeni parolayla eşleşmiyor.";
@@ -76,13 +75,13 @@ export const ResetPasswordPage: React.FC = () => {
   return (
     <AuthPageShell
       title="Yeni Parola Belirle"
-      lead="Hesabınızı korumak için 8–72 karakter arasında yeni bir parola oluşturun."
+      lead="Hesabınızı korumak için 12–72 karakter arasında yeni bir parola oluşturun."
       icon="✦"
     >
       <div className="auth-error-slot"><FormError error={error} /></div>
       <form className="auth-form" onSubmit={submit} noValidate>
         <p className="auth-form-hint" id="reset-password-requirements">
-          Parolanız 8–72 karakter arasında olmalıdır.
+          Parolanız 12–72 karakter arasında olmalıdır.
         </p>
 
         <div className="auth-field-group">

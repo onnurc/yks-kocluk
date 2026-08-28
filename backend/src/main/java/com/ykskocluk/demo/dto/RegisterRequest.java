@@ -14,7 +14,7 @@ public record RegisterRequest(
         String email,
 
         @NotBlank(message = "Şifre boş olamaz")
-        @Size(min = 8, max = 72, message = "Şifre 8 ile 72 karakter arasında olmalı")
+        @Size(min = 12, max = 72, message = "Şifre 12 ile 72 karakter arasında olmalı")
         String password,
 
         @NotBlank(message = "Ad boş olamaz")
