@@ -1,0 +1,61 @@
+@import url("https://fonts.googleapis.com/css2?family=Afacad:wght@400;500;600&family=Righteous&display=swap");
+
+.stub-payment, .stub-payment * { box-sizing: border-box; }
+.stub-payment {
+  display: grid;
+  min-height: calc(100vh - 84px);
+  place-items: center;
+  padding: clamp(24px, 6vw, 72px) 18px;
+  color: #000e32;
+  background:
+    radial-gradient(circle at 85% 12%, rgba(201, 162, 93, .18), transparent 30%),
+    linear-gradient(145deg, #f8f5ef, #f5f6f8 55%, #eceff5);
+  font: 18px/1.45 "Afacad", sans-serif;
+}
+.stub-payment__shell {
+  width: min(100%, 760px);
+  overflow: hidden;
+  border: 1px solid rgba(0, 14, 50, .1);
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: 0 34px 90px rgba(0, 14, 50, .14);
+}
+.stub-payment__header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: clamp(26px, 5vw, 42px);
+  color: #fff;
+  background: linear-gradient(135deg, #000e32, #102650);
+}
+.stub-payment__mark { display: grid; width: 58px; height: 58px; flex: 0 0 auto; place-items: center; border: 1px solid #d7b773; border-radius: 17px; color: #000e32; background: #e5c888; font: 400 31px/1 "Righteous", sans-serif; }
+.stub-payment__header small { color: #e5c888; font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.stub-payment__header h1 { margin: 5px 0 0; font: 400 clamp(25px, 4vw, 36px)/1.1 "Righteous", sans-serif; }
+.stub-payment__state { padding: 48px; color: #666873; text-align: center; }
+.stub-payment__summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: clamp(24px, 5vw, 40px); border: 1px solid #e8e5e2; border-radius: 18px; overflow: hidden; background: #e8e5e2; }
+.stub-payment__summary p { margin: 0; padding: 20px 22px; background: #fbf9f6; }
+.stub-payment__summary span, .stub-payment__summary strong { display: block; }
+.stub-payment__summary span { margin-bottom: 5px; color: #78591b; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+.stub-payment__summary strong { overflow-wrap: anywhere; font-size: 18px; }
+.stub-payment__success, .stub-payment__error, .stub-payment__notice { margin: 0 clamp(24px, 5vw, 40px) 20px; border-radius: 15px; }
+.stub-payment__success { display: flex; align-items: center; gap: 15px; padding: 18px; color: #24583a; background: #eaf5ed; }
+.stub-payment__success > span { display: grid; width: 42px; height: 42px; flex: 0 0 auto; place-items: center; border-radius: 50%; color: #fff; background: #2f6f48; font-weight: 600; }
+.stub-payment__success h2 { margin: 0; font-size: 20px; }
+.stub-payment__success p { margin: 4px 0 0; font-size: 15px; }
+.stub-payment__error { padding: 14px 16px; color: #8b3137; background: #fae9e9; }
+.stub-payment__notice { padding: 14px 16px; border: 1px solid #eadcc0; color: #705315; background: #fffaf0; font-size: 14px; }
+.stub-payment__actions { display: flex; gap: 12px; padding: 0 clamp(24px, 5vw, 40px) clamp(28px, 5vw, 42px); }
+.stub-payment__actions > * { display: inline-flex; min-height: 48px; flex: 1; align-items: center; justify-content: center; padding: 11px 16px; border-radius: 12px; font: 600 15px/1.2 "Afacad", sans-serif; cursor: pointer; text-align: center; text-decoration: none; }
+.stub-payment__primary { border: 1px solid #000e32; color: #fff; background: #000e32; }
+.stub-payment__secondary { border: 1px solid #d7d5d5; color: #000e32; background: #fff; }
+.stub-payment__actions button:disabled { cursor: wait; opacity: .5; }
+.stub-payment__actions > *:focus-visible { outline: 3px solid rgba(201, 162, 93, .5); outline-offset: 3px; }
+
+@media (max-width: 620px) {
+  .stub-payment { min-height: calc(100vh - 70px); padding: 16px; }
+  .stub-payment__shell { border-radius: 20px; }
+  .stub-payment__header { align-items: flex-start; }
+  .stub-payment__mark { width: 48px; height: 48px; border-radius: 14px; font-size: 26px; }
+  .stub-payment__summary { grid-template-columns: minmax(0, 1fr); }
+  .stub-payment__actions { flex-direction: column; }
+}

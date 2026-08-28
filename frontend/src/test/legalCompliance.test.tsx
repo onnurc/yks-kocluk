@@ -85,7 +85,10 @@ vi.mock("../legal/useLegalDocuments", () => ({
   }),
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllEnvs();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -241,9 +244,22 @@ describe("OAuth and onboarding gates", () => {
 });
 
 describe("checkout legal flow", () => {
+  it("accepts the same-origin local stub route without external DNS", async () => {
+    vi.stubEnv("VITE_ENABLE_STUB_PAYMENT_SUCCESS", "true");
+    Object.assign(mocks.auth, { user: { id: 4, email: "student@example.com", fullName: "Student", role: "STUDENT", status: "ACTIVE", emailVerified: true, legalOnboardingCompleted: true }, isAuthenticated: true });
+    const localUrl = `${window.location.origin}/payment/stub/stub-checkout-22-123e4567-e89b-42d3-a456-426614174000`;
+    mocks.checkout.mockResolvedValue({ checkoutUrl: localUrl });
+    render(<MemoryRouter><CheckoutSection coachId={10} coachName="Koç" packageId={20} packageName="Paket" price={1000} dashboardData={null} /></MemoryRouter>);
+
+    fireEvent.click(screen.getByLabelText(/Ön Bilgilendirme Formu.*Zorunlu/));
+    fireEvent.click(screen.getByRole("button", { name: "Ödemeye Geç" }));
+
+    expect(await screen.findByRole("link", { name: "Yerel Test Ödeme Sayfasını Aç" })).toHaveAttribute("href", localUrl);
+  });
+
   it("requires one checkbox and sends all three current document IDs", async () => {
     Object.assign(mocks.auth, { user: { id: 4, email: "student@example.com", fullName: "Student", role: "STUDENT", status: "ACTIVE", emailVerified: true, legalOnboardingCompleted: true }, isAuthenticated: true });
-    mocks.checkout.mockResolvedValue({ checkoutUrl: "https://checkout.stub.local/session" });
+    mocks.checkout.mockResolvedValue({ checkoutUrl: "https://sandbox-api.iyzipay.com/session" });
     render(<MemoryRouter><CheckoutSection coachId={10} coachName="Koç" packageId={20} packageName="Paket" price={1000} dashboardData={null} /></MemoryRouter>);
     expect(screen.getByRole("button", { name: "Sözleşmeleri Kabul Edin" })).toBeDisabled();
     fireEvent.click(screen.getByLabelText(/Ön Bilgilendirme Formu.*Zorunlu/));

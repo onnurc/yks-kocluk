@@ -2,13 +2,17 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError } from "../api/ApiError";
 import { coachDiscoveryApi } from "../coaches/coachDiscoveryApi";
-import type { CoachSummaryResponse, PublicCoachDetailResponse } from "../coaches/coachDiscoveryTypes";
+import type { CoachSummaryResponse, PackageResponse, PublicCoachDetailResponse } from "../coaches/coachDiscoveryTypes";
 import { useAuth } from "../auth/AuthProvider";
 import { studentDashboardApi } from "../studentDashboard/studentDashboardApi";
 import type { StudentDashboardResponse } from "../studentDashboard/studentDashboardTypes";
 import { canMessageWithSubscription } from "../access/subscriptionAccess";
 import { messagingApi } from "../messaging/messagingApi";
 import { safeYoutubeEmbedUrl, YouTubeEmbed } from "../coaches/YouTubeEmbed";
+import { CheckoutSection } from "../subscriptionCheckout/CheckoutSection";
+import { BookingSection } from "../booking/BookingSection";
+import { TrialConsultationSection } from "../trial/TrialConsultationSection";
+import { ReportModal } from "../safety/ReportModal";
 import "./coach-profile-page.css";
 
 const trackLabels: Record<string, string> = {
@@ -17,6 +21,8 @@ const trackLabels: Record<string, string> = {
   VERBAL: "Sözel",
   LANGUAGE: "Dil",
 };
+
+type LoadState = "loading" | "ready" | "error";
 
 function initials(name: string) {
   return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toLocaleUpperCase("tr-TR");
@@ -55,20 +61,57 @@ export function CoachProfilePage() {
 
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [dashboardData, setDashboardData] = useState<StudentDashboardResponse | null>(null);
+  const [dashboardResult, setDashboardResult] = useState<{ userId: number; state: LoadState; data: StudentDashboardResponse | null } | null>(null);
+  const [packageResult, setPackageResult] = useState<{ userId: number; state: LoadState; data: PackageResponse[] } | null>(null);
+  const [packageSelection, setPackageSelection] = useState<{ coachId: number; value: PackageResponse } | null>(null);
+  const [reportTarget, setReportTarget] = useState<{ coachId: number; viewerId: number; targetUserId: number } | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [msgLoading, setMsgLoading] = useState(false);
 
-  // Only a logged-in student can already be subscribed to this coach, so the "message" CTA
-  // (below, in place of the public trial-consultation CTA) only applies to that case.
   useEffect(() => {
     if (user?.role !== "STUDENT") return;
     let active = true;
+    const userId = user.id;
     studentDashboardApi
       .getDashboardData()
-      .then((data) => { if (active) setDashboardData(data); })
-      .catch(() => { /* Trial CTA remains the fallback if this fails. */ });
+      .then((data) => {
+        if (!active) return;
+        setDashboardResult({ userId, state: "ready", data });
+      })
+      .catch(() => { if (active) setDashboardResult({ userId, state: "error", data: null }); });
+    coachDiscoveryApi
+      .listPackages()
+      .then((items) => {
+        if (!active) return;
+        setPackageResult({ userId, state: "ready", data: items ?? [] });
+      })
+      .catch(() => { if (active) setPackageResult({ userId, state: "error", data: [] }); });
     return () => { active = false; };
-  }, [user?.role]);
+  }, [user?.id, user?.role]);
+
+  useEffect(() => {
+    if ((user?.role !== "STUDENT" && user?.role !== "ADMIN") || invalidCoachId) return;
+    let active = true;
+    coachDiscoveryApi.getCoachDetail(coachId)
+      .then((detail) => {
+        if (active && detail.userId !== user.id) {
+          setReportTarget({ coachId, viewerId: user.id, targetUserId: detail.userId });
+        }
+      })
+      .catch(() => { /* Reporting remains hidden if the protected identity lookup is unavailable. */ });
+    return () => { active = false; };
+  }, [coachId, invalidCoachId, user?.id, user?.role]);
+
+  const studentResultMatches = user?.role === "STUDENT" && dashboardResult?.userId === user.id;
+  const packageResultMatches = user?.role === "STUDENT" && packageResult?.userId === user.id;
+  const dashboardData = studentResultMatches ? dashboardResult.data : null;
+  const dashboardState: LoadState = studentResultMatches ? dashboardResult.state : "loading";
+  const packages = packageResultMatches ? packageResult.data : [];
+  const packagesState: LoadState = packageResultMatches ? packageResult.state : "loading";
+  const selectedPackage = packageSelection?.coachId === coachId ? packageSelection.value : null;
+  const reportTargetUserId = reportTarget?.coachId === coachId && reportTarget.viewerId === user?.id
+    ? reportTarget.targetUserId
+    : null;
 
   const sub = dashboardData?.subscription;
   const isSubscribedToThisCoach = sub?.coachId === coachId;
@@ -163,6 +206,11 @@ export function CoachProfilePage() {
                 {tracks.map((track) => <span key={track}>{track}</span>)}
                 <span className={coach.acceptingNewStudents ? "is-open" : "is-full"}>{coach.acceptingNewStudents ? "Yeni öğrenci kabul ediyor" : "Kontenjan dolu"}</span>
               </div>
+              {reportTargetUserId && (
+                <button className="coach-profile-report" type="button" onClick={() => setShowReportModal(true)}>
+                  Koçu Bildir
+                </button>
+              )}
             </div>
           </section>
 
@@ -178,30 +226,42 @@ export function CoachProfilePage() {
             <p>Bu kısa bölümde mentörünü daha yakından tanıyabilirsin.</p>
           </section>
 
-          <section className="coach-profile-trial" aria-labelledby="coach-profile-trial-title">
-            <h2 id="coach-profile-trial-title">Ücretsiz Tanışma Görüşmesi</h2>
-            <p>Mentörünle tanışmak ve hedeflerini paylaşmak için hesabını oluştur. Uygun saatleri güvenli öğrenci akışında görüntüleyebilirsin.</p>
-            <ul>
-              <li><span aria-hidden="true">◷</span><div><strong>Görüşme şekli</strong><small>Çevrim içi</small></div></li>
-              <li><span aria-hidden="true">⌛</span><div><strong>Süre</strong><small>20-30 dakika</small></div></li>
-              <li><span aria-hidden="true">▣</span><div><strong>Uygun saatler</strong><small>Kayıt sonrası görüntülenir</small></div></li>
-            </ul>
-            {isSubscribedToThisCoach ? (
-              isMessageAllowed ? (
-                <button type="button" onClick={handleOpenConversation} disabled={msgLoading}>
-                  {msgLoading ? "Sohbet Açılıyor…" : "Mesaj Gönder"}
-                </button>
-              ) : (
-                <span className="coach-profile-trial__disabled" aria-disabled="true">
-                  Mesaj gönderebilmek için aktif veya geçmiş bir aboneliğiniz olmalı
-                </span>
-              )
-            ) : coach.acceptingNewStudents ? (
-              <Link to={`/register?coachId=${coach.id}`}>Ücretsiz Görüşme İçin Kayıt Ol</Link>
+          <section className="coach-profile-trial" aria-label="Ücretsiz Tanışma Görüşmesi">
+            {user?.role === "STUDENT" && !isSubscribedToThisCoach ? (
+              <TrialConsultationSection coachId={coach.id} />
             ) : (
-              <span className="coach-profile-trial__disabled" aria-disabled="true">Kontenjan Şu Anda Dolu</span>
+              <>
+                <h2 id="coach-profile-trial-title">Ücretsiz Tanışma Görüşmesi</h2>
+                <p>Mentörünle tanışmak ve hedeflerini paylaşmak için hesabını oluştur. Uygun saatleri güvenli öğrenci akışında görüntüleyebilirsin.</p>
+                <ul>
+                  <li><span aria-hidden="true">◷</span><div><strong>Görüşme şekli</strong><small>Çevrim içi</small></div></li>
+                  <li><span aria-hidden="true">⌛</span><div><strong>Süre</strong><small>20-30 dakika</small></div></li>
+                  <li><span aria-hidden="true">▣</span><div><strong>Uygun saatler</strong><small>Kayıt sonrası görüntülenir</small></div></li>
+                </ul>
+                {isSubscribedToThisCoach ? (
+                  isMessageAllowed ? (
+                    <button type="button" onClick={handleOpenConversation} disabled={msgLoading}>
+                      {msgLoading ? "Sohbet Açılıyor…" : "Mesaj Gönder"}
+                    </button>
+                  ) : (
+                    <span className="coach-profile-trial__disabled" aria-disabled="true">
+                      Mesaj gönderebilmek için aktif veya geçmiş bir aboneliğiniz olmalı
+                    </span>
+                  )
+                ) : !user ? (
+                  coach.acceptingNewStudents ? (
+                    <Link to={`/register?coachId=${coach.id}`}>Ücretsiz Görüşme İçin Kayıt Ol</Link>
+                  ) : (
+                    <span className="coach-profile-trial__disabled" aria-disabled="true">Kontenjan Şu Anda Dolu</span>
+                  )
+                ) : (
+                  <span className="coach-profile-trial__disabled" aria-disabled="true">
+                    Görüşme talebi yalnızca öğrenci hesaplarıyla oluşturulabilir
+                  </span>
+                )}
+                {!user && <small>Deneme görüşmesi ve rezervasyon işlemleri giriş gerektirir.</small>}
+              </>
             )}
-            {!isSubscribedToThisCoach && <small>Deneme görüşmesi ve rezervasyon işlemleri giriş gerektirir.</small>}
           </section>
 
           <section className="coach-profile-about" aria-labelledby="coach-profile-about-title">
@@ -215,6 +275,68 @@ export function CoachProfilePage() {
             {coach.graduationYear && <article><span aria-hidden="true">▣</span><strong>{coach.graduationYear}</strong><small>Mezuniyet Yılı</small></article>}
           </section>
         </div>
+
+        {user?.role === "STUDENT" && (
+          <section className="coach-profile-commerce" aria-labelledby="coach-profile-packages-title">
+            <div className="coach-profile-section-heading">
+              <span>Koçluk planını seç</span>
+              <h2 id="coach-profile-packages-title">Abonelik Paketleri</h2>
+              <p>İhtiyacına uygun paketi seç; sözleşme ve güvenli İyzico adımları mevcut ödeme akışı üzerinden tamamlanır.</p>
+            </div>
+
+            {packagesState === "loading" && <p className="coach-profile-product-state" role="status">Paketler yükleniyor…</p>}
+            {packagesState === "error" && <p className="coach-profile-product-state" role="alert">Paketler şu anda yüklenemiyor. Lütfen daha sonra tekrar deneyin.</p>}
+            {packagesState === "ready" && packages.length === 0 && <p className="coach-profile-product-state">Şu anda aktif bir paket bulunmuyor.</p>}
+            {dashboardState === "error" && (
+              <p className="coach-profile-product-state coach-profile-product-state--warning" role="alert">
+                Abonelik durumunuz doğrulanamadığı için yeni ödeme başlatılamıyor. Lütfen sayfayı yenileyin.
+              </p>
+            )}
+
+            {packages.length > 0 && (
+              <div className="coach-profile-packages">
+                {packages.map((pkg) => {
+                  const selected = selectedPackage?.id === pkg.id;
+                  const unavailable = dashboardState !== "ready" || !coach.acceptingNewStudents;
+                  return (
+                    <article className={`coach-profile-package${selected ? " coach-profile-package--selected" : ""}`} key={pkg.id}>
+                      <h3>{pkg.name}</h3>
+                      <strong>{pkg.price.toLocaleString("tr-TR")} TRY</strong>
+                      <p>{pkg.durationDays} gün · Haftada {pkg.weeklySessions} görüşme</p>
+                      <button type="button" disabled={unavailable} onClick={() => setPackageSelection({ coachId, value: pkg })}>
+                        {selected ? "Seçildi" : "Paketi Seç"}
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+
+            {!coach.acceptingNewStudents && (
+              <p className="coach-profile-product-state coach-profile-product-state--warning">Bu koçun kontenjanı dolu olduğu için yeni satın alım başlatılamaz.</p>
+            )}
+
+            {selectedPackage && dashboardState === "ready" && coach.acceptingNewStudents && (
+              <div className="coach-profile-checkout">
+                <CheckoutSection
+                  coachId={coach.id}
+                  coachName={coach.fullName}
+                  packageId={selectedPackage.id}
+                  packageName={selectedPackage.name}
+                  price={selectedPackage.price}
+                  dashboardData={dashboardData}
+                />
+              </div>
+            )}
+          </section>
+        )}
+
+        {user?.role === "STUDENT" && isSubscribedToThisCoach && (
+          <section className="coach-profile-booking" aria-labelledby="coach-profile-booking-title">
+            <h2 id="coach-profile-booking-title">Seans Randevusu</h2>
+            <BookingSection coachId={coach.id} dashboardData={dashboardData} />
+          </section>
+        )}
       </div>
 
       <section className="coach-profile-similar" aria-labelledby="coach-profile-similar-title">
@@ -227,6 +349,10 @@ export function CoachProfilePage() {
           )}
         </div>
       </section>
+
+      {showReportModal && reportTargetUserId && (
+        <ReportModal targetType="USER" targetId={reportTargetUserId} onClose={() => setShowReportModal(false)} />
+      )}
     </div>
   );
 }

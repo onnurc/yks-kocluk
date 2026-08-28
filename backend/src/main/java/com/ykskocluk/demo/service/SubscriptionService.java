@@ -57,6 +57,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -64,6 +65,8 @@ public class SubscriptionService {
 
     private static final Set<String> PAYMENT_SORTABLE_FIELDS = Set.of("createdAt", "id");
     private static final Set<String> SUBSCRIPTION_SORTABLE_FIELDS = Set.of("createdAt", "id");
+    private static final Pattern STUB_CHECKOUT_PATH = Pattern.compile(
+            "^/payment/stub/stub-checkout-\\d+-[0-9a-fA-F-]{36}$");
 
     private final SubscriptionRepository subscriptionRepository;
     private final PackageRepository packageRepository;
@@ -220,9 +223,13 @@ public class SubscriptionService {
 
     @Transactional
     public SubscriptionResponse succeedPayment(Long paymentId, Long studentUserId) {
-        Payment payment = paymentRepository.findById(paymentId)
+        Payment payment = paymentRepository.findByIdForUpdate(paymentId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Ödeme bulunamadı"));
 
+        if (payment.getType() != PaymentType.CHARGE || payment.getSubscription() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAYMENT_RELATIONSHIP",
+                    "Ödeme abonelik ilişkisi geçersiz");
+        }
         if (!payment.getSubscription().getStudent().getId().equals(studentUserId)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "NOT_PAYMENT_OWNER", "Bu ödeme size ait değil");
         }
@@ -680,9 +687,14 @@ public class SubscriptionService {
             String host = uri.getHost();
             boolean providerHost = host != null && (host.equals("iyzico.com") || host.endsWith(".iyzico.com")
                     || host.equals("iyzipay.com") || host.endsWith(".iyzipay.com"));
-            boolean localStubHost = !iyzicoProperties.enabled() && "checkout.stub.local".equals(host);
-            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getUserInfo() != null
-                    || (!providerHost && !localStubHost)) {
+            boolean loopbackHost = "localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host)
+                    || "::1".equals(host);
+            boolean localStubUrl = !iyzicoProperties.enabled() && loopbackHost
+                    && ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+                    && STUB_CHECKOUT_PATH.matcher(uri.getPath()).matches()
+                    && uri.getQuery() == null && uri.getFragment() == null;
+            boolean trustedProviderUrl = "https".equalsIgnoreCase(uri.getScheme()) && providerHost;
+            if (uri.getUserInfo() != null || (!trustedProviderUrl && !localStubUrl)) {
                 throw new PaymentProviderException("Iyzico returned an untrusted checkout URL");
             }
         } catch (IllegalArgumentException e) {

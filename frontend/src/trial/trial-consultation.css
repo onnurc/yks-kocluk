@@ -1,0 +1,31 @@
+.trial-card {
+  position: relative;
+  overflow: hidden;
+  margin-top: 24px;
+  padding: 4px;
+  border: 1px solid rgba(120, 89, 27, 0.15);
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: 0 20px 60px -15px rgba(120, 89, 27, 0.18);
+}
+.trial-card__glow { position: absolute; top: -60px; right: -60px; width: 200px; height: 200px; border-radius: 50%; background: rgba(255,222,169,.6); filter: blur(50px); pointer-events: none; }
+.trial-card__body { position: relative; z-index: 1; padding: 28px 24px; }
+.trial-card__body h3 { margin: 0; color: var(--public-color-ink); font: 400 24px/1.3 var(--public-font-display); }
+.trial-card__body > p { margin: 10px 0 0; color: var(--public-color-text); font-size: 14px; line-height: 1.6; }
+.trial-card__hint { margin-top: 20px; color: var(--public-color-text); font-size: 14px; }
+.trial-card__error { margin-top: 16px; padding: 12px 14px; border-radius: 12px; background: rgba(186,26,26,.08); color: #93000a; font-size: 13px; }
+.trial-card__slots { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-top: 20px; }
+.trial-card__slot { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border: 1px solid rgba(207,196,197,.3); border-radius: 14px; background: var(--public-color-surface); color: var(--public-color-ink); text-align: left; cursor: pointer; transition: border-color 180ms ease,background-color 180ms ease; }
+.trial-card__slot:hover { border-color: rgba(120,89,27,.35); }
+.trial-card__slot--selected { border-color: var(--public-color-gold); background: rgba(255,222,169,.25); }
+.trial-card__slot-date { color: var(--public-color-text); font-size: 12px; }
+.trial-card__slot-time { font-size: 15px; font-weight: 700; }
+.trial-card__submit { width: 100%; margin-top: 20px; padding: 16px; border: 0; border-radius: 16px; background: #000; color: #eac078; font: 600 15px/1 var(--public-font-body); cursor: pointer; transition: background-color 180ms ease,opacity 180ms ease; }
+.trial-card__submit:disabled,.trial-card__cancel:disabled { opacity: .55; cursor: not-allowed; }
+.trial-card__submit:hover:not(:disabled) { background: #1f1f1f; }
+.trial-card__scheduled { margin-top: 20px; padding: 18px; border: 1px solid rgba(207,196,197,.3); border-radius: 16px; background: var(--public-color-surface); }
+.trial-card__row { margin-bottom: 8px; display: flex; align-items: center; gap: 10px; color: var(--public-color-ink); font-size: 14px; font-weight: 600; }
+.trial-card__row svg { width: 18px; height: 18px; color: var(--public-color-gold); }
+.trial-card__status { margin: 8px 0 0; color: var(--public-color-text); font-size: 13px; }
+.trial-card__cancel { width: 100%; margin-top: 14px; padding: 12px; border: 1px solid rgba(186,26,26,.3); border-radius: 12px; background: transparent; color: #ba1a1a; font: 600 13px/1 var(--public-font-body); cursor: pointer; }
+@media (max-width: 419px) { .trial-card__slots { grid-template-columns: 1fr; } }

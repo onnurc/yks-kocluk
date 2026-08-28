@@ -377,6 +377,7 @@
 .pending-subscription__details p { margin: 5px 0; }
 .pending-subscription__polling { color: var(--dashboard-muted); font-size: 13px; }
 .pending-subscription__dev-action { border-color: var(--dashboard-gold); color: var(--dashboard-ink); background: #fff7e8; }
+.pending-subscription__error { margin: 18px 0 0; padding: 12px 14px; border-radius: 11px; color: #8b3137; background: #fae9e9; font-size: 14px; }
 
 .student-dashboard__content-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 42px; }
 .student-dashboard__section { min-width: 0; }

@@ -13,7 +13,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class StubIyzicoClientTest {
 
-    private final StubIyzicoClient client = new StubIyzicoClient();
+    private final StubIyzicoClient client = new StubIyzicoClient("http://localhost:5173");
+
+    @Test
+    void checkout_pointsToLocalFrontendRoute_withoutExternalDns() {
+        CheckoutResult result = client.initializeCheckout(10L, 25L, BigDecimal.TEN, "checkout:10");
+
+        assertThat(result.checkoutUrl()).startsWith("http://localhost:5173/payment/stub/stub-checkout-25-");
+        assertThat(result.checkoutUrl()).doesNotContain("checkout.stub.local");
+    }
 
     @Test
     void charge_alwaysSucceeds_withReference() {

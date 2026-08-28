@@ -12,13 +12,21 @@ class IyzicoClientConfigTest {
             .withUserConfiguration(StubIyzicoClient.class, RealIyzicoClient.class);
 
     @Test
-    void whenIyzicoDisabled_activatesStubClient() {
+    void whenIyzicoDisabled_inLocalProfile_activatesStubClient() {
         runner.withPropertyValues("payments.iyzico.enabled=false")
+                .withInitializer(context -> context.getEnvironment().setActiveProfiles("local"))
                 .withBean(IyzicoProperties.class, () -> new IyzicoProperties(false, "sandbox", null, null, null, null))
                 .run(context -> {
                     assertThat(context).hasSingleBean(IyzicoClient.class);
                     assertThat(context.getBean(IyzicoClient.class)).isInstanceOf(StubIyzicoClient.class);
                 });
+    }
+
+    @Test
+    void whenIyzicoDisabled_outsideLocalProfiles_doesNotExposeStubClient() {
+        runner.withPropertyValues("payments.iyzico.enabled=false")
+                .withBean(IyzicoProperties.class, () -> new IyzicoProperties(false, "sandbox", null, null, null, null))
+                .run(context -> assertThat(context).doesNotHaveBean(IyzicoClient.class));
     }
 
     @Test

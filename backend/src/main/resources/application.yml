@@ -234,4 +234,5 @@ payments:
     base-url: ${IYZICO_BASE_URL:https://sandbox-api.iyzipay.com}
     callback-url: ${IYZICO_CALLBACK_URL:http://localhost:8080/api/v1/payments/iyzico/webhook}
   stub:
-    success-enabled: ${PAYMENTS_STUB_SUCCESS_ENABLED:false}
+    # Used only by the local/stub/test StubIyzicoClient; production has no stub client/controller.
+    frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
