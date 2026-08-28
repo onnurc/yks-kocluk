@@ -16,5 +16,7 @@ class StubStorageServiceTest {
         assertThat(upload.url()).startsWith("https://stub-storage.invalid/upload/");
         assertThat(storage.headObject("public/profile-images/1/id.jpg")).isEqualTo(
                 new StorageService.StoredObjectMetadata(true, "image/jpeg", 123));
+        assertThat(storage.readObjectPrefix("public/profile-images/1/id.jpg", 12))
+                .containsExactly((byte) 0xff, (byte) 0xd8, (byte) 0xff);
     }
 }

@@ -21,24 +21,21 @@ public class StubIyzicoClient implements IyzicoClient {
     public CheckoutResult initializeCheckout(Long subscriptionId, Long paymentId, BigDecimal amount, String idempotencyKey) {
         String token = "stub-checkout-" + paymentId + "-" + UUID.randomUUID();
         String url = "https://checkout.stub.local/pay/" + token;
-        log.info("[STUB IyzicoClient] checkout init sub={} payment={} amount={} key={} -> token {}",
-                subscriptionId, paymentId, amount, idempotencyKey, token);
+        log.info("[STUB IyzicoClient] checkout initialized for payment={}", paymentId);
         return new CheckoutResult(token, url);
     }
 
     @Override
     public ChargeResult charge(String savedCardToken, BigDecimal amount, String idempotencyKey) {
         String reference = "stub-ref-" + UUID.randomUUID();
-        log.info("[STUB IyzicoClient] charged {} (key {}) -> success, ref {}",
-                amount, idempotencyKey, reference);
+        log.info("[STUB IyzicoClient] recurring charge completed");
         return new ChargeResult(true, reference);
     }
 
     @Override
     public RefundResult refund(String providerReference, BigDecimal amount, String idempotencyKey) {
         String reference = "stub-refund-ref-" + UUID.randomUUID();
-        log.info("[STUB IyzicoClient] refunding {} for ref={} (key={}) -> success, ref={}",
-                amount, providerReference, idempotencyKey, reference);
+        log.info("[STUB IyzicoClient] refund completed");
         return new RefundResult(true, reference, null, null);
     }
 }

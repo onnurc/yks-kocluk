@@ -14,6 +14,7 @@ import com.iyzipay.model.Refund;
 import com.iyzipay.request.CreateRefundRequest;
 import com.iyzipay.request.CreateCheckoutFormInitializeRequest;
 import com.ykskocluk.demo.config.IyzicoProperties;
+import com.ykskocluk.demo.exception.PaymentProviderException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -22,7 +23,6 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * Real Iyzico Sandbox Client. Active only when {@code payments.iyzico.enabled=true}.
@@ -59,8 +59,7 @@ public class RealIyzicoClient implements IyzicoClient {
 
     @Override
     public CheckoutResult initializeCheckout(Long subscriptionId, Long paymentId, BigDecimal amount, String idempotencyKey) {
-        log.info("[RealIyzicoClient] Initializing checkout form: subId={}, paymentId={}, amount={}, key={}",
-                subscriptionId, paymentId, amount, idempotencyKey);
+        log.info("[RealIyzicoClient] Initializing checkout form for paymentId={}", paymentId);
 
         CreateCheckoutFormInitializeRequest request = new CreateCheckoutFormInitializeRequest();
         request.setLocale(Locale.TR.getValue());
@@ -115,33 +114,36 @@ public class RealIyzicoClient implements IyzicoClient {
 
         try {
             CheckoutFormInitialize response = CheckoutFormInitialize.create(request, options);
+            if (response == null) {
+                throw new PaymentProviderException("Iyzico returned no checkout response");
+            }
             if (!Status.SUCCESS.getValue().equals(response.getStatus())) {
-                log.error("[RealIyzicoClient] Failed to initialize checkout form. Status={}, ErrorCode={}, ErrorMessage={}",
-                        response.getStatus(), response.getErrorCode(), response.getErrorMessage());
-                throw new RuntimeException("Iyzico checkout form initialization failed: " + response.getErrorMessage());
+                log.error("[RealIyzicoClient] Checkout initialization rejected; status={}, errorCode={}",
+                        response.getStatus(), response.getErrorCode());
+                throw new PaymentProviderException("Iyzico rejected checkout initialization");
             }
 
-            log.info("[RealIyzicoClient] Checkout form initialized successfully. Token={}", response.getToken());
+            log.info("[RealIyzicoClient] Checkout form initialized successfully for paymentId={}", paymentId);
             return new CheckoutResult(response.getToken(), response.getPaymentPageUrl());
-        } catch (Exception e) {
-            log.error("[RealIyzicoClient] Exception during iyzico checkout initialization", e);
+        } catch (PaymentProviderException e) {
             throw e;
+        } catch (Exception e) {
+            log.error("[RealIyzicoClient] Checkout call failed; paymentId={}, exceptionType={}",
+                    paymentId, e.getClass().getName());
+            throw new PaymentProviderException("Iyzico checkout call failed", e);
         }
     }
 
     @Override
     public ChargeResult charge(String savedCardToken, BigDecimal amount, String idempotencyKey) {
-        // Recurring charge via saved card (stubbed in sandbox phase as card storage / recurrences are out of scope)
-        String reference = "sandbox-stub-ref-" + UUID.randomUUID();
-        log.info("[RealIyzicoClient] Stub charge for saved card token={} amount={} (key={}) -> success, ref={}",
-                savedCardToken, amount, idempotencyKey, reference);
-        return new ChargeResult(true, reference);
+        // Saved-card charging is not implemented by this adapter. Fail closed so a production
+        // renewal can never be marked paid without an acknowledged provider transaction.
+        throw new PaymentProviderException("Iyzico recurring charge is not implemented");
     }
 
     @Override
     public RefundResult refund(String providerReference, BigDecimal amount, String idempotencyKey) {
-        log.info("[RealIyzicoClient] Requesting refund for ref={}, amount={}, key={}",
-                providerReference, amount, idempotencyKey);
+        log.info("[RealIyzicoClient] Requesting provider refund");
 
         // TODO: In a production-grade integration, iyzico requires paymentTransactionId for refunds.
         // If providerReference stored is the overall paymentId instead of the item's paymentTransactionId,
@@ -161,16 +163,21 @@ public class RealIyzicoClient implements IyzicoClient {
             Refund refundResponse = Refund.create(request, options);
             if (Status.SUCCESS.getValue().equals(refundResponse.getStatus())) {
                 String ref = refundResponse.getPaymentTransactionId() != null ? refundResponse.getPaymentTransactionId() : refundResponse.getPaymentId();
-                log.info("[RealIyzicoClient] Refund successful. Reference={}", ref);
+                if (ref == null || ref.isBlank()) {
+                    throw new PaymentProviderException("Iyzico returned an incomplete refund response");
+                }
+                log.info("[RealIyzicoClient] Refund completed successfully");
                 return new RefundResult(true, ref, null, null);
             } else {
-                log.error("[RealIyzicoClient] Refund failed. Status={}, ErrorCode={}, ErrorMessage={}",
-                        refundResponse.getStatus(), refundResponse.getErrorCode(), refundResponse.getErrorMessage());
+                log.error("[RealIyzicoClient] Refund rejected; status={}, errorCode={}",
+                        refundResponse.getStatus(), refundResponse.getErrorCode());
                 return new RefundResult(false, null, refundResponse.getErrorCode(), refundResponse.getErrorMessage());
             }
+        } catch (PaymentProviderException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("[RealIyzicoClient] Exception during iyzico refund call", e);
-            return new RefundResult(false, null, "EXCEPTION", e.getMessage());
+            log.error("[RealIyzicoClient] Refund call failed; exceptionType={}", e.getClass().getName());
+            return new RefundResult(false, null, "PROVIDER_CALL_FAILED", null);
         }
     }
 }

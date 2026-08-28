@@ -281,4 +281,23 @@ class ResendMailClientTest {
         client.sendEmailVerification(TO, "123456");
         server[0].verify();
     }
+
+    @Test
+    void dynamicEmailValuesAreHtmlEscapedWithoutRemovingStaticMarkup() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+        String maliciousName = "Ali</strong><img src=x onerror=alert(1)>";
+        String maliciousLink = "https://example.com/session?q=\"><script>alert(1)</script>";
+
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(jsonPath("$.html", containsString("<strong>")))
+                .andExpect(jsonPath("$.html", containsString("Ali&lt;/strong&gt;&lt;img")))
+                .andExpect(jsonPath("$.html", containsString("&quot;&gt;&lt;script&gt;")))
+                .andExpect(jsonPath("$.html", org.hamcrest.Matchers.not(containsString("<img src=x"))))
+                .andExpect(jsonPath("$.html", org.hamcrest.Matchers.not(containsString("<script>alert"))))
+                .andRespond(withSuccess("{\"id\":\"msg_escaped\"}", APPLICATION_JSON));
+
+        client.sendSessionBooked(TO, maliciousName, Instant.parse("2026-06-22T18:00:00Z"), maliciousLink);
+        server[0].verify();
+    }
 }

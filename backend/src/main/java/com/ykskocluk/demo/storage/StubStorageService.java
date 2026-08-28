@@ -31,6 +31,19 @@ public class StubStorageService implements StorageService {
         return preparedObjects.getOrDefault(key, new StoredObjectMetadata(false, null, 0));
     }
 
+    @Override public byte[] readObjectPrefix(String key, int maxBytes) {
+        StoredObjectMetadata metadata = preparedObjects.get(key);
+        if (metadata == null || maxBytes < 1) return new byte[0];
+        byte[] signature = switch (metadata.contentType()) {
+            case "image/jpeg" -> new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff};
+            case "image/png" -> new byte[] {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
+            case "image/webp" -> new byte[] {0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50};
+            case "application/pdf" -> new byte[] {0x25, 0x50, 0x44, 0x46, 0x2d};
+            default -> new byte[0];
+        };
+        return java.util.Arrays.copyOf(signature, Math.min(signature.length, maxBytes));
+    }
+
     @Override public DownloadTarget createPresignedDownload(String key) {
         return new DownloadTarget(stubUrl("download", key),
                 Instant.now().plus(properties.downloadUrlExpirationMinutes(), ChronoUnit.MINUTES));

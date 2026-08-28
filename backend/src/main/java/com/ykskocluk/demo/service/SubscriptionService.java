@@ -26,6 +26,7 @@ import com.ykskocluk.demo.enums.PaymentStatus;
 import com.ykskocluk.demo.enums.PaymentType;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.exception.ApiException;
+import com.ykskocluk.demo.exception.PaymentProviderException;
 import com.ykskocluk.demo.mapper.SubscriptionMapper;
 import com.ykskocluk.demo.integration.CheckoutResult;
 import com.ykskocluk.demo.integration.IyzicoClient;
@@ -46,6 +47,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
@@ -131,6 +133,7 @@ public class SubscriptionService {
 
         CheckoutResult checkoutResult = iyzicoClient.initializeCheckout(
                 payment.getSubscription().getId(), payment.getId(), payment.getAmount(), payment.getIdempotencyKey());
+        validateCheckoutResult(checkoutResult);
 
         return new SubscriptionCheckoutResponse(
                 payment.getSubscription().getId(),
@@ -279,7 +282,24 @@ public class SubscriptionService {
     @Transactional
     public IyzicoWebhookResponse processWebhook(IyzicoWebhookRequest request, String signatureV3) {
         verifyWebhookSignature(request, signatureV3);
+        validateWebhookIdentity(request);
         return applyWebhookOutcome(request);
+    }
+
+    private void validateWebhookIdentity(IyzicoWebhookRequest request) {
+        if (!"PAYMENT_API".equals(request.iyziEventType())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_WEBHOOK_EVENT", "Geçersiz webhook olay türü");
+        }
+        if (request.paymentConversationId() == null
+                || !request.paymentId().toString().equals(request.paymentConversationId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PAYMENT_CONVERSATION_MISMATCH",
+                    "Webhook ödeme kimliği eşleşmiyor");
+        }
+        if ("SUCCESS".equalsIgnoreCase(request.status())
+                && (request.providerReference() == null || request.providerReference().isBlank())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PROVIDER_REFERENCE_MISSING",
+                    "Başarılı ödeme bildirimi sağlayıcı referansı içermeli");
+        }
     }
 
     /**
@@ -317,11 +337,16 @@ public class SubscriptionService {
     }
 
     private IyzicoWebhookResponse applyWebhookOutcome(IyzicoWebhookRequest request) {
+        if (!"SUCCESS".equalsIgnoreCase(request.status()) && !"FAILURE".equalsIgnoreCase(request.status())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "UNSUPPORTED_WEBHOOK_STATUS", "Geçersiz webhook durumu: " + request.status());
+        }
+
         Payment payment = paymentRepository.findById(request.paymentId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Ödeme bulunamadı"));
 
-        if (!"SUCCESS".equalsIgnoreCase(request.status()) && !"FAILURE".equalsIgnoreCase(request.status())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "UNSUPPORTED_WEBHOOK_STATUS", "Geçersiz webhook durumu: " + request.status());
+        if (payment.getType() != PaymentType.CHARGE || payment.getSubscription() == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "WEBHOOK_PAYMENT_MISMATCH",
+                    "Webhook bir abonelik tahsilatıyla eşleşmiyor");
         }
 
         if ("SUCCESS".equalsIgnoreCase(request.status())) {
@@ -337,7 +362,7 @@ public class SubscriptionService {
                 return new IyzicoWebhookResponse("IDEMPOTENT", "Abonelik zaten aktif edilmiş (idempotent)");
             }
 
-            completePaymentSuccess(payment, subscription, request.providerReference() != null ? request.providerReference() : "webhook-provider-ref-" + UUID.randomUUID());
+            completePaymentSuccess(payment, subscription, request.providerReference());
             return new IyzicoWebhookResponse("PROCESSED", "Ödeme başarıyla tamamlandı ve abonelik aktif edildi");
         } else {
             if (payment.getStatus() == PaymentStatus.FAILED) {
@@ -360,7 +385,7 @@ public class SubscriptionService {
     }
 
     /** Result of tx2 — success carries the response; failure carries the provider error message. */
-    private record RefundOutcome(boolean success, RefundResponse response, String providerErrorMessage) {
+    private record RefundOutcome(boolean success, RefundResponse response) {
     }
 
     /**
@@ -379,11 +404,14 @@ public class SubscriptionService {
         RefundReserve reserve = tx.execute(status -> reserveRefund(paymentId, refundAmount));
 
         RefundResult refundResult = iyzicoClient.refund(reserve.providerReference(), refundAmount, reserve.idempotencyKey());
+        if (refundResult == null) {
+            throw new PaymentProviderException("Iyzico returned no refund response");
+        }
 
         RefundOutcome outcome = tx.execute(status -> finalizeRefund(reserve, refundResult));
         if (!outcome.success()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "PROVIDER_REFUND_FAILED",
-                    "Iyzico iade işlemi başarısız oldu: " + outcome.providerErrorMessage());
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "PROVIDER_REFUND_FAILED",
+                    "Ödeme sağlayıcısı iade işlemini tamamlayamadı. Lütfen tekrar deneyin.");
         }
         return outcome.response();
     }
@@ -461,7 +489,7 @@ public class SubscriptionService {
         if (!refundResult.success()) {
             refundPayment.setStatus(PaymentStatus.FAILED);
             paymentRepository.saveAndFlush(refundPayment);
-            return new RefundOutcome(false, null, refundResult.errorMessage());
+            return new RefundOutcome(false, null);
         }
 
         refundPayment.setStatus(PaymentStatus.SUCCESS);
@@ -476,7 +504,7 @@ public class SubscriptionService {
                 reserve.remainingAfter(),
                 "İade işlemi başarıyla gerçekleştirildi"
         );
-        return new RefundOutcome(true, response, null);
+        return new RefundOutcome(true, response);
     }
 
     @Transactional
@@ -640,6 +668,25 @@ public class SubscriptionService {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SORT_FIELD",
                         "Bu alana göre sıralama yapılamaz: " + order.getProperty());
             }
+        }
+    }
+
+    private void validateCheckoutResult(CheckoutResult result) {
+        if (result == null) {
+            throw new PaymentProviderException("Iyzico returned no checkout result");
+        }
+        try {
+            URI uri = URI.create(result.checkoutUrl());
+            String host = uri.getHost();
+            boolean providerHost = host != null && (host.equals("iyzico.com") || host.endsWith(".iyzico.com")
+                    || host.equals("iyzipay.com") || host.endsWith(".iyzipay.com"));
+            boolean localStubHost = !iyzicoProperties.enabled() && "checkout.stub.local".equals(host);
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getUserInfo() != null
+                    || (!providerHost && !localStubHost)) {
+                throw new PaymentProviderException("Iyzico returned an untrusted checkout URL");
+            }
+        } catch (IllegalArgumentException e) {
+            throw new PaymentProviderException("Iyzico returned a malformed checkout URL", e);
         }
     }
 
