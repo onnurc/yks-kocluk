@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { bookingApi } from "../booking/bookingApi";
 import type { SessionResponse, SessionStatus } from "../booking/bookingTypes";
+import { trialConsultationApi } from "../trial/trialConsultationApi";
+import type { TrialConsultationResponse } from "../trial/trialConsultationTypes";
 import "./bookings-page.css";
 
 const statusLabels: Record<SessionStatus, string> = {
@@ -39,6 +41,7 @@ function VideoIcon() {
 
 export const BookingsPage = () => {
   const [sessions, setSessions] = useState<SessionResponse[]>([]);
+  const [trials, setTrials] = useState<TrialConsultationResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -69,6 +72,12 @@ export const BookingsPage = () => {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    trialConsultationApi.myTrials().then((data) => { if (active) setTrials(data || []); }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
   return (
     <section className="bookings-page" aria-labelledby="bookings-title">
       <header className="bookings-page__header">
@@ -91,7 +100,7 @@ export const BookingsPage = () => {
           <p>Bilgilerinizi şu anda alamıyoruz. Lütfen yeniden deneyin.</p>
           <button type="button" onClick={() => void retry()}>Yeniden dene</button>
         </div>
-      ) : sessions.length === 0 ? (
+      ) : sessions.length === 0 && trials.length === 0 ? (
         <div className="bookings-page__state" aria-label="Boş görüşmeler durumu">
           <span className="bookings-page__state-icon"><CalendarIcon /></span>
           <p className="bookings-page__eyebrow">Görüşmeler</p>
@@ -101,6 +110,13 @@ export const BookingsPage = () => {
         </div>
       ) : (
         <div className="bookings-page__list" aria-label="Görüşme listesi">
+          {trials.map((trial) => (
+            <article className="bookings-page__card" key={`trial-${trial.id}`}>
+              <time className="bookings-page__date-tile" dateTime={trial.startsAt}><span>{formatMonth(trial.startsAt)}</span><strong>{formatDay(trial.startsAt)}</strong></time>
+              <div className="bookings-page__details"><div className="bookings-page__title-row"><h2>{trial.coachName} · Ücretsiz Tanışma</h2><span className={`bookings-page__status bookings-page__status--${trial.status.toLowerCase()}`}>{trial.status === "REQUESTED" ? "Onay bekliyor" : trial.status === "CONFIRMED" ? "Onaylandı" : trial.status === "COMPLETED" ? "Tamamlandı" : trial.status === "CANCELLED" ? "İptal edildi" : "Katılmadı"}</span></div><p><CalendarIcon /> <span>{formatDate(trial.startsAt)}</span></p><p><ClockIcon /> <span>{formatTimeRange(trial.startsAt, trial.endsAt)}</span></p></div>
+              {trial.status === "CONFIRMED" && trial.meetingUrl ? <a className="bookings-page__join" href={trial.meetingUrl} target="_blank" rel="noreferrer"><VideoIcon/><span>Görüşmeye katıl</span></a> : trial.status === "REQUESTED" ? <span className="bookings-page__join bookings-page__join--disabled"><VideoIcon/><span>Bağlantı bekleniyor</span></span> : null}
+            </article>
+          ))}
           {sessions.map((session) => {
             const canJoin = session.status === "PLANNED" && Boolean(session.meetLink);
             return (

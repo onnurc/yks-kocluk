@@ -59,6 +59,6 @@ public class CoachSearchController {
 
     @GetMapping("/{id}/trial-availability")
     public List<AvailabilityResponse> trialAvailability(@PathVariable Long id) {
-        return coachAvailabilityService.listOpenSlots(id);
+        return coachAvailabilityService.listOpenTrialSlots(id);
     }
 }

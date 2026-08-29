@@ -50,6 +50,8 @@ public interface MailClient {
      */
     void sendSessionReminder(String toEmail, String coachName, Instant startTime, String meetLink);
 
+    void sendTrialConsultationConfirmed(String toEmail, String coachName, Instant startTime, String meetingLink);
+
     /** Renewal charged successfully — informational (next billing date + amount). */
     void sendRenewalSucceeded(String toEmail, String coachName, Instant nextEndAt, BigDecimal amount);
 

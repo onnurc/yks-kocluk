@@ -12,6 +12,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.Clock;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -22,6 +26,7 @@ public class TrialConsultationService {
     private static final Set<TrialConsultationStatus> NON_CANCELLED =
             Set.of(TrialConsultationStatus.REQUESTED, TrialConsultationStatus.CONFIRMED,
                     TrialConsultationStatus.COMPLETED, TrialConsultationStatus.NO_SHOW);
+    private static final Duration ROLLING_LIMIT_WINDOW = Duration.ofDays(7);
     private static final Set<SessionStatus> BLOCKING_PAID =
             Set.of(SessionStatus.PLANNED, SessionStatus.COMPLETED, SessionStatus.LATE_CANCELLED, SessionStatus.NO_SHOW);
 
@@ -31,33 +36,41 @@ public class TrialConsultationService {
     private final SessionRepository sessions;
     private final UserRepository users;
     private final AccountReadinessService readiness;
+    private final Clock clock;
 
     public TrialConsultationService(TrialConsultationRepository trials,
                                     CoachAvailabilityRepository availabilities,
                                     CoachProfileRepository coaches,
                                     SessionRepository sessions,
                                     UserRepository users,
-                                    AccountReadinessService readiness) {
+                                    AccountReadinessService readiness,
+                                    Clock clock) {
         this.trials = trials;
         this.availabilities = availabilities;
         this.coaches = coaches;
         this.sessions = sessions;
         this.users = users;
         this.readiness = readiness;
+        this.clock = clock;
     }
 
     @Transactional
     public TrialConsultationResponse request(Long studentId, TrialConsultationCreateRequest request) {
-        User student = users.findById(studentId)
+        // Serializes a student's concurrent requests so the rolling two-trial limit cannot be raced
+        // by booking different coaches or slots at the same time.
+        User student = users.findByIdForUpdate(studentId)
                 .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
         readiness.requireReady(student);
         CoachAvailability slot = availabilities.findByIdForUpdate(request.availabilityId())
                 .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "SLOT_NOT_FOUND", "Uygunluk bulunamadı"));
         CoachProfile coach = slot.getCoachProfile();
+        if (slot.getPurpose() != AvailabilityPurpose.TRIAL) {
+            throw error(HttpStatus.BAD_REQUEST, "NOT_TRIAL_SLOT", "Seçilen saat ücretsiz görüşme için tanımlı değil");
+        }
         if (coach.getStatus() != CoachProfileStatus.APPROVED || coach.getUser().getStatus() != UserStatus.ACTIVE) {
             throw error(HttpStatus.FORBIDDEN, "COACH_NOT_AVAILABLE", "Koç deneme görüşmesine açık değil");
         }
-        if (!slot.getStartTime().isAfter(Instant.now())) {
+        if (!slot.getStartTime().isAfter(clock.instant())) {
             throw error(HttpStatus.BAD_REQUEST, "SLOT_IN_PAST", "Geçmiş bir slot rezerve edilemez");
         }
         if (slot.isBooked()
@@ -65,10 +78,11 @@ public class TrialConsultationService {
                 || trials.existsActiveOverlap(coach.getId(), ACTIVE, slot.getStartTime(), slot.getEndTime())) {
             throw error(HttpStatus.CONFLICT, "SLOT_TAKEN", "Bu slot rezerve edilmiş");
         }
-        if (trials.existsByStudentIdAndCoachProfileIdAndStatusIn(studentId, coach.getId(), NON_CANCELLED)) {
+        if (trials.existsByStudentIdAndCoachProfileIdAndStatusIn(studentId, coach.getId(), ACTIVE)) {
             throw error(HttpStatus.CONFLICT, "TRIAL_ALREADY_EXISTS",
-                    "Aynı koçla yalnızca bir iptal edilmemiş deneme görüşmesi yapılabilir");
+                    "Aynı koçla bekleyen veya onaylanmış bir deneme görüşmeniz zaten var");
         }
+        enforceRollingStudentLimit(studentId, slot.getStartTime());
         TrialConsultation trial = new TrialConsultation();
         trial.setStudent(student);
         trial.setCoachProfile(coach);
@@ -98,11 +112,26 @@ public class TrialConsultationService {
     }
 
     @Transactional
-    public TrialConsultationResponse confirm(Long coachUserId, Long id) {
-        TrialConsultation trial = ownTrial(coachUserId, id);
+    public AdminTrialConfirmationResult confirmByAdmin(Long adminUserId, Long id, String meetingUrl) {
+        User admin = users.findById(adminUserId)
+                .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
+        if (admin.getRole() != Role.ADMIN) {
+            throw error(HttpStatus.FORBIDDEN, "ADMIN_REQUIRED", "Bu işlem için yönetici yetkisi gerekir");
+        }
+        TrialConsultation trial = trials.findById(id)
+                .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "TRIAL_NOT_FOUND", "Deneme görüşmesi bulunamadı"));
+        if (trial.getStatus() == TrialConsultationStatus.CONFIRMED) {
+            if (!meetingUrl.equals(trial.getMeetingUrl())) {
+                throw error(HttpStatus.CONFLICT, "TRIAL_ALREADY_CONFIRMED", "Görüşme daha önce farklı bir bağlantıyla onaylandı");
+            }
+            return new AdminTrialConfirmationResult(response(trial), trial.getStudent().getEmail(), false);
+        }
         requireStatus(trial, TrialConsultationStatus.REQUESTED);
+        trial.setMeetingUrl(meetingUrl);
+        trial.setConfirmedAt(clock.instant());
+        trial.setConfirmedBy(admin);
         trial.setStatus(TrialConsultationStatus.CONFIRMED);
-        return response(trial);
+        return new AdminTrialConfirmationResult(response(trial), trial.getStudent().getEmail(), true);
     }
 
     @Transactional
@@ -165,7 +194,7 @@ public class TrialConsultationService {
     }
 
     private void requireStarted(TrialConsultation trial) {
-        if (trial.getStartTime().isAfter(Instant.now())) {
+        if (trial.getStartTime().isAfter(clock.instant())) {
             throw error(HttpStatus.CONFLICT, "TRIAL_NOT_STARTED", "Görüşme başlamadan sonuçlandırılamaz");
         }
     }
@@ -174,7 +203,24 @@ public class TrialConsultationService {
         return new TrialConsultationResponse(t.getId(), t.getCoachProfile().getId(),
                 t.getCoachProfile().getUser().getFullName(), t.getStudent().getId(), t.getStudent().getFullName(),
                 t.getAvailability() == null ? null : t.getAvailability().getId(), t.getStartTime(), t.getEndTime(),
-                t.getStatus(), t.getCreatedAt(), t.getUpdatedAt());
+                t.getStatus(), t.getMeetingUrl(), t.getCreatedAt(), t.getUpdatedAt());
+    }
+
+    private void enforceRollingStudentLimit(Long studentId, Instant candidate) {
+        Instant from = candidate.minus(ROLLING_LIMIT_WINDOW);
+        Instant to = candidate.plus(ROLLING_LIMIT_WINDOW);
+        List<Instant> starts = new ArrayList<>(trials
+                .findByStudentIdAndStatusInAndStartTimeGreaterThanEqualAndStartTimeLessThanEqual(
+                        studentId, NON_CANCELLED, from, to)
+                .stream().map(TrialConsultation::getStartTime).toList());
+        starts.add(candidate);
+        starts.sort(Comparator.naturalOrder());
+        for (int left = 0; left + 2 < starts.size(); left++) {
+            if (!starts.get(left + 2).isAfter(starts.get(left).plus(ROLLING_LIMIT_WINDOW))) {
+                throw error(HttpStatus.CONFLICT, "TRIAL_WEEKLY_LIMIT_REACHED",
+                        "Her 7 günlük dönemde en fazla 2 ücretsiz görüşme planlayabilirsiniz");
+            }
+        }
     }
 
     private ApiException error(HttpStatus status, String code, String message) {

@@ -9,6 +9,7 @@ import com.ykskocluk.demo.entity.Session;
 import com.ykskocluk.demo.entity.Subscription;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
+import com.ykskocluk.demo.enums.AvailabilityPurpose;
 import com.ykskocluk.demo.enums.SessionStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.mapper.SessionMapper;
@@ -90,6 +91,11 @@ public class SessionService {
 
         CoachAvailability slot = availabilityRepository.findByIdForUpdate(request.availabilityId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SLOT_NOT_FOUND", "Uygunluk bulunamadı"));
+
+        if (slot.getPurpose() != AvailabilityPurpose.PAID) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "NOT_PAID_SESSION_SLOT",
+                    "Seçilen saat ücretli seans için tanımlı değil");
+        }
 
         if (slot.isBooked()) {
             throw new ApiException(HttpStatus.CONFLICT, "SLOT_TAKEN", "Bu slot az önce rezerve edildi");

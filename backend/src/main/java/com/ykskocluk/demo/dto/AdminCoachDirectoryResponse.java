@@ -7,4 +7,5 @@ import java.time.Instant;
 public record AdminCoachDirectoryResponse(Long id, Long userId, Long coachProfileId, String name, String email,
                                           CoachProfileStatus status, CoachProfileStatus approvalState, UserStatus accountStatus,
                                           Long universityId, String university, String department,
-                                          boolean publiclyVisible, Instant createdAt) {}
+                                          boolean publiclyVisible, String profileImageUrl,
+                                          Long profileImageAssetId, Instant createdAt) {}

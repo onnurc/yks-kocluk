@@ -35,4 +35,14 @@ public class TrialConsultation extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private TrialConsultationStatus status;
+
+    @Column(name = "meeting_url", length = 1000)
+    private String meetingUrl;
+
+    @Column(name = "confirmed_at")
+    private Instant confirmedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "confirmed_by")
+    private User confirmedBy;
 }

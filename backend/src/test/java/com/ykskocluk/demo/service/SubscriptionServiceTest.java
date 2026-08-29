@@ -742,7 +742,7 @@ class SubscriptionServiceTest {
     }
 
     @Test
-    void refund_afterInclusiveSevenDayWindow_isRejectedBeforeProviderCall() {
+    void refund_afterSevenDayWindow_isRejectedBeforeProviderCall() {
         Payment original = new Payment();
         ReflectionTestUtils.setField(original, "id", 100L);
         original.setSubscription(new Subscription());
@@ -759,7 +759,7 @@ class SubscriptionServiceTest {
                 () -> service.refund(100L, new BigDecimal("150.00"), "Expired"));
 
         assertThat(ex.getErrorCode()).isEqualTo("REFUND_WINDOW_EXPIRED");
-        assertThat(ex.getMessage()).contains("7 günlük iade süresi doldu");
+        assertThat(ex.getMessage()).isEqualTo(RefundPolicy.EXPIRED_REASON);
         verifyNoInteractions(iyzicoClient);
     }
 

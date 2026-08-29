@@ -24,10 +24,13 @@ class AdminDashboardServiceTest {
     @Mock SessionRepository sessions;
     @Mock TrialConsultationRepository trials;
     @Mock CoachApplicationRepository coachApplications;
+    @Mock StudentProfileRepository studentProfiles;
+    @Mock MediaAssetUrlResolver mediaUrls;
     AdminDashboardService service;
 
     @BeforeEach void setUp() {
-        service = new AdminDashboardService(users, coaches, subscriptions, payments, reports, sessions, trials, coachApplications);
+        service = new AdminDashboardService(users, coaches, subscriptions, payments, reports, sessions, trials,
+                coachApplications, studentProfiles, mediaUrls);
     }
 
     @Test

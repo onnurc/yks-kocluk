@@ -4,6 +4,7 @@ import com.ykskocluk.demo.dto.AvailabilityCreateRequest;
 import com.ykskocluk.demo.entity.CoachAvailability;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
+import com.ykskocluk.demo.enums.AvailabilityPurpose;
 import com.ykskocluk.demo.exception.ApiException;
 import org.springframework.http.HttpStatus;
 import com.ykskocluk.demo.mapper.AvailabilityMapper;
@@ -18,12 +19,17 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneOffset;
+import java.util.List;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -43,7 +49,8 @@ class CoachAvailabilityServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CoachAvailabilityService(availabilityRepository, coachProfileRepository, availabilityMapper);
+        service = new CoachAvailabilityService(availabilityRepository, coachProfileRepository, availabilityMapper,
+                Clock.systemUTC());
 
         CoachProfile profile = new CoachProfile();
         ReflectionTestUtils.setField(profile, "id", PROFILE_ID);
@@ -207,5 +214,35 @@ class CoachAvailabilityServiceTest {
         service.createOwn(COACH_USER_ID, request(start, end));
 
         verify(availabilityRepository).saveAndFlush(any(CoachAvailability.class));
+    }
+
+    @Test
+    void replaceTrialWindow_createsFixedThirtyMinuteTrialSlots() {
+        Instant now = Instant.parse("2026-08-28T06:00:00Z"); // 09:00 Istanbul
+        service = new CoachAvailabilityService(availabilityRepository, coachProfileRepository, availabilityMapper,
+                Clock.fixed(now, ZoneOffset.UTC));
+        Instant start = Instant.parse("2026-08-29T06:30:00Z"); // 09:30 Istanbul
+        when(availabilityRepository
+                .findByCoachProfileIdAndPurposeAndStartTimeGreaterThanEqualAndStartTimeLessThanOrderByStartTimeAsc(
+                        eq(PROFILE_ID), eq(AvailabilityPurpose.TRIAL), any(), any())).thenReturn(List.of());
+
+        service.replaceOwnTrialWindow(COACH_USER_ID, new com.ykskocluk.demo.dto.TrialAvailabilityUpdateRequest(List.of(start)));
+
+        verify(availabilityRepository).save(argThat(slot -> slot.getPurpose() == AvailabilityPurpose.TRIAL
+                && slot.getStartTime().equals(start)
+                && slot.getEndTime().equals(start.plusSeconds(1800))));
+    }
+
+    @Test
+    void replaceTrialWindow_rejectsPastSlotToday() {
+        Instant now = Instant.parse("2026-08-28T10:15:00Z");
+        service = new CoachAvailabilityService(availabilityRepository, coachProfileRepository, availabilityMapper,
+                Clock.fixed(now, ZoneOffset.UTC));
+        Instant past = Instant.parse("2026-08-28T10:00:00Z");
+
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.replaceOwnTrialWindow(
+                COACH_USER_ID, new com.ykskocluk.demo.dto.TrialAvailabilityUpdateRequest(List.of(past))));
+
+        assertThat(ex.getErrorCode()).isEqualTo("SLOT_IN_PAST");
     }
 }

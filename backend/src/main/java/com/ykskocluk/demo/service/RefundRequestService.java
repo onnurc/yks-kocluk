@@ -18,6 +18,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.List;
 import java.util.Set;
 
@@ -34,10 +35,12 @@ public class RefundRequestService {
     private final UserRepository users;
     private final SubscriptionService subscriptionService;
     private final TransactionTemplate tx;
+    private final Clock clock;
 
     public RefundRequestService(RefundRequestRepository requests, SubscriptionRepository subscriptions,
                                 PaymentRepository payments, SessionRepository sessions, UserRepository users,
-                                SubscriptionService subscriptionService, PlatformTransactionManager transactionManager) {
+                                SubscriptionService subscriptionService, PlatformTransactionManager transactionManager,
+                                Clock clock) {
         this.requests = requests;
         this.subscriptions = subscriptions;
         this.payments = payments;
@@ -45,6 +48,7 @@ public class RefundRequestService {
         this.users = users;
         this.subscriptionService = subscriptionService;
         this.tx = new TransactionTemplate(transactionManager);
+        this.clock = clock;
     }
 
     @Transactional
@@ -64,9 +68,13 @@ public class RefundRequestService {
             throw new ApiException(HttpStatus.CONFLICT, "PURCHASE_TIMESTAMP_UNAVAILABLE",
                     "Satın alma zamanı doğrulanamadı");
         }
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         BigDecimal refunded = refundedAmount(original.getId());
-        RefundPolicy.Decision policy = RefundPolicy.evaluate(purchaseAt, now, original.getAmount().subtract(refunded));
+        BigDecimal remaining = original.getAmount().subtract(refunded);
+        if (remaining.signum() <= 0) {
+            throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_ALREADY_REFUNDED", "Ödeme zaten tamamen iade edildi");
+        }
+        RefundPolicy.Decision policy = RefundPolicy.evaluate(purchaseAt, now, remaining);
         if (!policy.eligible()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "REFUND_WINDOW_EXPIRED",
                     policy.ineligibleReason());
@@ -75,10 +83,7 @@ public class RefundRequestService {
             throw new ApiException(HttpStatus.CONFLICT, "ACTIVE_REFUND_REQUEST_EXISTS",
                     "Bu satın alma için aktif bir iade talebi zaten var");
         }
-        if (refunded.compareTo(original.getAmount()) >= 0) {
-            throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_ALREADY_REFUNDED", "Ödeme zaten tamamen iade edildi");
-        }
-
+        // Session evidence is operational audit data only. It never changes the seven-day decision above.
         Evidence evidence = evidence(subscription.getId(), now);
         RefundWindow window = RefundWindow.UNCONDITIONAL;
 
@@ -108,6 +113,46 @@ public class RefundRequestService {
         requireRole(studentId, Role.STUDENT);
         validateSort(pageable);
         return PageResponse.from(requests.findByStudentIdOrderByRequestedAtDesc(studentId, pageable).map(this::toResponse));
+    }
+
+    @Transactional(readOnly = true)
+    public RefundEligibilityResponse eligibility(Long studentId, Long subscriptionId) {
+        requireRole(studentId, Role.STUDENT);
+        Subscription subscription = subscriptions.findById(subscriptionId)
+                .orElseThrow(() -> notFound("SUBSCRIPTION_NOT_FOUND", "Abonelik bulunamadı"));
+        if (!subscription.getStudent().getId().equals(studentId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "NOT_SUBSCRIPTION_OWNER", "Bu abonelik size ait değil");
+        }
+        Payment original = payments.findFirstBySubscriptionIdAndTypeAndStatusOrderBySucceededAtAsc(
+                        subscriptionId, PaymentType.CHARGE, PaymentStatus.SUCCESS)
+                .orElse(null);
+        if (original == null || original.getSucceededAt() == null) {
+            return new RefundEligibilityResponse(subscriptionId, false, RefundEligibilityStatus.PAYMENT_NOT_ELIGIBLE,
+                    BigDecimal.ZERO, "TRY", null,
+                    "İade edilebilir başarılı bir ödeme bulunamadı.", null);
+        }
+        BigDecimal remaining = original.getAmount().subtract(refundedAmount(original.getId()));
+        RefundPolicy.Decision policy = RefundPolicy.evaluate(original.getSucceededAt(), clock.instant(), remaining);
+        RefundRequestStatus activeStatus = requests
+                .findFirstByOriginalPaymentIdAndStatusIn(original.getId(), ACTIVE_STATUSES)
+                .map(RefundRequest::getStatus).orElse(null);
+        RefundEligibilityStatus status;
+        String explanation;
+        if (remaining.signum() <= 0) {
+            status = RefundEligibilityStatus.NO_REFUNDABLE_BALANCE;
+            explanation = "Bu ödeme için iade edilebilir bakiye kalmadı.";
+        } else if (activeStatus != null) {
+            status = RefundEligibilityStatus.ACTIVE_REQUEST_EXISTS;
+            explanation = "Bu ödeme için işleme alınmış bir iade talebiniz var.";
+        } else if (!policy.eligible()) {
+            status = RefundEligibilityStatus.WINDOW_EXPIRED;
+            explanation = policy.ineligibleReason();
+        } else {
+            status = RefundEligibilityStatus.ELIGIBLE;
+            explanation = "Ödeme tarihinden itibaren ilk 7 gün içinde koşulsuz iade talebi oluşturabilirsiniz.";
+        }
+        return new RefundEligibilityResponse(subscriptionId, status == RefundEligibilityStatus.ELIGIBLE, status,
+                remaining.max(BigDecimal.ZERO), "TRY", policy.deadline(), explanation, activeStatus);
     }
 
     @Transactional(readOnly = true)
@@ -147,7 +192,7 @@ public class RefundRequestService {
         }
         request.setStatus(RefundRequestStatus.REJECTED);
         request.setAdminDecisionBy(admin);
-        request.setAdminDecisionAt(Instant.now());
+        request.setAdminDecisionAt(clock.instant());
         request.setRejectionReason(input.reason().trim());
         return toResponse(requests.saveAndFlush(request));
     }
@@ -183,7 +228,7 @@ public class RefundRequestService {
         }
         request.setStatus(RefundRequestStatus.APPROVED);
         request.setAdminDecisionBy(admin);
-        request.setAdminDecisionAt(Instant.now());
+        request.setAdminDecisionAt(clock.instant());
         requests.saveAndFlush(request);
         return new Approval(request.getOriginalPayment().getId(), remaining);
     }
@@ -193,7 +238,7 @@ public class RefundRequestService {
         request.setRefundPayment(payments.findById(refundPaymentId).orElseThrow());
         request.setStatus(RefundRequestStatus.REFUNDED);
         request.setAdminDecisionBy(requireRole(adminId, Role.ADMIN));
-        request.setAdminDecisionAt(Instant.now());
+        request.setAdminDecisionAt(clock.instant());
         requests.saveAndFlush(request);
     }
 
@@ -227,7 +272,7 @@ public class RefundRequestService {
     private RefundRequestResponse toResponse(RefundRequest r) {
         BigDecimal refunded = refundedAmount(r.getOriginalPayment().getId());
         return new RefundRequestResponse(r.getId(), r.getStatus(), r.getRefundWindow(), r.getRequestedAt(),
-                r.getPurchaseAt(), Math.max(0, Duration.between(r.getPurchaseAt(), Instant.now()).toSeconds()),
+                r.getPurchaseAt(), Math.max(0, Duration.between(r.getPurchaseAt(), clock.instant()).toSeconds()),
                 r.getStudent().getId(), r.getStudent().getFullName(), r.getSubscription().getCoachProfile().getId(),
                 r.getSubscription().getCoachProfile().getUser().getFullName(), r.getSubscription().getPkg().getId(),
                 r.getSubscription().getPkg().getName(), r.getSubscription().getId(), r.getOriginalPayment().getId(),

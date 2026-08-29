@@ -4,6 +4,7 @@ import type { DashboardPayment, DashboardSubscription } from "./studentDashboard
 import { SubscriptionStatusBadge } from "./SubscriptionStatusBadge";
 import { PaymentStatusBadge } from "./PaymentStatusBadge";
 import { CancelRenewalModal } from "../subscriptionManagement/CancelRenewalModal";
+import { RefundRequestAction } from "../refunds/RefundRequestAction";
 
 interface ActiveSubscriptionCardProps {
   subscription: DashboardSubscription;
@@ -111,6 +112,8 @@ export const ActiveSubscriptionCard: React.FC<ActiveSubscriptionCardProps> = ({ 
           <button type="button" onClick={() => setShowCancelModal(true)}>Yenilemeyi İptal Et</button>
         </div>
       )}
+
+      <RefundRequestAction subscriptionId={subscription.id} onSuccess={onRefresh} />
 
       {showCancelModal && (
         <CancelRenewalModal

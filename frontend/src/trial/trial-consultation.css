@@ -28,4 +28,5 @@
 .trial-card__row svg { width: 18px; height: 18px; color: var(--public-color-gold); }
 .trial-card__status { margin: 8px 0 0; color: var(--public-color-text); font-size: 13px; }
 .trial-card__cancel { width: 100%; margin-top: 14px; padding: 12px; border: 1px solid rgba(186,26,26,.3); border-radius: 12px; background: transparent; color: #ba1a1a; font: 600 13px/1 var(--public-font-body); cursor: pointer; }
+.trial-card__meeting-link{display:flex;align-items:center;justify-content:center;margin-top:14px;padding:13px;border-radius:12px;background:#000e32;color:#f0ca80;font-weight:700;text-decoration:none}
 @media (max-width: 419px) { .trial-card__slots { grid-template-columns: 1fr; } }

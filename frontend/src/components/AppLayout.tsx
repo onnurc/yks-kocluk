@@ -27,6 +27,7 @@ const navigationByRole: Record<UserRole, NavigationItem[]> = {
   ],
   COACH: [
     { label: "Panel", to: "/dashboard", icon: "dashboard" },
+    { label: "Ücretsiz Görüşme Uygunluğu", to: "/coach/trial-availability", icon: "meetings" },
     { label: "Mesajlar", to: "/messages", icon: "messages", showUnread: true },
     { label: "Hesabım", to: "/account", icon: "account" },
   ],

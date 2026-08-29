@@ -159,6 +159,19 @@ public class ResendMailClient implements MailClient {
     }
 
     @Override
+    public void sendTrialConsultationConfirmed(String toEmail, String coachName, Instant startTime,
+                                               String meetingLink) {
+        String when = WHEN_FORMAT.format(startTime.atZone(ISTANBUL));
+        send(toEmail, "Ücretsiz tanışma görüşmeniz onaylandı", """
+                <div style="font-family:sans-serif;line-height:1.5">
+                  <h2>Ücretsiz tanışma görüşmeniz onaylandı</h2>
+                  <p>Koçunuz <strong>%s</strong> ile görüşmeniz <strong>%s</strong> tarihinde gerçekleşecek.</p>
+                  <p><a href="%s">Görüşmeye katıl</a></p>
+                </div>
+                """.formatted(html(coachName), html(when), html(meetingLink)));
+    }
+
+    @Override
     public void sendNewMessageNotification(String toEmail, String senderName, String conversationLink) {
         // Sender name + link only. No message text, no preview snippet — see MailClient's javadoc.
         send(toEmail, "Yeni mesajınız var", """

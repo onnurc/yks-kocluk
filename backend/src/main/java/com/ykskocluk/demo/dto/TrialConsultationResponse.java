@@ -13,6 +13,7 @@ public record TrialConsultationResponse(
         Instant startsAt,
         Instant endsAt,
         TrialConsultationStatus status,
+        String meetingUrl,
         Instant requestedAt,
         Instant updatedAt
 ) {}

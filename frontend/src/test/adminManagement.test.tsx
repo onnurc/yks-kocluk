@@ -10,16 +10,18 @@ import { AdminSafetyPage } from "../pages/admin/AdminSafetyPage";
 import { AdminCoachApplicationsPage } from "../pages/admin/AdminCoachApplicationsPage";
 
 const mocks = vi.hoisted(() => ({
-  summary: vi.fn(), users: vi.fn(), coaches: vi.fn(), coach: vi.fn(), coachStudents: vi.fn(),
+  summary: vi.fn(), users: vi.fn(), user: vi.fn(), coaches: vi.fn(), coach: vi.fn(), coachStudents: vi.fn(),
   suspendUser: vi.fn(), activateUser: vi.fn(), sessions: vi.fn(),
+  removeProfileImage: vi.fn(), confirmTrial: vi.fn(),
   financeSummary: vi.fn(), payments: vi.fn(), subscriptions: vi.fn(), refund: vi.fn(), terminate: vi.fn(),
   reports: vi.fn(), updateReport: vi.fn(), applications: vi.fn(), approve: vi.fn(), reject: vi.fn(),
 }));
 
 vi.mock("../admin/adminApi", () => ({ adminApi: {
   summary: mocks.summary, users: mocks.users, coaches: mocks.coaches, coach: mocks.coach,
+  user: mocks.user,
   coachStudents: mocks.coachStudents, suspendUser: mocks.suspendUser, activateUser: mocks.activateUser,
-  sessions: mocks.sessions,
+  sessions: mocks.sessions, removeProfileImage: mocks.removeProfileImage, confirmTrial: mocks.confirmTrial,
 } }));
 vi.mock("../safety/financeApi", () => ({ financeApi: {
   summary: mocks.financeSummary, listPayments: mocks.payments, listSubscriptions: mocks.subscriptions,
@@ -62,6 +64,21 @@ describe("admin management experience", () => {
     expect(screen.queryByText("Admin hesapları")).not.toBeInTheDocument();
   });
 
+  it("reuses admin media moderation when removing a student profile photo", async () => {
+    const user = { id: 2, name: "Selin Öğrenci", email: "selin@example.com", role: "STUDENT", status: "ACTIVE", emailVerified: true, legalOnboardingCompleted: true, anonymized: false, createdAt: "2026-02-01T10:00:00Z" };
+    mocks.users.mockResolvedValue(page([user]));
+    mocks.user.mockResolvedValue({ user, profileImageUrl: "/api/v1/media/public/test", profileImageAssetId: 44 });
+    mocks.removeProfileImage.mockResolvedValue(undefined);
+    render(<AdminUsersPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Detay" }));
+    expect(await screen.findByAltText("Selin Öğrenci profil fotoğrafı")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fotoğrafı Kaldır" }));
+    fireEvent.change(screen.getByLabelText("Moderasyon gerekçesi"), { target: { value: "Uygunsuz içerik" } });
+    fireEvent.click(screen.getByRole("button", { name: "Kaldırmayı Onayla" }));
+    await waitFor(() => expect(mocks.removeProfileImage).toHaveBeenCalledWith(44, "Uygunsuz içerik"));
+    expect(await screen.findByText("Profil fotoğrafı yok")).toBeInTheDocument();
+  });
+
   it("opens coach detail with batched active students and confirms suspension", async () => {
     mocks.coaches.mockResolvedValue(page([coach])); mocks.coach.mockResolvedValue(coach);
     mocks.coachStudents.mockResolvedValue(page([{ studentId: 22, displayName: "Ece Öğrenci", packageId: 2, packageName: "Mentorluk Paketi", subscriptionStatus: "ACTIVE", subscriptionStart: "2026-01-01T00:00:00Z", subscriptionEnd: "2026-12-31T00:00:00Z", sessionsUsedInCurrentWeek: 1, sessionsRemainingInCurrentWeek: 1, conversationId: 3, nextSession: null }]));
@@ -86,11 +103,11 @@ describe("admin management experience", () => {
 
   it("uses backend refund eligibility and never enables an expired payment", async () => {
     mocks.payments.mockResolvedValue(page([
-      { id: 1, subscriptionId: 2, studentEmail: "a@b.com", studentFullName: "A Öğrenci", coachFullName: "B Koç", packageName: "Paket", type: "CHARGE", amount: 1000, status: "SUCCESS", providerReference: "p1", createdAt: "2026-08-01T10:00:00Z", succeededAt: "2026-08-01T10:00:00Z", refundedAmount: 0, remainingRefundableAmount: 1000, refundEligible: false, refundDeadline: "2026-08-08T10:00:00Z", refundIneligibleReason: "Satın alma tarihinden itibaren 7 günlük iade süresi doldu." },
+      { id: 1, subscriptionId: 2, studentEmail: "a@b.com", studentFullName: "A Öğrenci", coachFullName: "B Koç", packageName: "Paket", type: "CHARGE", amount: 1000, status: "SUCCESS", providerReference: "p1", createdAt: "2026-08-01T10:00:00Z", succeededAt: "2026-08-01T10:00:00Z", refundedAmount: 0, remainingRefundableAmount: 1000, refundEligible: false, refundDeadline: "2026-08-08T10:00:00Z", refundIneligibleReason: "İade süresi doldu. Ödeme tarihinden itibaren ilk 7 gün içinde iade talebi oluşturabilirsiniz." },
       { id: 2, subscriptionId: 3, studentEmail: "c@d.com", studentFullName: "C Öğrenci", coachFullName: "D Koç", packageName: "Paket", type: "CHARGE", amount: 800, status: "SUCCESS", providerReference: "p2", createdAt: "2026-08-22T10:00:00Z", succeededAt: "2026-08-22T10:00:00Z", refundedAmount: 0, remainingRefundableAmount: 800, refundEligible: true, refundDeadline: "2026-08-29T10:00:00Z", refundIneligibleReason: null },
     ]));
     render(<AdminFinancePage />);
-    expect(await screen.findByText("Satın alma tarihinden itibaren 7 günlük iade süresi doldu.")).toBeInTheDocument();
+    expect(await screen.findByText("İade süresi doldu. Ödeme tarihinden itibaren ilk 7 gün içinde iade talebi oluşturabilirsiniz.")).toBeInTheDocument();
     const refundButtons = screen.getAllByRole("button", { name: "İade Et" });
     expect(refundButtons).toHaveLength(2);
     expect(refundButtons[0]).toBeDisabled();

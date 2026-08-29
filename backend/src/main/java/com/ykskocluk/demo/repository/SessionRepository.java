@@ -158,9 +158,9 @@ public interface SessionRepository extends JpaRepository<Session, Long>, JpaSpec
             select * from (
                 select s.id as id, 'PAID' as type, s.coach_profile_id as "coachProfileId",
                        cp.user_id as "coachUserId", cu.full_name as "coachName",
-                       s.student_user_id as "studentId", su.full_name as "studentName",
+                       s.student_user_id as "studentId", su.full_name as "studentName", su.email as "studentEmail",
                        s.start_time as "startsAt", s.end_time as "endsAt", s.status as status,
-                       s.subscription_id as "subscriptionId", s.created_at as "createdAt"
+                       s.subscription_id as "subscriptionId", s.meet_link as "meetingUrl", s.created_at as "createdAt"
                   from sessions s
                   join coach_profiles cp on cp.id = s.coach_profile_id
                   join users cu on cu.id = cp.user_id
@@ -169,9 +169,9 @@ public interface SessionRepository extends JpaRepository<Session, Long>, JpaSpec
                 union all
                 select t.id as id, 'TRIAL' as type, t.coach_profile_id as "coachProfileId",
                        cp.user_id as "coachUserId", cu.full_name as "coachName",
-                       t.student_user_id as "studentId", su.full_name as "studentName",
+                       t.student_user_id as "studentId", su.full_name as "studentName", su.email as "studentEmail",
                        t.start_time as "startsAt", t.end_time as "endsAt", t.status as status,
-                       cast(null as bigint) as "subscriptionId", t.created_at as "createdAt"
+                       cast(null as bigint) as "subscriptionId", t.meeting_url as "meetingUrl", t.created_at as "createdAt"
                   from trial_consultations t
                   join coach_profiles cp on cp.id = t.coach_profile_id
                   join users cu on cu.id = cp.user_id

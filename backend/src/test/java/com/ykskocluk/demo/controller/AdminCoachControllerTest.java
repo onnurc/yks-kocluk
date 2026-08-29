@@ -50,6 +50,7 @@ class AdminCoachControllerTest {
         when(adminDashboardService.coach(7L)).thenReturn(new AdminCoachDirectoryResponse(
                 7L, 70L, 7L, "Derya Koç", "derya@example.com", CoachProfileStatus.APPROVED,
                 CoachProfileStatus.APPROVED, UserStatus.ACTIVE, null, "ODTÜ", "Fizik", true,
+                null, null,
                 Instant.parse("2026-01-01T00:00:00Z")));
         when(coachDashboardService.students(eq(70L), eq(CoachStudentFilter.ACTIVE), any())).thenReturn(
                 new PageResponse<>(List.of(new CoachStudentResponse(22L, "Ece Öğrenci", 2L,
