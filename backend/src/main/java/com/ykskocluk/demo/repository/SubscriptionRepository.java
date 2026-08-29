@@ -9,6 +9,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 
 import java.time.Instant;
 import java.util.List;
@@ -16,6 +18,10 @@ import java.util.Collection;
 import java.util.Optional;
 
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from Subscription s where s.id = :id")
+    Optional<Subscription> findByIdForUpdate(@Param("id") Long id);
 
     List<Subscription> findByStudentIdOrderByCreatedAtDesc(Long studentId);
 
@@ -41,6 +47,29 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
             """)
     Optional<Subscription> findLiveSubscription(@Param("studentId") Long studentId,
                                                 @Param("coachProfileId") Long coachProfileId);
+
+    /** Serializes booking with access-ending operations such as a successful refund. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select s from Subscription s
+             where s.student.id = :studentId
+               and s.coachProfile.id = :coachProfileId
+               and s.status in (com.ykskocluk.demo.enums.SubscriptionStatus.ACTIVE,
+                                com.ykskocluk.demo.enums.SubscriptionStatus.PAST_DUE)
+            """)
+    Optional<Subscription> findLiveSubscriptionForUpdate(@Param("studentId") Long studentId,
+                                                         @Param("coachProfileId") Long coachProfileId);
+
+    /** Serializes message sending with access-ending operations such as a successful refund. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select s from Subscription s
+             where s.student.id = :studentId
+               and s.coachProfile.id = :coachProfileId
+               and s.status = com.ykskocluk.demo.enums.SubscriptionStatus.ACTIVE
+            """)
+    Optional<Subscription> findActiveSubscriptionForUpdate(@Param("studentId") Long studentId,
+                                                           @Param("coachProfileId") Long coachProfileId);
 
     @Query("""
             select count(s) > 0 from Subscription s

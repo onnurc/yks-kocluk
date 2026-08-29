@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   summary: vi.fn(), users: vi.fn(), user: vi.fn(), coaches: vi.fn(), coach: vi.fn(), coachStudents: vi.fn(),
   suspendUser: vi.fn(), activateUser: vi.fn(), sessions: vi.fn(),
   removeProfileImage: vi.fn(), confirmTrial: vi.fn(),
-  financeSummary: vi.fn(), payments: vi.fn(), subscriptions: vi.fn(), refund: vi.fn(), terminate: vi.fn(),
+  financeSummary: vi.fn(), payments: vi.fn(), subscriptions: vi.fn(), refundAudit: vi.fn(), refund: vi.fn(), terminate: vi.fn(),
   reports: vi.fn(), updateReport: vi.fn(), applications: vi.fn(), approve: vi.fn(), reject: vi.fn(),
 }));
 
@@ -25,6 +25,7 @@ vi.mock("../admin/adminApi", () => ({ adminApi: {
 } }));
 vi.mock("../safety/financeApi", () => ({ financeApi: {
   summary: mocks.financeSummary, listPayments: mocks.payments, listSubscriptions: mocks.subscriptions,
+  listRefundAudit: mocks.refundAudit,
   refund: mocks.refund, terminateSubscription: mocks.terminate,
 } }));
 vi.mock("../safety/safetyApi", () => ({ safetyApi: {
@@ -42,7 +43,7 @@ beforeEach(() => {
   mocks.summary.mockResolvedValue({ totalStudentCount: 12, totalCoachCount: 5, activeCoachCount: 4, pendingCoachApplicationCount: 2, activeSubscriptionCount: 9, salesThisMonthCount: 6, grossRevenueThisMonth: 12000, refundAmountThisMonth: 1500, netCollectedThisMonth: 10500, openReportCount: 3, scheduledSessionCount: 8, completedSessionCountThisMonth: 10 });
   mocks.sessions.mockResolvedValue(page([])); mocks.users.mockResolvedValue(page([])); mocks.coaches.mockResolvedValue(page([]));
   mocks.financeSummary.mockResolvedValue({ from: null, to: null, grossRevenue: 12000, successfulPaymentCount: 6, failedPaymentCount: 0, pendingPaymentCount: 0, refundTotal: 1500, netCollectedAmount: 10500 });
-  mocks.payments.mockResolvedValue(page([])); mocks.subscriptions.mockResolvedValue(page([])); mocks.reports.mockResolvedValue(page([])); mocks.applications.mockResolvedValue(page([]));
+  mocks.payments.mockResolvedValue(page([])); mocks.subscriptions.mockResolvedValue(page([])); mocks.refundAudit.mockResolvedValue(page([])); mocks.reports.mockResolvedValue(page([])); mocks.applications.mockResolvedValue(page([]));
 });
 afterEach(cleanup);
 
@@ -114,6 +115,16 @@ describe("admin management experience", () => {
     const refundButton = refundButtons[1];
     fireEvent.click(refundButton); fireEvent.click(screen.getByRole("button", { name: "İadeyi Gerçekleştir" }));
     await waitFor(() => expect(mocks.refund).toHaveBeenCalledWith(2, 800, "Admin paneli - 7 günlük cayma hakkı"));
+  });
+
+  it("shows automatic student refunds as audit history without approval actions", async () => {
+    mocks.refundAudit.mockResolvedValue(page([{ id: 4, status: "REFUNDED", requestedAt: "2026-08-28T10:00:00Z", studentName: "Can Öğrenci", coachName: "Derya Koç", packageName: "Aylık Paket", subscriptionId: 12, originalPaymentId: 21, refundPaymentId: 22, amount: 1000, refundedAmount: 1000, currency: "TRY" }]));
+    render(<AdminFinancePage />);
+
+    expect(await screen.findByText("Öğrenci İade Geçmişi")).toBeInTheDocument();
+    expect(screen.getByText("Can Öğrenci")).toBeInTheDocument();
+    expect(screen.getByText("Ödeme #21 → #22")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /iadeyi onayla|iade talebini reddet/i })).not.toBeInTheDocument();
   });
 
   it("filters and updates reports through the real status client", async () => {

@@ -61,6 +61,21 @@ class PasswordSecurityServiceTest {
         User u=user(); u.setPasswordChangedAt(Instant.now()); PasswordResetToken token=new PasswordResetToken(); token.setUser(u); token.setExpiresAt(Instant.now().plusSeconds(600)); when(resetTokens.findByTokenHashForUpdate(anyString())).thenReturn(Optional.of(token)); when(encoder.matches("new-password","old-hash")).thenReturn(false); when(encoder.encode("new-password")).thenReturn("new-hash");
         service.resetPassword(new ResetPasswordRequest("raw-token","new-password")); assertThat(token.getUsedAt()).isNotNull(); assertThat(u.getPasswordHash()).isEqualTo("new-hash"); verify(refreshTokens).revokeAllForUser(eq(u.getId()),any());
     }
+    @Test void resetPassword_sameCurrentPasswordIsRejectedWithoutConsumingTokenAndCanBeRetried() {
+        User u=user(); PasswordResetToken token=new PasswordResetToken(); token.setUser(u); token.setExpiresAt(Instant.now().plusSeconds(600));
+        when(resetTokens.findByTokenHashForUpdate(anyString())).thenReturn(Optional.of(token));
+        when(encoder.matches("old-password","old-hash")).thenReturn(true);
+        assertThatThrownBy(() -> service.resetPassword(new ResetPasswordRequest("raw-token","old-password")))
+                .isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getErrorCode()).isEqualTo("PASSWORD_REUSE_NOT_ALLOWED"));
+        assertThat(token.getUsedAt()).isNull(); assertThat(u.getPasswordHash()).isEqualTo("old-hash");
+        verify(refreshTokens, never()).revokeAllForUser(any(), any());
+        verify(resetTokens, never()).invalidateAllForUser(any(), any());
+
+        when(encoder.matches("genuinely-new","old-hash")).thenReturn(false);
+        when(encoder.encode("genuinely-new")).thenReturn("new-hash");
+        service.resetPassword(new ResetPasswordRequest("raw-token","genuinely-new"));
+        assertThat(token.getUsedAt()).isNotNull(); assertThat(u.getPasswordHash()).isEqualTo("new-hash");
+    }
     @Test void resetPassword_invalidExpiredOrUsedUsesGenericError() {
         when(resetTokens.findByTokenHashForUpdate(anyString())).thenReturn(Optional.empty()); assertInvalidReset("unknown");
         PasswordResetToken expired=new PasswordResetToken(); expired.setUser(user()); expired.setExpiresAt(Instant.now().minusSeconds(1)); when(resetTokens.findByTokenHashForUpdate(anyString())).thenReturn(Optional.of(expired)); assertInvalidReset("expired");

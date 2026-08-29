@@ -12,6 +12,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -19,6 +21,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -32,6 +35,7 @@ class RefundRequestServiceTest {
     @Mock PaymentRepository payments; @Mock SessionRepository sessions; @Mock UserRepository users;
     @Mock SubscriptionService subscriptionService; @Mock PlatformTransactionManager transactionManager;
     RefundRequestService service; User student; Subscription subscription; Payment payment;
+    AtomicReference<RefundRequest> savedRequest;
 
     @BeforeEach void setup() {
         service = new RefundRequestService(requests, subscriptions, payments, sessions, users,
@@ -45,7 +49,11 @@ class RefundRequestServiceTest {
         lenient().when(users.findById(1L)).thenReturn(Optional.of(student)); lenient().when(subscriptions.findById(4L)).thenReturn(Optional.of(subscription));
         lenient().when(payments.findFirstBySubscriptionIdAndTypeAndStatusOrderBySucceededAtAsc(4L, PaymentType.CHARGE, PaymentStatus.SUCCESS)).thenReturn(Optional.of(payment));
         lenient().when(payments.findBySourcePaymentIdAndStatus(5L, PaymentStatus.SUCCESS)).thenReturn(List.of());
-        lenient().when(requests.saveAndFlush(any())).thenAnswer(inv -> { RefundRequest r=inv.getArgument(0); ReflectionTestUtils.setField(r,"id",6L); return r; });
+        savedRequest = new AtomicReference<>();
+        lenient().when(requests.saveAndFlush(any())).thenAnswer(inv -> { RefundRequest r=inv.getArgument(0); ReflectionTestUtils.setField(r,"id",6L); savedRequest.set(r); return r; });
+        lenient().when(requests.findDetailedById(6L)).thenAnswer(inv -> Optional.ofNullable(savedRequest.get()));
+        lenient().when(subscriptionService.refundEligibleStudent(5L, 6L))
+                .thenReturn(new com.ykskocluk.demo.dto.RefundResponse(5L, 7L, "SUCCESS", new BigDecimal("1500.00"), BigDecimal.ZERO, "ok"));
     }
 
     @Test void successfulPaymentWellInsideWindow_isEligible() {
@@ -94,16 +102,28 @@ class RefundRequestServiceTest {
                         e -> assertThat(e.getErrorCode()).isEqualTo("PAYMENT_ALREADY_REFUNDED"));
     }
 
-    @Test void activeRefundRequest_isIneligibleAndDuplicateCreateIsRejected() {
-        RefundRequest active = new RefundRequest(); active.setStatus(RefundRequestStatus.PENDING);
+    @Test void activeRefundRequest_isIneligibleAndDuplicateCreateResumesIdempotently() {
+        RefundRequest active = savedAuditRequest(); active.setStatus(RefundRequestStatus.PENDING);
         when(requests.findFirstByOriginalPaymentIdAndStatusIn(eq(5L), any())).thenReturn(Optional.of(active));
-        when(requests.existsByOriginalPaymentIdAndStatusIn(eq(5L), any())).thenReturn(true);
+        when(requests.findDetailedById(6L)).thenReturn(Optional.of(active));
         var eligibility = service.eligibility(1L, 4L);
         assertThat(eligibility.status()).isEqualTo(RefundEligibilityStatus.ACTIVE_REQUEST_EXISTS);
         assertThat(eligibility.activeRequestStatus()).isEqualTo(RefundRequestStatus.PENDING);
-        assertThatThrownBy(() -> service.create(1L, new RefundRequestCreateRequest(4L)))
-                .isInstanceOfSatisfying(ApiException.class,
-                        e -> assertThat(e.getErrorCode()).isEqualTo("ACTIVE_REFUND_REQUEST_EXISTS"));
+        service.create(1L, new RefundRequestCreateRequest(4L));
+        verify(subscriptionService).refundEligibleStudent(5L, 6L);
+    }
+
+    @Test void reservedProviderOperationRemainsRetryableAfterWindowWithSameAuditRequest() {
+        payment.setSucceededAt(NOW.minus(RefundPolicy.WINDOW).minusSeconds(1));
+        RefundRequest active = savedAuditRequest(); active.setStatus(RefundRequestStatus.PENDING);
+        Payment pendingRefund = new Payment(); pendingRefund.setStatus(PaymentStatus.PENDING);
+        active.setRefundPayment(pendingRefund);
+        when(requests.findFirstByOriginalPaymentIdAndStatusIn(eq(5L), any())).thenReturn(Optional.of(active));
+        when(requests.findDetailedById(6L)).thenReturn(Optional.of(active));
+
+        assertThat(service.eligibility(1L, 4L).status()).isEqualTo(RefundEligibilityStatus.ELIGIBLE);
+        service.create(1L, new RefundRequestCreateRequest(4L));
+        verify(subscriptionService).refundEligibleStudent(5L, 6L);
     }
 
     @Test void anotherStudentsSubscription_isForbidden() {
@@ -133,5 +153,46 @@ class RefundRequestServiceTest {
     private Session session(SessionStatus status, Instant startsAt) {
         Session session = new Session(); session.setStatus(status); session.setStartTime(startsAt);
         session.setEndTime(startsAt.plusSeconds(3600)); return session;
+    }
+
+    @Test void unconditionalAutomaticRefundCannotBeRejectedByAdmin() {
+        User admin = new User(); admin.setRole(Role.ADMIN); when(users.findById(8L)).thenReturn(Optional.of(admin));
+        RefundRequest request = savedAuditRequest(); when(requests.findByIdForUpdate(6L)).thenReturn(Optional.of(request));
+
+        assertThatThrownBy(() -> service.reject(8L, 6L,
+                new com.ykskocluk.demo.dto.RefundRequestRejectRequest("manual decision")))
+                .isInstanceOfSatisfying(ApiException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo("AUTOMATIC_REFUND_NO_ADMIN_DECISION"));
+        verify(requests, never()).saveAndFlush(request);
+    }
+
+    @Test void unfilteredAdminAuditUsesTypedFindAllQuery() {
+        var pageable = PageRequest.of(0, 20, org.springframework.data.domain.Sort.by(
+                org.springframework.data.domain.Sort.Direction.DESC, "requestedAt"));
+        when(requests.findAllAdmin(pageable)).thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        var response = service.adminList(null, null, null, null, null, null, pageable);
+
+        assertThat(response.content()).isEmpty();
+        verify(requests).findAllAdmin(pageable);
+        verify(requests, never()).searchAdmin(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test void filteredAdminAuditStillUsesSearchQuery() {
+        var pageable = PageRequest.of(0, 20);
+        when(requests.searchAdmin(eq(RefundRequestStatus.REFUNDED), isNull(), isNull(), isNull(), isNull(), isNull(), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        service.adminList(RefundRequestStatus.REFUNDED, null, null, null, null, null, pageable);
+
+        verify(requests).searchAdmin(RefundRequestStatus.REFUNDED, null, null, null, null, null, pageable);
+    }
+
+    private RefundRequest savedAuditRequest() {
+        RefundRequest request = new RefundRequest(); ReflectionTestUtils.setField(request, "id", 6L);
+        request.setStudent(student); request.setSubscription(subscription); request.setOriginalPayment(payment);
+        request.setRequestedAt(NOW); request.setPurchaseAt(payment.getSucceededAt());
+        request.setRefundWindow(RefundWindow.UNCONDITIONAL); request.setStatus(RefundRequestStatus.PENDING);
+        return request;
     }
 }

@@ -46,12 +46,12 @@ describe("trial, subscription and moderation workflow completion",()=>{
     expect(await screen.findByText("CONFIRMED")).toBeInTheDocument();
   });
 
-  it("uses backend refund eligibility and creates a student-owned refund request",async()=>{
+  it("uses backend eligibility and completes the student refund without admin approval",async()=>{
     mocks.eligibility.mockResolvedValue({subscriptionId:41,eligible:true,status:"ELIGIBLE",refundableAmount:2450,currency:"TRY",deadline:"2026-09-02T10:00:00Z",explanation:"7 gün içinde iade talebi oluşturabilirsiniz.",activeRequestStatus:null});
-    mocks.createRefund.mockResolvedValue({id:3,status:"PENDING"}); const refresh=vi.fn(); render(<RefundRequestAction subscriptionId={41} onSuccess={refresh}/>);
-    fireEvent.click(await screen.findByRole("button",{name:"İade Talep Et"})); const dialog=screen.getByRole("dialog",{name:"İade talebini doğrula"}); expect(dialog).toHaveTextContent(/2\.450/);
-    fireEvent.click(within(dialog).getByRole("button",{name:"Talebi Gönder"}));
-    await waitFor(()=>expect(mocks.createRefund).toHaveBeenCalledWith(41)); expect(refresh).toHaveBeenCalled(); expect(await screen.findByText("İade talebiniz incelemeye alındı.")).toBeInTheDocument();
+    mocks.createRefund.mockResolvedValue({id:3,status:"REFUNDED"}); const refresh=vi.fn(); render(<RefundRequestAction subscriptionId={41} onSuccess={refresh}/>);
+    fireEvent.click(await screen.findByRole("button",{name:"İade Al"})); const dialog=screen.getByRole("dialog",{name:"İadeyi doğrula"}); expect(dialog).toHaveTextContent(/2\.450/); expect(dialog).toHaveTextContent(/erişiminiz hemen sona erecek/);
+    fireEvent.click(within(dialog).getByRole("button",{name:"İadeyi Onayla"}));
+    await waitFor(()=>expect(mocks.createRefund).toHaveBeenCalledWith(41)); expect(refresh).toHaveBeenCalled(); expect(await screen.findByText("İadeniz tamamlandı ve ücretli koçluk erişiminiz sona erdi.")).toBeInTheDocument();
   });
 
   it("renders the report flow with product classes and keeps the existing API contract",async()=>{

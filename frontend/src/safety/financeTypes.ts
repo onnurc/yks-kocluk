@@ -59,3 +59,18 @@ export interface AdminSubscriptionTerminateResponse {
   terminatedAt: string;
   message: string;
 }
+
+export interface AdminRefundAuditResponse {
+  id: number;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "REFUNDED";
+  requestedAt: string;
+  studentName: string;
+  coachName: string;
+  packageName: string;
+  subscriptionId: number;
+  originalPaymentId: number;
+  refundPaymentId: number | null;
+  amount: number;
+  refundedAmount: number;
+  currency: string;
+}

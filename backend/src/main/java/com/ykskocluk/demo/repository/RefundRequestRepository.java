@@ -39,6 +39,10 @@ public interface RefundRequestRepository extends JpaRepository<RefundRequest, Lo
                                     Pageable pageable);
 
     @EntityGraph(attributePaths = {"student", "subscription.coachProfile.user", "subscription.pkg", "originalPayment", "refundPayment"})
+    @Query("select r from RefundRequest r")
+    Page<RefundRequest> findAllAdmin(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"student", "subscription.coachProfile.user", "subscription.pkg", "originalPayment", "refundPayment"})
     @Query("select r from RefundRequest r where r.id = :id")
     Optional<RefundRequest> findDetailedById(@Param("id") Long id);
 

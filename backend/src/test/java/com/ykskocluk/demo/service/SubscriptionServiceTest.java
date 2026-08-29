@@ -11,12 +11,18 @@ import com.ykskocluk.demo.dto.AdminSubscriptionTerminateResponse;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Package;
 import com.ykskocluk.demo.entity.Payment;
+import com.ykskocluk.demo.entity.RefundRequest;
+import com.ykskocluk.demo.entity.Session;
+import com.ykskocluk.demo.entity.CoachAvailability;
 import com.ykskocluk.demo.entity.Subscription;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.PaymentStatus;
 import com.ykskocluk.demo.enums.PaymentType;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
+import com.ykskocluk.demo.enums.RefundRequestStatus;
+import com.ykskocluk.demo.enums.RefundWindow;
+import com.ykskocluk.demo.enums.SessionStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.exception.PaymentProviderException;
 import com.ykskocluk.demo.integration.CheckoutResult;
@@ -27,6 +33,8 @@ import jakarta.persistence.LockModeType;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PackageRepository;
 import com.ykskocluk.demo.repository.PaymentRepository;
+import com.ykskocluk.demo.repository.RefundRequestRepository;
+import com.ykskocluk.demo.repository.SessionRepository;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
 import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -69,6 +77,8 @@ class SubscriptionServiceTest {
     @Mock CoachProfileRepository coachProfileRepository;
     @Mock UserRepository userRepository;
     @Mock PaymentRepository paymentRepository;
+    @Mock RefundRequestRepository refundRequestRepository;
+    @Mock SessionRepository sessionRepository;
     @Mock IyzicoClient iyzicoClient;
     @Mock SubscriptionMapper subscriptionMapper;
     @Mock EntityManager entityManager;
@@ -88,7 +98,8 @@ class SubscriptionServiceTest {
     void setUp() {
         paymentProperties = new PaymentProperties(new BigDecimal("0.2000"), 3, 30);
         service = new SubscriptionService(subscriptionRepository, packageRepository,
-            coachProfileRepository, userRepository, paymentRepository, paymentProperties,
+            coachProfileRepository, userRepository, paymentRepository, refundRequestRepository,
+            sessionRepository, paymentProperties,
             iyzicoClient, subscriptionMapper, entityManager,
             new com.ykskocluk.demo.config.IyzicoProperties(false, "sandbox", "dummy", "dummy", "dummy", "dummy"),
             accountReadinessService, legalAcceptanceService, transactionManager, events);
@@ -585,6 +596,68 @@ class SubscriptionServiceTest {
     // --- refund tests ---
 
     @Test
+    void eligibleStudentRefund_providerSuccess_terminatesAccessAndCancelsFuturePaidSessions() {
+        User student = new User(); student.setEmail("student@example.com"); student.setFullName("Student");
+        User coachUser = new User(); coachUser.setEmail("coach@example.com"); coachUser.setFullName("Coach");
+        CoachProfile coach = new CoachProfile(); ReflectionTestUtils.setField(coach, "id", 7L); coach.setUser(coachUser);
+        Subscription sub = new Subscription(); ReflectionTestUtils.setField(sub, "id", 9L);
+        sub.setStudent(student); sub.setCoachProfile(coach); sub.setStatus(SubscriptionStatus.ACTIVE); sub.setAutoRenew(true);
+        Payment original = refundableCharge(sub);
+        RefundRequest request = new RefundRequest(); ReflectionTestUtils.setField(request, "id", 11L);
+        request.setStudent(student); request.setSubscription(sub); request.setOriginalPayment(original);
+        request.setRefundWindow(RefundWindow.UNCONDITIONAL); request.setStatus(RefundRequestStatus.PENDING);
+        CoachAvailability slot = new CoachAvailability(); slot.setBooked(true);
+        Session future = new Session(); ReflectionTestUtils.setField(future, "id", 12L);
+        future.setStudent(student); future.setCoachProfile(coach); future.setSubscription(sub);
+        future.setAvailability(slot); future.setStatus(SessionStatus.PLANNED);
+        future.setStartTime(Instant.now().plus(2, ChronoUnit.DAYS)); future.setMeetLink("https://meet.example/future");
+
+        when(refundRequestRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(request));
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(original));
+        when(paymentRepository.findBySourcePaymentIdAndStatusIn(100L, List.of(PaymentStatus.PENDING, PaymentStatus.SUCCESS))).thenReturn(List.of());
+        when(subscriptionRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(sub));
+        when(sessionRepository.findBySubscriptionIdOrderByStartTimeAsc(9L)).thenReturn(List.of(future));
+        when(iyzicoClient.refund(eq("prov-ref-123"), eq(new BigDecimal("150.00")), any()))
+                .thenReturn(new RefundResult(true, "refund-ref", null, null));
+
+        service.refundEligibleStudent(100L, 11L);
+
+        assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.TERMINATED);
+        assertThat(sub.isAutoRenew()).isFalse();
+        assertThat(request.getStatus()).isEqualTo(RefundRequestStatus.REFUNDED);
+        assertThat(future.getStatus()).isEqualTo(SessionStatus.CANCELLED);
+        assertThat(future.getAvailability()).isNull();
+        assertThat(future.getMeetLink()).isNull();
+        assertThat(slot.isBooked()).isFalse();
+        verify(coachProfileRepository).decrementActiveStudentCount(7L);
+    }
+
+    @Test
+    void eligibleStudentRefund_providerFailure_keepsSubscriptionAndAccessUnchanged() {
+        Subscription sub = new Subscription(); ReflectionTestUtils.setField(sub, "id", 9L);
+        sub.setStatus(SubscriptionStatus.ACTIVE); sub.setAutoRenew(true);
+        Payment original = refundableCharge(sub);
+        RefundRequest request = new RefundRequest(); ReflectionTestUtils.setField(request, "id", 11L);
+        request.setOriginalPayment(original); request.setStatus(RefundRequestStatus.PENDING);
+        when(refundRequestRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(request));
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(original));
+        when(paymentRepository.findBySourcePaymentIdAndStatusIn(100L, List.of(PaymentStatus.PENDING, PaymentStatus.SUCCESS))).thenReturn(List.of());
+        when(iyzicoClient.refund(eq("prov-ref-123"), eq(new BigDecimal("150.00")), any()))
+                .thenReturn(new RefundResult(false, null, "FAILED", "unsafe provider detail"));
+
+        ApiException error = catchThrowableOfType(ApiException.class,
+                () -> service.refundEligibleStudent(100L, 11L));
+
+        assertThat(error.getErrorCode()).isEqualTo("PROVIDER_REFUND_FAILED");
+        assertThat(error.getMessage()).doesNotContain("unsafe provider detail");
+        assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(sub.isAutoRenew()).isTrue();
+        assertThat(request.getStatus()).isEqualTo(RefundRequestStatus.REJECTED);
+        verify(subscriptionRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(sessionRepository);
+    }
+
+    @Test
     void refund_success_fullRefund_createsRefundPaymentAndUpdatesOriginal() {
         Subscription sub = new Subscription();
         Payment original = new Payment();
@@ -621,6 +694,14 @@ class SubscriptionServiceTest {
                 p.getSourcePayment() == original
         ));
         verify(entityManager).lock(original, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
+    }
+
+    private Payment refundableCharge(Subscription sub) {
+        Payment original = new Payment(); ReflectionTestUtils.setField(original, "id", 100L);
+        original.setSubscription(sub); original.setType(PaymentType.CHARGE); original.setStatus(PaymentStatus.SUCCESS);
+        original.setSucceededAt(Instant.now().minus(1, ChronoUnit.DAYS)); original.setAmount(new BigDecimal("150.00"));
+        original.setCommissionRate(new BigDecimal("0.2000")); original.setProviderReference("prov-ref-123");
+        return original;
     }
 
     @Test

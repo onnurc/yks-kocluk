@@ -6,6 +6,7 @@ import type {
   RefundResponse,
   AdminSubscriptionTerminateResponse,
   AdminFinanceSummary,
+  AdminRefundAuditResponse,
 } from "./financeTypes";
 
 export const financeApi = {
@@ -21,6 +22,11 @@ export const financeApi = {
       `/api/v1/admin/subscriptions?page=${page}&size=${size}`
     );
   },
+
+  listRefundAudit: (page: number = 0, size: number = 20): Promise<PageResponse<AdminRefundAuditResponse>> =>
+    httpClient.get<PageResponse<AdminRefundAuditResponse>>(
+      `/api/v1/admin/refund-requests?page=${page}&size=${size}&sort=requestedAt,desc`
+    ),
 
   refund: (paymentId: number, amount: number, reason: string): Promise<RefundResponse> => {
     return httpClient.post<RefundResponse>(`/api/v1/admin/payments/${paymentId}/refund`, {

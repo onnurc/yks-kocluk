@@ -4,6 +4,7 @@ import type {
   AdminFinanceSummary,
   AdminPaymentResponse,
   AdminSubscriptionResponse,
+  AdminRefundAuditResponse,
 } from "../../safety/financeTypes";
 import "./admin.css";
 
@@ -13,6 +14,7 @@ export const AdminFinancePage = () => {
   const [summary, setSummary] = useState<AdminFinanceSummary | null>(null);
   const [payments, setPayments] = useState<AdminPaymentResponse[]>([]);
   const [subscriptions, setSubscriptions] = useState<AdminSubscriptionResponse[]>([]);
+  const [refundAudit, setRefundAudit] = useState<AdminRefundAuditResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [refund, setRefund] = useState<AdminPaymentResponse | null>(null);
@@ -24,12 +26,13 @@ export const AdminFinancePage = () => {
 
   useEffect(() => {
     let active = true;
-    Promise.all([financeApi.summary(), financeApi.listPayments(0, 20), financeApi.listSubscriptions(0, 20)])
-      .then(([finance, paymentPage, subscriptionPage]) => {
+    Promise.all([financeApi.summary(), financeApi.listPayments(0, 20), financeApi.listSubscriptions(0, 20), financeApi.listRefundAudit(0, 20)])
+      .then(([finance, paymentPage, subscriptionPage, refundPage]) => {
         if (!active) return;
         setSummary(finance);
         setPayments(paymentPage.content ?? []);
         setSubscriptions(subscriptionPage.content ?? []);
+        setRefundAudit(refundPage.content ?? []);
       })
       .catch(() => active && setError(true))
       .finally(() => active && setLoading(false));
@@ -104,6 +107,14 @@ export const AdminFinancePage = () => {
               <button className="admin-button" onClick={() => setRefund(payment)}>İade Et</button> :
               <span className="admin-refund-state"><button className="admin-button admin-button--secondary" disabled>İade Et</button><small>{payment.refundIneligibleReason ?? "İade edilemez"}</small></span> :
               <span className="admin-badge">{payment.type} · {payment.status}</span>}</td>
+          </tr>)}</tbody></table></div>}
+      </section>
+
+      <section className="admin-panel admin-section">
+        <div className="admin-panel__heading"><h2>Öğrenci İade Geçmişi</h2><p>7 günlük dönemde öğrenciler tarafından otomatik sonuçlandırılan iadeler salt okunur olarak gösterilir.</p></div>
+        {loading ? <div className="admin-loading">İade geçmişi yükleniyor…</div> : refundAudit.length === 0 ? <div className="admin-empty">İade kaydı bulunmuyor.</div> :
+          <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Öğrenci / Koç</th><th>Paket</th><th>Tutar</th><th>Durum</th><th>Ödeme / Abonelik</th><th>Tarih</th></tr></thead><tbody>{refundAudit.map((item) => <tr key={item.id}>
+            <td><strong>{item.studentName}</strong><small>{item.coachName}</small></td><td>{item.packageName}</td><td>{money.format(item.refundedAmount || item.amount)}</td><td><span className="admin-badge">{item.status}</span></td><td><small>Ödeme #{item.originalPaymentId}{item.refundPaymentId ? ` → #${item.refundPaymentId}` : ""}</small><small>Abonelik #{item.subscriptionId}</small></td><td>{new Date(item.requestedAt).toLocaleDateString("tr-TR")}</td>
           </tr>)}</tbody></table></div>}
       </section>
     </>}

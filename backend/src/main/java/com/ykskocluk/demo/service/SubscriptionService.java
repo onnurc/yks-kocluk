@@ -17,6 +17,8 @@ import com.ykskocluk.demo.dto.PageResponse;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Package;
 import com.ykskocluk.demo.entity.Payment;
+import com.ykskocluk.demo.entity.RefundRequest;
+import com.ykskocluk.demo.entity.Session;
 import com.ykskocluk.demo.entity.Subscription;
 import com.ykskocluk.demo.entity.User;
 import org.springframework.data.domain.Page;
@@ -24,6 +26,8 @@ import org.springframework.data.domain.Pageable;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.PaymentStatus;
 import com.ykskocluk.demo.enums.PaymentType;
+import com.ykskocluk.demo.enums.RefundRequestStatus;
+import com.ykskocluk.demo.enums.SessionStatus;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.exception.PaymentProviderException;
@@ -34,6 +38,8 @@ import com.ykskocluk.demo.integration.RefundResult;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.PackageRepository;
 import com.ykskocluk.demo.repository.PaymentRepository;
+import com.ykskocluk.demo.repository.RefundRequestRepository;
+import com.ykskocluk.demo.repository.SessionRepository;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
 import com.ykskocluk.demo.repository.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -73,6 +79,8 @@ public class SubscriptionService {
     private final CoachProfileRepository coachProfileRepository;
     private final UserRepository userRepository;
     private final PaymentRepository paymentRepository;
+    private final RefundRequestRepository refundRequestRepository;
+    private final SessionRepository sessionRepository;
     private final PaymentProperties paymentProperties;
     private final IyzicoClient iyzicoClient;
     private final SubscriptionMapper subscriptionMapper;
@@ -88,6 +96,8 @@ public class SubscriptionService {
                                CoachProfileRepository coachProfileRepository,
                                UserRepository userRepository,
                                PaymentRepository paymentRepository,
+                               RefundRequestRepository refundRequestRepository,
+                               SessionRepository sessionRepository,
                                PaymentProperties paymentProperties,
                                IyzicoClient iyzicoClient,
                                SubscriptionMapper subscriptionMapper,
@@ -102,6 +112,8 @@ public class SubscriptionService {
         this.coachProfileRepository = coachProfileRepository;
         this.userRepository = userRepository;
         this.paymentRepository = paymentRepository;
+        this.refundRequestRepository = refundRequestRepository;
+        this.sessionRepository = sessionRepository;
         this.paymentProperties = paymentProperties;
         this.iyzicoClient = iyzicoClient;
         this.subscriptionMapper = subscriptionMapper;
@@ -388,7 +400,8 @@ public class SubscriptionService {
 
     /** Carries the reserve decision out of tx1 into the external call and tx2. */
     private record RefundReserve(Long originalPaymentId, Payment refundPayment, String providerReference,
-                                 String idempotencyKey, BigDecimal remainingAfter) {
+                                 String idempotencyKey, BigDecimal remainingAfter,
+                                 Long refundRequestId, boolean terminatePaidAccess) {
     }
 
     /** Result of tx2 — success carries the response; failure carries the provider error message. */
@@ -407,10 +420,28 @@ public class SubscriptionService {
         if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_REFUND_AMOUNT", "İade tutarı sıfırdan büyük olmalıdır");
         }
+        return executeRefund(paymentId, refundAmount, null, false, reason);
+    }
 
-        RefundReserve reserve = tx.execute(status -> reserveRefund(paymentId, refundAmount));
+    /**
+     * Full, trusted-amount student refund. The audit request is linked to the PENDING payment in
+     * tx1; provider success then finalizes the refund, terminates access, and cancels future paid
+     * sessions atomically in tx2. A retried request reuses an existing PENDING provider operation
+     * and its idempotency key, which makes crash recovery deterministic.
+     */
+    public RefundResponse refundEligibleStudent(Long paymentId, Long refundRequestId) {
+        return executeRefund(paymentId, null, refundRequestId, true,
+                "Automatic eligible student refund request #" + refundRequestId);
+    }
 
-        RefundResult refundResult = iyzicoClient.refund(reserve.providerReference(), refundAmount, reserve.idempotencyKey());
+    private RefundResponse executeRefund(Long paymentId, BigDecimal requestedAmount,
+                                         Long refundRequestId, boolean terminatePaidAccess,
+                                         String reason) {
+        RefundReserve reserve = tx.execute(status -> reserveRefund(
+                paymentId, requestedAmount, refundRequestId, terminatePaidAccess));
+
+        RefundResult refundResult = iyzicoClient.refund(reserve.providerReference(),
+                reserve.refundPayment().getAmount(), reserve.idempotencyKey());
         if (refundResult == null) {
             throw new PaymentProviderException("Iyzico returned no refund response");
         }
@@ -425,7 +456,35 @@ public class SubscriptionService {
 
     // --- tx1: lock + validate + reserve ---
 
-    private RefundReserve reserveRefund(Long paymentId, BigDecimal refundAmount) {
+    private RefundReserve reserveRefund(Long paymentId, BigDecimal requestedAmount,
+                                        Long refundRequestId, boolean terminatePaidAccess) {
+        RefundRequest auditRequest = null;
+        if (refundRequestId != null) {
+            auditRequest = refundRequestRepository.findByIdForUpdate(refundRequestId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "REFUND_REQUEST_NOT_FOUND",
+                            "İade talebi bulunamadı"));
+            if (!auditRequest.getOriginalPayment().getId().equals(paymentId)) {
+                throw new ApiException(HttpStatus.CONFLICT, "REFUND_REQUEST_PAYMENT_MISMATCH",
+                        "İade talebi ödeme ile eşleşmiyor");
+            }
+            if (auditRequest.getStatus() != RefundRequestStatus.PENDING) {
+                throw new ApiException(HttpStatus.CONFLICT, "REFUND_REQUEST_NOT_PENDING",
+                        "İade talebi beklemede değil");
+            }
+
+            Payment priorAttempt = auditRequest.getRefundPayment();
+            if (priorAttempt != null && priorAttempt.getStatus() == PaymentStatus.PENDING) {
+                BigDecimal successfulAmount = paymentRepository
+                        .findBySourcePaymentIdAndStatus(paymentId, PaymentStatus.SUCCESS).stream()
+                        .map(Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+                return new RefundReserve(paymentId, priorAttempt,
+                        auditRequest.getOriginalPayment().getProviderReference(), priorAttempt.getIdempotencyKey(),
+                        auditRequest.getOriginalPayment().getAmount()
+                                .subtract(successfulAmount).subtract(priorAttempt.getAmount()),
+                        refundRequestId, terminatePaidAccess);
+            }
+        }
+
         Payment originalPayment = paymentRepository.findByIdForUpdate(paymentId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_NOT_FOUND", "Ödeme bulunamadı"));
 
@@ -453,6 +512,10 @@ public class SubscriptionService {
             throw new ApiException(HttpStatus.BAD_REQUEST, code, policy.ineligibleReason());
         }
 
+        BigDecimal refundAmount = requestedAmount == null ? remainingRefundable : requestedAmount;
+        if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_REFUND_AMOUNT", "İade tutarı sıfırdan büyük olmalıdır");
+        }
         if (refundAmount.compareTo(remainingRefundable) > 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "EXCEEDS_REFUNDABLE_AMOUNT",
                     String.format("İade tutarı kalan iade edilebilir tutarı (%s TRY) aşamaz", remainingRefundable));
@@ -481,11 +544,17 @@ public class SubscriptionService {
 
         paymentRepository.saveAndFlush(refundPayment);
 
+        if (auditRequest != null) {
+            auditRequest.setRefundPayment(refundPayment);
+            refundRequestRepository.saveAndFlush(auditRequest);
+        }
+
         // Force version increment on original payment to lock against concurrent modifications
         entityManager.lock(originalPayment, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
 
         return new RefundReserve(paymentId, refundPayment, originalPayment.getProviderReference(),
-                refundKey, remainingRefundable.subtract(refundAmount));
+                refundKey, remainingRefundable.subtract(refundAmount),
+                refundRequestId, terminatePaidAccess);
     }
 
     // --- tx2: finalize ---
@@ -496,12 +565,24 @@ public class SubscriptionService {
         if (!refundResult.success()) {
             refundPayment.setStatus(PaymentStatus.FAILED);
             paymentRepository.saveAndFlush(refundPayment);
+            if (reserve.refundRequestId() != null) {
+                RefundRequest auditRequest = refundRequestRepository.findByIdForUpdate(reserve.refundRequestId())
+                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "REFUND_REQUEST_NOT_FOUND",
+                                "İade talebi bulunamadı"));
+                auditRequest.setStatus(RefundRequestStatus.REJECTED);
+                auditRequest.setRejectionReason("Ödeme sağlayıcısı iade işlemini tamamlayamadı");
+                refundRequestRepository.saveAndFlush(auditRequest);
+            }
             return new RefundOutcome(false, null);
         }
 
         refundPayment.setStatus(PaymentStatus.SUCCESS);
         refundPayment.setProviderReference(refundResult.providerReference());
         paymentRepository.saveAndFlush(refundPayment);
+
+        if (reserve.terminatePaidAccess()) {
+            finalizeAutomaticRefundAccess(reserve, refundPayment);
+        }
 
         RefundResponse response = new RefundResponse(
                 reserve.originalPaymentId(),
@@ -512,6 +593,49 @@ public class SubscriptionService {
                 "İade işlemi başarıyla gerçekleştirildi"
         );
         return new RefundOutcome(true, response);
+    }
+
+    private void finalizeAutomaticRefundAccess(RefundReserve reserve, Payment refundPayment) {
+        Subscription subscription = subscriptionRepository.findByIdForUpdate(
+                        refundPayment.getSubscription().getId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SUBSCRIPTION_NOT_FOUND",
+                        "Abonelik bulunamadı"));
+        RefundRequest auditRequest = refundRequestRepository.findByIdForUpdate(reserve.refundRequestId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "REFUND_REQUEST_NOT_FOUND",
+                        "İade talebi bulunamadı"));
+
+        boolean consumedCapacity = subscription.getStatus() == SubscriptionStatus.ACTIVE
+                || subscription.getStatus() == SubscriptionStatus.PAST_DUE;
+        Instant now = Instant.now();
+        subscription.setStatus(SubscriptionStatus.TERMINATED);
+        subscription.setAutoRenew(false);
+        subscription.setCancelledAt(now);
+        subscription.setTerminationReason("Eligible student refund #" + auditRequest.getId());
+        subscriptionRepository.saveAndFlush(subscription);
+
+        if (consumedCapacity) {
+            coachProfileRepository.decrementActiveStudentCount(subscription.getCoachProfile().getId());
+        }
+
+        for (Session session : sessionRepository.findBySubscriptionIdOrderByStartTimeAsc(subscription.getId())) {
+            if (session.getStatus() != SessionStatus.PLANNED || !session.getStartTime().isAfter(now)) {
+                continue;
+            }
+            session.setStatus(SessionStatus.CANCELLED);
+            session.setMeetLink(null);
+            if (session.getAvailability() != null) {
+                session.getAvailability().setBooked(false);
+                session.setAvailability(null);
+            }
+            events.publishEvent(new SessionCancelledEvent(
+                    session.getId(), session.getStudent().getEmail(), session.getStudent().getFullName(),
+                    session.getCoachProfile().getUser().getEmail(),
+                    session.getCoachProfile().getUser().getFullName(), session.getStartTime(), false));
+        }
+
+        auditRequest.setRefundPayment(refundPayment);
+        auditRequest.setStatus(RefundRequestStatus.REFUNDED);
+        refundRequestRepository.saveAndFlush(auditRequest);
     }
 
     @Transactional

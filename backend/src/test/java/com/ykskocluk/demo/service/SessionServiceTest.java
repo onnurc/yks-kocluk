@@ -93,9 +93,11 @@ class SessionServiceTest {
         ReflectionTestUtils.setField(sub, "id", SUB_ID);
         sub.setStatus(SubscriptionStatus.ACTIVE);
         sub.setPkg(pkg);
+        sub.setCoachProfile(coach);
 
+        lenient().when(availabilityRepository.findById(SLOT_ID)).thenReturn(Optional.of(slot));
         lenient().when(availabilityRepository.findByIdForUpdate(SLOT_ID)).thenReturn(Optional.of(slot));
-        lenient().when(subscriptionRepository.findLiveSubscription(
+        lenient().when(subscriptionRepository.findLiveSubscriptionForUpdate(
                 STUDENT_ID, COACH_ID)).thenReturn(Optional.of(sub));
         lenient().when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(new User()));
         lenient().when(sessionRepository.countQuotaConsuming(eq(SUB_ID), any(), any(), any())).thenReturn(0L);
@@ -138,7 +140,7 @@ class SessionServiceTest {
 
     @Test
     void book_noActiveSubscription_throwsConflict() {
-        when(subscriptionRepository.findLiveSubscription(
+        when(subscriptionRepository.findLiveSubscriptionForUpdate(
                 STUDENT_ID, COACH_ID)).thenReturn(Optional.empty());
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.book(STUDENT_ID, request()));
         assertThat(ex.getErrorCode()).isEqualTo("NO_ACTIVE_SUBSCRIPTION");

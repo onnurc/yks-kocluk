@@ -51,8 +51,13 @@ public class RefundRequestService {
         this.clock = clock;
     }
 
-    @Transactional
     public RefundRequestResponse create(Long studentId, RefundRequestCreateRequest input) {
+        AutomaticRefund automaticRefund = tx.execute(ignored -> prepareAutomaticRefund(studentId, input));
+        subscriptionService.refundEligibleStudent(automaticRefund.paymentId(), automaticRefund.requestId());
+        return adminDetail(automaticRefund.requestId());
+    }
+
+    private AutomaticRefund prepareAutomaticRefund(Long studentId, RefundRequestCreateRequest input) {
         User student = requireRole(studentId, Role.STUDENT);
         Subscription subscription = subscriptions.findById(input.subscriptionId())
                 .orElseThrow(() -> notFound("SUBSCRIPTION_NOT_FOUND", "Abonelik bulunamadı"));
@@ -74,14 +79,20 @@ public class RefundRequestService {
         if (remaining.signum() <= 0) {
             throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_ALREADY_REFUNDED", "Ödeme zaten tamamen iade edildi");
         }
+        RefundRequest active = requests.findFirstByOriginalPaymentIdAndStatusIn(original.getId(), ACTIVE_STATUSES)
+                .orElse(null);
+        if (active != null && active.getStatus() == RefundRequestStatus.PENDING
+                && active.getStudent().getId().equals(studentId)) {
+            return new AutomaticRefund(active.getId(), original.getId());
+        }
+        if (active != null) {
+            throw new ApiException(HttpStatus.CONFLICT, "ACTIVE_REFUND_REQUEST_EXISTS",
+                    "Bu satın alma için aktif bir iade talebi zaten var");
+        }
         RefundPolicy.Decision policy = RefundPolicy.evaluate(purchaseAt, now, remaining);
         if (!policy.eligible()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "REFUND_WINDOW_EXPIRED",
                     policy.ineligibleReason());
-        }
-        if (requests.existsByOriginalPaymentIdAndStatusIn(original.getId(), ACTIVE_STATUSES)) {
-            throw new ApiException(HttpStatus.CONFLICT, "ACTIVE_REFUND_REQUEST_EXISTS",
-                    "Bu satın alma için aktif bir iade talebi zaten var");
         }
         // Session evidence is operational audit data only. It never changes the seven-day decision above.
         Evidence evidence = evidence(subscription.getId(), now);
@@ -101,7 +112,8 @@ public class RefundRequestService {
         request.setEarliestPaidSessionAt(evidence.earliest);
         request.setLatestRelevantSessionStatus(evidence.latestStatus);
         try {
-            return toResponse(requests.saveAndFlush(request));
+            RefundRequest saved = requests.saveAndFlush(request);
+            return new AutomaticRefund(saved.getId(), original.getId());
         } catch (DataIntegrityViolationException ex) {
             throw new ApiException(HttpStatus.CONFLICT, "ACTIVE_REFUND_REQUEST_EXISTS",
                     "Bu satın alma için aktif bir iade talebi zaten var");
@@ -133,15 +145,22 @@ public class RefundRequestService {
         }
         BigDecimal remaining = original.getAmount().subtract(refundedAmount(original.getId()));
         RefundPolicy.Decision policy = RefundPolicy.evaluate(original.getSucceededAt(), clock.instant(), remaining);
-        RefundRequestStatus activeStatus = requests
-                .findFirstByOriginalPaymentIdAndStatusIn(original.getId(), ACTIVE_STATUSES)
-                .map(RefundRequest::getStatus).orElse(null);
+        RefundRequest activeRequest = requests
+                .findFirstByOriginalPaymentIdAndStatusIn(original.getId(), ACTIVE_STATUSES).orElse(null);
+        RefundRequestStatus activeStatus = activeRequest == null ? null : activeRequest.getStatus();
+        boolean retryableProviderOperation = activeRequest != null
+                && activeRequest.getStatus() == RefundRequestStatus.PENDING
+                && activeRequest.getRefundPayment() != null
+                && activeRequest.getRefundPayment().getStatus() == PaymentStatus.PENDING;
         RefundEligibilityStatus status;
         String explanation;
         if (remaining.signum() <= 0) {
             status = RefundEligibilityStatus.NO_REFUNDABLE_BALANCE;
             explanation = "Bu ödeme için iade edilebilir bakiye kalmadı.";
-        } else if (activeStatus != null) {
+        } else if (retryableProviderOperation) {
+            status = RefundEligibilityStatus.ELIGIBLE;
+            explanation = "Başlatılmış iade işlemini güvenli biçimde yeniden deneyebilirsiniz.";
+        } else if (activeStatus != null && !retryableProviderOperation) {
             status = RefundEligibilityStatus.ACTIVE_REQUEST_EXISTS;
             explanation = "Bu ödeme için işleme alınmış bir iade talebiniz var.";
         } else if (!policy.eligible()) {
@@ -149,7 +168,7 @@ public class RefundRequestService {
             explanation = policy.ineligibleReason();
         } else {
             status = RefundEligibilityStatus.ELIGIBLE;
-            explanation = "Ödeme tarihinden itibaren ilk 7 gün içinde koşulsuz iade talebi oluşturabilirsiniz.";
+            explanation = "Ödeme tarihinden itibaren ilk 7 gün içinde koşulsuz ve otomatik iade alabilirsiniz.";
         }
         return new RefundEligibilityResponse(subscriptionId, status == RefundEligibilityStatus.ELIGIBLE, status,
                 remaining.max(BigDecimal.ZERO), "TRY", policy.deadline(), explanation, activeStatus);
@@ -159,8 +178,10 @@ public class RefundRequestService {
     public PageResponse<RefundRequestResponse> adminList(RefundRequestStatus status, RefundWindow window,
             Long studentId, Long coachId, Instant from, Instant to, Pageable pageable) {
         validateRange(from, to); validateSort(pageable);
-        return PageResponse.from(requests.searchAdmin(status, window, studentId, coachId, from, to, pageable)
-                .map(this::toResponse));
+        var page = status == null && window == null && studentId == null && coachId == null && from == null && to == null
+                ? requests.findAllAdmin(pageable)
+                : requests.searchAdmin(status, window, studentId, coachId, from, to, pageable);
+        return PageResponse.from(page.map(this::toResponse));
     }
 
     @Transactional(readOnly = true)
@@ -186,6 +207,7 @@ public class RefundRequestService {
     public RefundRequestResponse reject(Long adminId, Long id, RefundRequestRejectRequest input) {
         User admin = requireRole(adminId, Role.ADMIN);
         RefundRequest request = lock(id);
+        rejectAutomaticAdminDecision(request);
         if (request.getStatus() == RefundRequestStatus.REJECTED) return toResponse(request);
         if (request.getStatus() != RefundRequestStatus.PENDING) {
             throw new ApiException(HttpStatus.CONFLICT, "REFUND_REQUEST_NOT_PENDING", "İade talebi beklemede değil");
@@ -200,6 +222,7 @@ public class RefundRequestService {
     private Approval reserveApproval(Long adminId, Long id) {
         User admin = requireRole(adminId, Role.ADMIN);
         RefundRequest request = lock(id);
+        rejectAutomaticAdminDecision(request);
         if (request.getStatus() == RefundRequestStatus.REFUNDED) {
             return null;
         }
@@ -287,10 +310,17 @@ public class RefundRequestService {
         if (user.getRole() != role) throw new ApiException(HttpStatus.FORBIDDEN, "ROLE_NOT_ALLOWED", "Bu işlem için yetkiniz yok");
         return user;
     }
+    private void rejectAutomaticAdminDecision(RefundRequest request) {
+        if (request.getRefundWindow() == RefundWindow.UNCONDITIONAL) {
+            throw new ApiException(HttpStatus.CONFLICT, "AUTOMATIC_REFUND_NO_ADMIN_DECISION",
+                    "Koşulsuz öğrenci iadeleri otomatik tamamlanır; yönetici onayı veya reddi uygulanamaz");
+        }
+    }
     private RefundRequest lock(Long id) { return requests.findByIdForUpdate(id).orElseThrow(() -> notFound("REFUND_REQUEST_NOT_FOUND", "İade talebi bulunamadı")); }
     private void validateRange(Instant from, Instant to) { if (from != null && to != null && !to.isAfter(from)) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_RANGE", "Bitiş başlangıçtan sonra olmalı"); }
     private void validateSort(Pageable p) { for (Sort.Order o : p.getSort()) if (!SORT_FIELDS.contains(o.getProperty())) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SORT_FIELD", "Bu alana göre sıralama yapılamaz: " + o.getProperty()); }
     private ApiException notFound(String code, String detail) { return new ApiException(HttpStatus.NOT_FOUND, code, detail); }
     private record Evidence(boolean serviceStarted, int paidCount, int completedCount, Instant earliest, String latestStatus) {}
     private record Approval(Long paymentId, BigDecimal amount) {}
+    private record AutomaticRefund(Long requestId, Long paymentId) {}
 }
