@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.repository;
 
 import com.ykskocluk.demo.entity.CoachAvailability;
+import com.ykskocluk.demo.enums.AvailabilityPurpose;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.Lock;
@@ -19,6 +20,12 @@ public interface CoachAvailabilityRepository extends JpaRepository<CoachAvailabi
     /** Student-facing view: a coach's open (unbooked) future slots, earliest first. */
     List<CoachAvailability> findByCoachProfileIdAndBookedFalseAndStartTimeAfterOrderByStartTimeAsc(
             Long coachProfileId, Instant after);
+
+    List<CoachAvailability> findByCoachProfileIdAndPurposeAndStartTimeGreaterThanEqualAndStartTimeLessThanOrderByStartTimeAsc(
+            Long coachProfileId, AvailabilityPurpose purpose, Instant from, Instant to);
+
+    List<CoachAvailability> findByCoachProfileIdAndPurposeAndBookedFalseAndStartTimeGreaterThanAndStartTimeLessThanOrderByStartTimeAsc(
+            Long coachProfileId, AvailabilityPurpose purpose, Instant from, Instant to);
 
     boolean existsByCoachProfileIdAndBookedFalseAndStartTimeAfter(Long coachProfileId, Instant after);
 

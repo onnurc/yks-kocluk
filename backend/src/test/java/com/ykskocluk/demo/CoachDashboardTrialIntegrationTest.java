@@ -5,6 +5,8 @@ import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.repository.PaymentRepository;
 import com.ykskocluk.demo.repository.SubscriptionRepository;
 import com.ykskocluk.demo.repository.UserRepository;
+import com.ykskocluk.demo.repository.CoachAvailabilityRepository;
+import com.ykskocluk.demo.enums.AvailabilityPurpose;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -31,6 +33,7 @@ class CoachDashboardTrialIntegrationTest {
     @Autowired PaymentRepository payments;
     @Autowired UserRepository userRepository;
     @Autowired PasswordEncoder passwordEncoder;
+    @Autowired CoachAvailabilityRepository availabilityRepository;
 
     @Test
     void coachSelfAuthorizationAndTrialLifecycle() throws Exception {
@@ -126,6 +129,10 @@ class CoachDashboardTrialIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"startTime\":\"%s\",\"endTime\":\"%s\"}".formatted(start, start.plus(1, ChronoUnit.HOURS))))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        return ((Number) JsonPath.read(json, "$.id")).longValue();
+        long id = ((Number) JsonPath.read(json, "$.id")).longValue();
+        var slot = availabilityRepository.findById(id).orElseThrow();
+        slot.setPurpose(AvailabilityPurpose.TRIAL);
+        availabilityRepository.saveAndFlush(slot);
+        return id;
     }
 }

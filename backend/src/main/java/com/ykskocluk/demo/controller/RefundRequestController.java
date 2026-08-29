@@ -30,4 +30,10 @@ public class RefundRequestController {
             @PageableDefault(size = 20, sort = "requestedAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return service.mine(studentId, pageable);
     }
+
+    @GetMapping("/eligibility")
+    public RefundEligibilityResponse eligibility(@AuthenticationPrincipal Long studentId,
+                                                  @RequestParam Long subscriptionId) {
+        return service.eligibility(studentId, subscriptionId);
+    }
 }

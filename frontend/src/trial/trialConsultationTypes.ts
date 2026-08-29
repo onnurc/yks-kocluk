@@ -14,6 +14,7 @@ export interface TrialConsultationResponse {
   startsAt: string;
   endsAt: string;
   status: TrialConsultationStatus;
+  meetingUrl?: string | null;
   requestedAt: string;
   updatedAt: string;
 }

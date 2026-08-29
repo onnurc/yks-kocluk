@@ -22,4 +22,5 @@ export interface AvailabilityResponse {
   startTime: string;
   endTime: string;
   booked: boolean;
+  purpose?: "PAID" | "TRIAL";
 }

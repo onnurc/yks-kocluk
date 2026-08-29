@@ -10,8 +10,10 @@ public interface AdminSessionView {
     String getCoachName();
     Long getStudentId();
     String getStudentName();
+    String getStudentEmail();
     Instant getStartsAt();
     Instant getEndsAt();
     String getStatus();
     Long getSubscriptionId();
+    String getMeetingUrl();
 }

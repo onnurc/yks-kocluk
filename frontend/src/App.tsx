@@ -32,6 +32,7 @@ import { AboutPage } from "./public/AboutPage";
 import { CoachingPage } from "./public/CoachingPage";
 import { CoachesPage } from "./public/CoachesPage";
 import { CoachProfilePage } from "./public/CoachProfilePage";
+import { CoachTrialAvailabilityPage } from "./pages/CoachTrialAvailabilityPage";
 import { StubPaymentPage } from "./subscriptionCheckout/StubPaymentPage";
 import { CoachApplicationPage } from "./public/CoachApplicationPage";
 import { PublicLayout } from "./public/PublicLayout";
@@ -78,6 +79,10 @@ export const AppRoutes: React.FC = () => {
               <Route element={<RoleRoute allowedRoles={["STUDENT"]} />}>
                 <Route path="/bookings" element={<BookingsPage />} />
                 <Route path="/payment/stub/:token" element={<StubPaymentPage />} />
+              </Route>
+
+              <Route element={<RoleRoute allowedRoles={["COACH"]} />}>
+                <Route path="/coach/trial-availability" element={<CoachTrialAvailabilityPage />} />
               </Route>
 
               {/* Messaging: students and coaches both participate in conversations */}

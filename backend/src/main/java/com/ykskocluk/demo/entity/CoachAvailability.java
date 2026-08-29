@@ -1,5 +1,7 @@
 package com.ykskocluk.demo.entity;
 
+import com.ykskocluk.demo.enums.AvailabilityPurpose;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -37,4 +39,8 @@ public class CoachAvailability extends BaseEntity {
 
     @Column(name = "is_booked", nullable = false)
     private boolean booked;
+
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private AvailabilityPurpose purpose = AvailabilityPurpose.PAID;
 }

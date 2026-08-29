@@ -38,6 +38,9 @@ public class AdminDashboardController {
         return service.users(role, status, search, pageable);
     }
 
+    @GetMapping("/users/{id}")
+    public AdminUserDetailResponse user(@PathVariable Long id) { return service.user(id); }
+
     @GetMapping("/sessions")
     public PageResponse<AdminOperationalSessionResponse> sessions(
             @RequestParam(defaultValue = "ALL") AdminSessionType type,

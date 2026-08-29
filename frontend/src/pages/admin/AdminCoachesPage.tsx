@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { adminApi } from "../../admin/adminApi";
 import type { AdminCoach, CoachFilter, CoachStudent } from "../../admin/adminTypes";
+import { AdminProfilePhotoModeration } from "./AdminProfilePhotoModeration";
 import "./admin.css";
 
 const accountLabel = (status: string) => status === "ACTIVE" ? "Aktif" : status === "SUSPENDED" ? "Askıya alınmış" : "Silinmiş";
@@ -57,6 +58,7 @@ export const AdminCoachesPage = () => {
     {selected && <div className="admin-modal-backdrop" role="presentation"><section className="admin-modal" role="dialog" aria-modal="true" aria-labelledby="coach-detail-title">
       <div className="admin-panel__heading"><h2 id="coach-detail-title">{selected.name}</h2><button className="admin-button admin-button--secondary" onClick={() => setSelected(null)}>Kapat</button></div>
       <div className="admin-detail"><div className="admin-detail__facts"><div><span>Hesap</span><strong>{accountLabel(selected.accountStatus)}</strong></div><div><span>Profil</span><strong>{selected.approvalState}</strong></div><div><span>Üniversite</span><strong>{selected.university ?? "—"}</strong></div><div><span>Bölüm</span><strong>{selected.department ?? "—"}</strong></div></div>
+        <AdminProfilePhotoModeration name={selected.name} imageUrl={selected.profileImageUrl} assetId={selected.profileImageAssetId} onRemoved={() => setSelected((current) => current ? { ...current, profileImageUrl: null, profileImageAssetId: null } : current)} />
         <section><h3>Aktif Öğrenciler</h3>{students.length === 0 ? <div className="admin-empty">Aktif öğrenci ilişkisi bulunmuyor.</div> : <div className="admin-list">{students.map((student) => <article className="admin-list-item" key={student.studentId}><div><h3>{student.displayName}</h3><p>{student.packageName} · {student.subscriptionStatus}</p></div>{student.nextSession && <span>{new Date(student.nextSession.startTime).toLocaleDateString("tr-TR")}</span>}</article>)}</div>}</section>
         <div className="admin-actions">{selected.accountStatus === "SUSPENDED" ? <button className="admin-button" onClick={() => setConfirm("ACTIVATE")}>Hesabı Aktifleştir</button> : <button className="admin-button admin-button--danger" onClick={() => setConfirm("SUSPEND")}>Koçu Askıya Al</button>}</div>
         {confirm && <div className="admin-form"><p>{confirm === "SUSPEND" ? "Bu koç hesabı askıya alınacak. Devam etmek istediğinizi doğrulayın." : "Bu koç hesabı yeniden aktifleştirilecek."}</p>{confirm === "SUSPEND" && <label>Gerekçe<textarea rows={3} value={reason} onChange={(event) => setReason(event.target.value)} required /></label>}<div className="admin-actions"><button className="admin-button admin-button--secondary" onClick={() => setConfirm(null)}>Vazgeç</button><button className="admin-button admin-button--danger" disabled={busy || (confirm === "SUSPEND" && !reason.trim())} onClick={() => void applyStatus()}>{busy ? "İşleniyor…" : "Onayla"}</button></div></div>}

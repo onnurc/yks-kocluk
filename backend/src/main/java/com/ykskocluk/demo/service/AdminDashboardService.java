@@ -32,11 +32,14 @@ public class AdminDashboardService {
     private final SessionRepository sessions;
     private final TrialConsultationRepository trials;
     private final CoachApplicationRepository coachApplications;
+    private final StudentProfileRepository studentProfiles;
+    private final MediaAssetUrlResolver mediaUrls;
 
     public AdminDashboardService(UserRepository users, CoachProfileRepository coaches,
                                  SubscriptionRepository subscriptions, PaymentRepository payments,
                                  ReportRepository reports, SessionRepository sessions,
-                                 TrialConsultationRepository trials, CoachApplicationRepository coachApplications) {
+                                 TrialConsultationRepository trials, CoachApplicationRepository coachApplications,
+                                 StudentProfileRepository studentProfiles, MediaAssetUrlResolver mediaUrls) {
         this.users = users;
         this.coaches = coaches;
         this.subscriptions = subscriptions;
@@ -45,6 +48,8 @@ public class AdminDashboardService {
         this.sessions = sessions;
         this.trials = trials;
         this.coachApplications = coachApplications;
+        this.studentProfiles = studentProfiles;
+        this.mediaUrls = mediaUrls;
     }
 
     @Transactional(readOnly = true)
@@ -130,6 +135,14 @@ public class AdminDashboardService {
     }
 
     @Transactional(readOnly = true)
+    public AdminUserDetailResponse user(Long userId) {
+        User user = users.findById(userId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
+        var asset = studentProfiles.findByUserId(userId).map(p -> p.getProfileImageAsset()).orElse(null);
+        return new AdminUserDetailResponse(userResponse(user), mediaUrls.publicUrl(asset), mediaUrls.activeAssetId(asset));
+    }
+
+    @Transactional(readOnly = true)
     public AdminFinanceSummaryResponse finance(Instant from, Instant to) {
         validateRange(from, to);
         BigDecimal gross = zero(payments.sumForPeriod(PaymentType.CHARGE, PaymentStatus.SUCCESS, from, to));
@@ -158,7 +171,8 @@ public class AdminDashboardService {
                 studentId, from, to, databasePage);
         return PageResponse.from(page.map(v -> new AdminOperationalSessionResponse(v.getId(), v.getType(),
                 v.getCoachProfileId(), v.getCoachUserId(), v.getCoachName(), v.getStudentId(), v.getStudentName(),
-                v.getStartsAt(), v.getEndsAt(), v.getStatus(), v.getSubscriptionId())));
+                v.getStudentEmail(), v.getStartsAt(), v.getEndsAt(), v.getStatus(), v.getSubscriptionId(),
+                v.getMeetingUrl())));
     }
 
     private AdminUserDirectoryResponse userResponse(User u) {
@@ -173,6 +187,7 @@ public class AdminDashboardService {
                 c.getUniversity() == null ? null : c.getUniversity().getId(),
                 c.getUniversity() == null ? null : c.getUniversity().getName(), c.getDepartment(),
                 c.getStatus() == CoachProfileStatus.APPROVED && c.getUser().getStatus() == UserStatus.ACTIVE,
+                mediaUrls.publicUrl(c.getProfileImageAsset()), mediaUrls.activeAssetId(c.getProfileImageAsset()),
                 c.getCreatedAt());
     }
 

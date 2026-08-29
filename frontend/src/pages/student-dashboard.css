@@ -330,6 +330,7 @@
 }
 .subscription-management__cancellation button:hover,
 .subscription-management__cancellation button:focus-visible { background: #fae9e9; outline: 2px solid rgba(168, 91, 96, .15); outline-offset: 2px; }
+.subscription-management__refund{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:23px clamp(24px,4vw,38px);border-top:1px solid #eceaea;background:#fffaf0}.subscription-management__refund>div>strong{font-size:15px}.subscription-management__refund p{margin:4px 0;color:var(--dashboard-muted);font-size:14px}.subscription-management__refund small{color:var(--dashboard-muted)}.subscription-management__refund>button{flex:0 0 auto;min-height:42px;padding:9px 14px;border:1px solid var(--dashboard-gold);border-radius:10px;background:#fff;color:var(--dashboard-ink);font-weight:600;cursor:pointer}.subscription-management__refund>button:disabled{opacity:.5;cursor:not-allowed}
 
 .subscription-modal__backdrop {
   position: fixed;

@@ -43,8 +43,6 @@ export const TrialConsultationSection: React.FC<TrialConsultationSectionProps> =
   const [error, setError] = useState<ApiError | Error | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
     try {
       const [trials, availability] = await Promise.all([
         trialConsultationApi.myTrials(),
@@ -61,7 +59,8 @@ export const TrialConsultationSection: React.FC<TrialConsultationSectionProps> =
   }, [coachId]);
 
   useEffect(() => {
-    void load();
+    const initialLoad = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(initialLoad);
   }, [load]);
 
   const handleRequest = async () => {
@@ -82,6 +81,7 @@ export const TrialConsultationSection: React.FC<TrialConsultationSectionProps> =
   const handleCancel = async () => {
     if (!existingTrial || cancelling) return;
     setCancelling(true);
+    setLoading(true);
     setError(null);
     try {
       await trialConsultationApi.cancel(existingTrial.id);
@@ -106,6 +106,8 @@ export const TrialConsultationSection: React.FC<TrialConsultationSectionProps> =
             ? "Bu koç şu anda deneme görüşmesine açık değil."
             : code === "TRIAL_ALREADY_EXISTS"
               ? "Bu koçla zaten bekleyen veya onaylanmış bir deneme görüşmeniz var."
+              : code === "TRIAL_WEEKLY_LIMIT_REACHED"
+                ? "Her 7 günlük dönemde en fazla 2 ücretsiz görüşme planlayabilirsiniz."
               : error instanceof ApiError
                 ? error.detail || error.title
                 : error.message;
@@ -138,6 +140,11 @@ export const TrialConsultationSection: React.FC<TrialConsultationSectionProps> =
             <p className="trial-card__status">
               Durum: {existingTrial.status === "REQUESTED" ? "Onay bekliyor" : "Onaylandı"}
             </p>
+            {existingTrial.meetingUrl && (
+              <a className="trial-card__meeting-link" href={existingTrial.meetingUrl} target="_blank" rel="noreferrer">
+                Görüşmeye Katıl
+              </a>
+            )}
             <button className="trial-card__cancel" onClick={handleCancel} disabled={cancelling}>
               {cancelling ? "İptal ediliyor…" : "Görüşmeyi İptal Et"}
             </button>
@@ -147,7 +154,7 @@ export const TrialConsultationSection: React.FC<TrialConsultationSectionProps> =
         ) : (
           <>
             <div className="trial-card__slots">
-              {slots.slice(0, 6).map((slot) => {
+              {slots.map((slot) => {
                 const { date, time } = formatSlot(slot.startTime);
                 const selected = selectedSlotId === slot.id;
                 return (

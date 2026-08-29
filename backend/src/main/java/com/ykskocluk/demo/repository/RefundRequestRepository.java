@@ -15,6 +15,8 @@ import java.util.Optional;
 
 public interface RefundRequestRepository extends JpaRepository<RefundRequest, Long> {
     boolean existsByOriginalPaymentIdAndStatusIn(Long paymentId, Collection<RefundRequestStatus> statuses);
+    Optional<RefundRequest> findFirstByOriginalPaymentIdAndStatusIn(
+            Long paymentId, Collection<RefundRequestStatus> statuses);
 
     @EntityGraph(attributePaths = {"subscription.coachProfile.user", "subscription.pkg", "originalPayment", "refundPayment"})
     Page<RefundRequest> findByStudentIdOrderByRequestedAtDesc(Long studentId, Pageable pageable);

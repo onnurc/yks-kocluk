@@ -19,6 +19,9 @@ public interface TrialConsultationRepository extends JpaRepository<TrialConsulta
     boolean existsByStudentIdAndCoachProfileIdAndStatusIn(Long studentId, Long coachProfileId,
                                                            Collection<TrialConsultationStatus> statuses);
 
+    List<TrialConsultation> findByStudentIdAndStatusInAndStartTimeGreaterThanEqualAndStartTimeLessThanEqual(
+            Long studentId, Collection<TrialConsultationStatus> statuses, Instant from, Instant to);
+
     @Query("""
             select count(t) from TrialConsultation t
              where t.coachProfile.id = :coachId and t.status = :status

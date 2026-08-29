@@ -1,5 +1,7 @@
 package com.ykskocluk.demo.dto;
 
+import com.ykskocluk.demo.enums.AvailabilityPurpose;
+
 import java.time.Instant;
 
 public record AvailabilityResponse(
@@ -7,6 +9,7 @@ public record AvailabilityResponse(
         Long coachProfileId,
         Instant startTime,
         Instant endTime,
-        boolean booked
+        boolean booked,
+        AvailabilityPurpose purpose
 ) {
 }

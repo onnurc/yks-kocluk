@@ -13,6 +13,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -30,7 +33,8 @@ class TrialConsultationServiceTest {
     TrialConsultationService service;
 
     @BeforeEach void setUp() {
-        service = new TrialConsultationService(trials, availabilities, coaches, sessions, users, readiness);
+        service = new TrialConsultationService(trials, availabilities, coaches, sessions, users, readiness,
+                Clock.systemUTC());
     }
 
     @Test
@@ -38,7 +42,7 @@ class TrialConsultationServiceTest {
         User student = user(10L, Role.STUDENT, UserStatus.ACTIVE);
         CoachProfile coach = coach(20L, 30L, CoachProfileStatus.APPROVED);
         CoachAvailability slot = slot(40L, coach, Instant.now().plusSeconds(7200));
-        when(users.findById(10L)).thenReturn(Optional.of(student));
+        when(users.findByIdForUpdate(10L)).thenReturn(Optional.of(student));
         when(availabilities.findByIdForUpdate(40L)).thenReturn(Optional.of(slot));
         when(trials.existsByStudentIdAndCoachProfileIdAndStatusIn(eq(10L), eq(20L), any())).thenReturn(false);
         when(trials.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -57,7 +61,7 @@ class TrialConsultationServiceTest {
         CoachProfile coach = coach(21L, 31L, CoachProfileStatus.APPROVED);
         CoachAvailability slot = slot(41L, coach, Instant.now().plusSeconds(7200));
         slot.setBooked(true);
-        when(users.findById(11L)).thenReturn(Optional.of(student));
+        when(users.findByIdForUpdate(11L)).thenReturn(Optional.of(student));
         when(availabilities.findByIdForUpdate(41L)).thenReturn(Optional.of(slot));
 
         ApiException ex = assertThrows(ApiException.class,
@@ -90,7 +94,7 @@ class TrialConsultationServiceTest {
         User student = user(13L, Role.STUDENT, UserStatus.ACTIVE);
         CoachProfile coach = coach(23L, 33L, CoachProfileStatus.PENDING);
         CoachAvailability slot = slot(43L, coach, Instant.now().plusSeconds(7200));
-        when(users.findById(13L)).thenReturn(Optional.of(student));
+        when(users.findByIdForUpdate(13L)).thenReturn(Optional.of(student));
         when(availabilities.findByIdForUpdate(43L)).thenReturn(Optional.of(slot));
 
         ApiException ex = assertThrows(ApiException.class,
@@ -103,7 +107,7 @@ class TrialConsultationServiceTest {
         User student = user(14L, Role.STUDENT, UserStatus.ACTIVE);
         CoachProfile coach = coach(24L, 34L, CoachProfileStatus.APPROVED);
         CoachAvailability slot = slot(44L, coach, Instant.now().plusSeconds(7200));
-        when(users.findById(14L)).thenReturn(Optional.of(student));
+        when(users.findByIdForUpdate(14L)).thenReturn(Optional.of(student));
         when(availabilities.findByIdForUpdate(44L)).thenReturn(Optional.of(slot));
         when(sessions.existsOverlap(eq(24L), any(), eq(slot.getStartTime()), eq(slot.getEndTime()))).thenReturn(true);
 
@@ -125,6 +129,47 @@ class TrialConsultationServiceTest {
         assertEquals(TrialConsultationStatus.NO_SHOW, service.noShow(35L, 61L).status());
     }
 
+    @Test
+    void thirdTrialInsideAnyRollingSevenDaysIsRejected() {
+        Instant candidate = Instant.parse("2026-09-05T10:00:00Z");
+        service = new TrialConsultationService(trials, availabilities, coaches, sessions, users, readiness,
+                Clock.fixed(Instant.parse("2026-09-01T10:00:00Z"), ZoneOffset.UTC));
+        User student = user(15L, Role.STUDENT, UserStatus.ACTIVE);
+        CoachProfile coach = coach(26L, 36L, CoachProfileStatus.APPROVED);
+        CoachAvailability slot = slot(45L, coach, candidate);
+        when(users.findByIdForUpdate(15L)).thenReturn(Optional.of(student));
+        when(availabilities.findByIdForUpdate(45L)).thenReturn(Optional.of(slot));
+        when(trials.findByStudentIdAndStatusInAndStartTimeGreaterThanEqualAndStartTimeLessThanEqual(
+                eq(15L), any(), any(), any())).thenReturn(List.of(
+                scheduledTrial(coach, student, candidate.minusSeconds(2 * 86400L)),
+                scheduledTrial(coach(27L, 37L, CoachProfileStatus.APPROVED), student, candidate.plusSeconds(86400L))));
+
+        ApiException ex = assertThrows(ApiException.class,
+                () -> service.request(15L, new TrialConsultationCreateRequest(45L)));
+
+        assertEquals("TRIAL_WEEKLY_LIMIT_REACHED", ex.getErrorCode());
+        verify(trials, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void adminConfirmationStoresMeetingLinkAndIsIdempotent() {
+        Instant now = Instant.parse("2026-09-01T10:00:00Z");
+        service = new TrialConsultationService(trials, availabilities, coaches, sessions, users, readiness,
+                Clock.fixed(now, ZoneOffset.UTC));
+        User admin = user(1L, Role.ADMIN, UserStatus.ACTIVE);
+        CoachProfile coach = coach(28L, 38L, CoachProfileStatus.APPROVED);
+        TrialConsultation trial = scheduledTrial(coach, user(16L, Role.STUDENT, UserStatus.ACTIVE), now.plusSeconds(86400));
+        when(users.findById(1L)).thenReturn(Optional.of(admin)); when(trials.findById(70L)).thenReturn(Optional.of(trial));
+
+        var first = service.confirmByAdmin(1L, 70L, "https://meet.google.com/abc-defg-hij");
+        var repeated = service.confirmByAdmin(1L, 70L, "https://meet.google.com/abc-defg-hij");
+
+        assertTrue(first.newlyConfirmed()); assertFalse(repeated.newlyConfirmed());
+        assertEquals(TrialConsultationStatus.CONFIRMED, trial.getStatus());
+        assertEquals("https://meet.google.com/abc-defg-hij", trial.getMeetingUrl());
+        assertEquals(admin, trial.getConfirmedBy());
+    }
+
     private User user(Long id, Role role, UserStatus status) {
         User user = new User(); ReflectionTestUtils.setField(user, "id", id);
         user.setFullName("User " + id); user.setRole(role); user.setStatus(status); return user;
@@ -135,12 +180,18 @@ class TrialConsultationServiceTest {
     }
     private CoachAvailability slot(Long id, CoachProfile coach, Instant start) {
         CoachAvailability slot = new CoachAvailability(); ReflectionTestUtils.setField(slot, "id", id);
-        slot.setCoachProfile(coach); slot.setStartTime(start); slot.setEndTime(start.plusSeconds(3600)); return slot;
+        slot.setCoachProfile(coach); slot.setStartTime(start); slot.setEndTime(start.plusSeconds(1800));
+        slot.setPurpose(AvailabilityPurpose.TRIAL); return slot;
     }
     private TrialConsultation trial(Long id, CoachProfile coach, TrialConsultationStatus status) {
         TrialConsultation trial = new TrialConsultation(); ReflectionTestUtils.setField(trial, "id", id);
         trial.setCoachProfile(coach); trial.setStudent(user(id + 100, Role.STUDENT, UserStatus.ACTIVE));
         trial.setStartTime(Instant.now().minusSeconds(7200)); trial.setEndTime(Instant.now().minusSeconds(3600));
         trial.setStatus(status); return trial;
+    }
+    private TrialConsultation scheduledTrial(CoachProfile coach, User student, Instant start) {
+        TrialConsultation trial = new TrialConsultation(); trial.setCoachProfile(coach); trial.setStudent(student);
+        trial.setStartTime(start); trial.setEndTime(start.plusSeconds(1800)); trial.setStatus(TrialConsultationStatus.REQUESTED);
+        return trial;
     }
 }

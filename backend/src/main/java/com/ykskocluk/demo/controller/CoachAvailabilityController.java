@@ -2,6 +2,7 @@ package com.ykskocluk.demo.controller;
 
 import com.ykskocluk.demo.dto.AvailabilityCreateRequest;
 import com.ykskocluk.demo.dto.AvailabilityResponse;
+import com.ykskocluk.demo.dto.TrialAvailabilityUpdateRequest;
 import com.ykskocluk.demo.service.CoachAvailabilityService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -43,6 +45,17 @@ public class CoachAvailabilityController {
     @GetMapping
     public List<AvailabilityResponse> listOwn(@AuthenticationPrincipal Long coachUserId) {
         return availabilityService.listOwn(coachUserId);
+    }
+
+    @GetMapping("/trial")
+    public List<AvailabilityResponse> listOwnTrial(@AuthenticationPrincipal Long coachUserId) {
+        return availabilityService.listOwnTrialWindow(coachUserId);
+    }
+
+    @PutMapping("/trial")
+    public List<AvailabilityResponse> replaceOwnTrial(@AuthenticationPrincipal Long coachUserId,
+                                                       @Valid @RequestBody TrialAvailabilityUpdateRequest request) {
+        return availabilityService.replaceOwnTrialWindow(coachUserId, request);
     }
 
     @DeleteMapping("/{id}")
