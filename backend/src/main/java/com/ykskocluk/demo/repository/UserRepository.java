@@ -12,6 +12,8 @@ import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.UserStatus;
 
 import java.util.Optional;
+import java.time.Instant;
+import java.util.List;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
@@ -20,6 +22,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmailIgnoreCase(String email);
 
     Optional<User> findByGoogleSub(String googleSub);
+
+    @Query("""
+            select u.id from User u
+             where u.accountOrigin = com.ykskocluk.demo.enums.AccountOrigin.PUBLIC_PASSWORD
+               and u.emailVerified = false
+               and u.status = com.ykskocluk.demo.enums.UserStatus.ACTIVE
+               and u.createdAt <= :cutoff
+             order by u.id
+            """)
+    List<Long> findUnverifiedPublicRegistrationIds(@Param("cutoff") Instant cutoff, Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from User u where u.id = :id")

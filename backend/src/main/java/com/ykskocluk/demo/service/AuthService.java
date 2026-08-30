@@ -10,6 +10,7 @@ import com.ykskocluk.demo.dto.UserResponse;
 import com.ykskocluk.demo.entity.RefreshToken;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.Role;
+import com.ykskocluk.demo.enums.AccountOrigin;
 import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.enums.AccountDeletionStatus;
 import com.ykskocluk.demo.exception.ApiException;
@@ -19,6 +20,7 @@ import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.repository.AccountDeletionRequestRepository;
 import com.ykskocluk.demo.security.JwtService;
 import com.ykskocluk.demo.security.PasswordPolicy;
+import com.ykskocluk.demo.validation.EmailAddresses;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -80,12 +82,12 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        ensureIdentityWasNotDeleted(request.email(), null);
-        if (request.role() == Role.ADMIN || request.role() == Role.COACH) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "ROLE_NOT_ALLOWED",
-                    "Bu rol ile kayıt olunamaz");
+        String email = EmailAddresses.normalize(request.email());
+        if (!EmailAddresses.isValid(email)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_EMAIL", "Geçerli bir e-posta girin");
         }
-        if (request.role() == Role.STUDENT && request.dateOfBirth() == null) {
+        ensureIdentityWasNotDeleted(email, null);
+        if (request.dateOfBirth() == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "DATE_OF_BIRTH_REQUIRED",
                     "Öğrenci kaydı için doğum tarihi zorunludur");
         }
@@ -97,22 +99,21 @@ public class AuthService {
             }
         }
         PasswordPolicy.validate(request.password());
-        if (userRepository.existsByEmail(request.email())) {
+        if (userRepository.findByEmailIgnoreCase(email).isPresent()) {
             throw new ApiException(HttpStatus.CONFLICT, "EMAIL_ALREADY_EXISTS",
                     "Bu e-posta zaten kayıtlı");
         }
         LegalAcceptanceService.RequiredDocuments requiredDocuments = legalAcceptanceService.validateRequired(
                 request.acceptedTermsDocumentId(), request.acceptedExplicitConsentDocumentId());
         User user = new User();
-        user.setEmail(request.email());
+        user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setFullName(request.fullName());
-        user.setRole(request.role());
+        user.setFullName(request.fullName().trim());
+        user.setRole(Role.STUDENT);
         user.setStatus(UserStatus.ACTIVE);
         user.setEmailVerified(false);
-        if (request.role() == Role.STUDENT) {
-            user.setDateOfBirth(request.dateOfBirth());
-        }
+        user.setDateOfBirth(request.dateOfBirth());
+        user.setAccountOrigin(AccountOrigin.PUBLIC_PASSWORD);
         userRepository.save(user);
         legalAcceptanceService.recordRegistrationAcceptances(user, requiredDocuments,
                 Boolean.TRUE.equals(request.marketingEmailOptIn()), Boolean.TRUE.equals(request.marketingSmsOptIn()));
@@ -122,7 +123,7 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.email())
+        User user = userRepository.findByEmail(EmailAddresses.normalize(request.email()))
                 .orElseThrow(this::invalidCredentials);
         if (user.getPasswordHash() == null
                 || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
@@ -173,6 +174,7 @@ public class AuthService {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS",
                     "E-posta adresi doğrulanmamış");
         }
+        email = EmailAddresses.normalize(email);
         ensureIdentityWasNotDeleted(email, googleSub);
 
         Optional<User> bySub = userRepository.findByGoogleSub(googleSub);
@@ -207,6 +209,7 @@ public class AuthService {
                 user.setGoogleSub(googleSub);
                 user.setEmailVerified(true);
                 user.setLegalOnboardingCompleted(false);
+                user.setAccountOrigin(AccountOrigin.OAUTH);
                 userRepository.save(user);
                 eventPublisher.publishEvent(new WelcomeMailEvent(user.getEmail(), user.getFullName()));
             }

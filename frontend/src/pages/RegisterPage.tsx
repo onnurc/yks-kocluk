@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { FormError } from "../components/FormError";
@@ -10,6 +10,7 @@ import { readinessPathForUser } from "../auth/authNavigation";
 import { getApiBaseUrl } from "../api/httpClient";
 import { AuthPageShell } from "./AuthPageShell";
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "../auth/passwordPolicy";
+import { emailMessageFromApiError, GENERIC_OPERATION_ERROR, validateEmailForUx } from "../validation/emailValidation";
 import "./auth-page.css";
 
 const REGISTRATION_DOCUMENT_TYPES = ["TERMS_OF_USE", "EXPLICIT_CONSENT", "KVKK_NOTICE"] as const;
@@ -20,6 +21,8 @@ export const RegisterPage: React.FC = () => {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [error, setError] = useState<ApiError | Error | string | null>(null);
@@ -35,15 +38,26 @@ export const RegisterPage: React.FC = () => {
     else if (isAuthenticated && user) navigate(readinessPathForUser(user));
   }, [isAuthenticated, user, isSuspended, navigate]);
 
+  useEffect(() => {
+    if (emailError) emailInputRef.current?.focus();
+  }, [emailError]);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
+    setEmailError(null);
     if (!firstName.trim() || !lastName.trim()) {
       setError("Ad ve Soyad alanları gereklidir.");
       return;
     }
-    if (!email.trim() || !password.trim()) {
-      setError("E-posta ve şifre gereklidir.");
+    const nextEmailError = validateEmailForUx(email);
+    if (nextEmailError) {
+      setEmailError(nextEmailError);
+      emailInputRef.current?.focus();
+      return;
+    }
+    if (!password.trim()) {
+      setError("Şifre zorunludur.");
       return;
     }
     if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
@@ -73,7 +87,6 @@ export const RegisterPage: React.FC = () => {
         email,
         password,
         fullName: `${firstName.trim()} ${lastName.trim()}`,
-        role: "STUDENT",
         dateOfBirth,
         acceptedTermsDocumentId: legalDocuments.documents.TERMS_OF_USE!.id,
         acceptedExplicitConsentDocumentId: legalDocuments.documents.EXPLICIT_CONSENT!.id,
@@ -81,8 +94,14 @@ export const RegisterPage: React.FC = () => {
         marketingSmsOptIn,
       });
     } catch (err) {
+      const backendEmailError = emailMessageFromApiError(err);
+      if (backendEmailError) {
+        setEmailError(backendEmailError);
+        emailInputRef.current?.focus();
+        return;
+      }
       const message = legalErrorMessage(err);
-      setError(message || (err as ApiError | Error));
+      setError(message || GENERIC_OPERATION_ERROR);
       if (isStaleLegalDocumentError(err)) {
         setTermsAccepted(false);
         setExplicitConsentAccepted(false);
@@ -111,12 +130,15 @@ export const RegisterPage: React.FC = () => {
         Google ile Kayıt Ol
       </a>
       <div className="auth-divider">veya</div>
-      <form className="auth-form auth-form--register" onSubmit={handleSubmit}>
+      <form className="auth-form auth-form--register" onSubmit={handleSubmit} noValidate>
         <div className="auth-form__grid">
           <label className="auth-field" htmlFor="first-name"><span>Ad:</span><input id="first-name" type="text" autoComplete="given-name" value={firstName} onChange={(event) => setFirstName(event.target.value)} required disabled={loading} /></label>
           <label className="auth-field" htmlFor="last-name"><span>Soyad:</span><input id="last-name" type="text" autoComplete="family-name" value={lastName} onChange={(event) => setLastName(event.target.value)} required disabled={loading} /></label>
         </div>
-        <label className="auth-field" htmlFor="register-email"><span>E-posta:</span><input id="register-email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required disabled={loading} /></label>
+        <div className="auth-field-group">
+          <label className="auth-field" htmlFor="register-email"><span>E-posta:</span><input ref={emailInputRef} id="register-email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(event) => { setEmail(event.target.value); if (emailError) setEmailError(null); }} aria-invalid={emailError ? true : undefined} aria-describedby={emailError ? "register-email-error" : undefined} required disabled={loading} /></label>
+          {emailError && <p className="auth-field-error" id="register-email-error" role="alert">{emailError}</p>}
+        </div>
         <label className="auth-field" htmlFor="register-password"><span>Şifre (12–72 karakter):</span><input id="register-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={MIN_PASSWORD_LENGTH} maxLength={MAX_PASSWORD_LENGTH} required disabled={loading} /></label>
         <label className="auth-field" htmlFor="date-of-birth"><span>Doğum Tarihi:</span><input id="date-of-birth" type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} required disabled={loading} /></label>
 

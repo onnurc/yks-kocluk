@@ -59,12 +59,12 @@ class SessionIntegrationTest {
         return JsonPath.read(json, "$.accessToken");
     }
 
-    private String register(String email, String role) throws Exception {
+    private String register(String email) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"TestPassword123!","fullName":"%s","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
-                                """.formatted(email, email.split("@")[0], role)))
+                                {"email":"%s","password":"TestPassword123!","fullName":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
+                                """.formatted(email, email.split("@")[0])))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         TestUsers.verifyEmail(userRepository, email);
@@ -150,7 +150,7 @@ class SessionIntegrationTest {
         int slotId = createSlot(coach);
 
                 String studentEmail = "student-sess@example.com";
-                String student = register(studentEmail, "STUDENT");
+                String student = register(studentEmail);
                 seedActiveSubscription(studentEmail, coachId);
 
         // book -> 201 PLANNED
@@ -188,7 +188,7 @@ class SessionIntegrationTest {
         int slotId = createSlot(coach);
 
         // student has NO subscription with this coach -> 409
-        String student = register("student-nosub@example.com", "STUDENT");
+        String student = register("student-nosub@example.com");
         mockMvc.perform(post("/api/v1/sessions")
                         .header("Authorization", "Bearer " + student)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -204,7 +204,7 @@ class SessionIntegrationTest {
                 int coachId = (int) c[1];
                 int slotId = createSlot(coach);
 
-                String student = register("student-sess-pending@example.com", "STUDENT");
+                String student = register("student-sess-pending@example.com");
                 subscribe(student, coachId, firstPackageId(student));
 
                 mockMvc.perform(post("/api/v1/sessions")

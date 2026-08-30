@@ -49,12 +49,12 @@ class Phase3IntegrationTest {
         return JsonPath.read(json, "$.accessToken");
     }
 
-    private String register(String email, String role) throws Exception {
+    private String register(String email) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"TestPassword123!","fullName":"%s","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
-                                """.formatted(email, email.split("@")[0], role)))
+                                {"email":"%s","password":"TestPassword123!","fullName":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
+                                """.formatted(email, email.split("@")[0])))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return JsonPath.read(json, "$.accessToken");
@@ -107,7 +107,7 @@ class Phase3IntegrationTest {
         mockMvc.perform(post("/api/v1/admin/coaches/" + approvedMultiTrack + "/approve")
                 .header("Authorization", "Bearer " + admin)).andExpect(status().isOk());
 
-        String student = register("student@example.com", "STUDENT");
+        String student = register("student@example.com");
 
         // shared CI fixtures may add other approved coaches; these approved fixtures must be present and PENDING absent
         mockMvc.perform(get("/api/v1/coaches?size=100").header("Authorization", "Bearer " + student))

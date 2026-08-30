@@ -28,4 +28,8 @@ public interface StudentProfileRepository extends JpaRepository<StudentProfile, 
             on conflict (user_id) do nothing
             """, nativeQuery = true)
     int createBaselineIfMissing(@Param("userId") Long userId);
+
+    @Modifying
+    @Query("delete from StudentProfile p where p.user.id = :userId")
+    int deleteByUserId(@Param("userId") Long userId);
 }

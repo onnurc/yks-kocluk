@@ -1,22 +1,35 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { coachApplicationApi } from "./coachApplicationApi";
-import { ApiError } from "../api/ApiError";
+import { emailMessageFromApiError, GENERIC_OPERATION_ERROR, validateEmailForUx } from "../validation/emailValidation";
 import "./coach-application-page.css";
 
 export const CoachApplicationPage: React.FC = () => {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
   const [phone, setPhone] = useState("");
   const [experience, setExperience] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
+  useEffect(() => {
+    if (emailError) emailInputRef.current?.focus();
+  }, [emailError]);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
-    if (!fullName.trim() || !email.trim()) {
-      setError("Ad Soyad ve e-posta alanları gereklidir.");
+    setEmailError(null);
+    if (!fullName.trim()) {
+      setError("Ad Soyad alanı zorunludur.");
+      return;
+    }
+    const nextEmailError = validateEmailForUx(email);
+    if (nextEmailError) {
+      setEmailError(nextEmailError);
+      emailInputRef.current?.focus();
       return;
     }
     setLoading(true);
@@ -29,7 +42,13 @@ export const CoachApplicationPage: React.FC = () => {
       });
       setSubmitted(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.detail : "Başvuru gönderilemedi. Lütfen daha sonra tekrar deneyin.");
+      const backendEmailError = emailMessageFromApiError(err);
+      if (backendEmailError) {
+        setEmailError(backendEmailError);
+        emailInputRef.current?.focus();
+      } else {
+        setError(GENERIC_OPERATION_ERROR);
+      }
     } finally {
       setLoading(false);
     }
@@ -60,15 +79,18 @@ export const CoachApplicationPage: React.FC = () => {
 
         {error && <div className="coach-application-page__error" role="alert">{error}</div>}
 
-        <form className="coach-application-form" onSubmit={handleSubmit}>
+        <form className="coach-application-form" onSubmit={handleSubmit} noValidate>
           <label className="coach-application-field" htmlFor="coach-app-name">
             <span>Ad Soyad:</span>
             <input id="coach-app-name" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} required disabled={loading} />
           </label>
-          <label className="coach-application-field" htmlFor="coach-app-email">
-            <span>E-posta:</span>
-            <input id="coach-app-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={loading} />
-          </label>
+          <div className="coach-application-field-group">
+            <label className="coach-application-field" htmlFor="coach-app-email">
+              <span>E-posta:</span>
+              <input ref={emailInputRef} id="coach-app-email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(null); }} aria-invalid={emailError ? true : undefined} aria-describedby={emailError ? "coach-app-email-error" : undefined} required disabled={loading} />
+            </label>
+            {emailError && <span className="coach-application-field__error" id="coach-app-email-error" role="alert">{emailError}</span>}
+          </div>
           <label className="coach-application-field" htmlFor="coach-app-phone">
             <span>Telefon (isteğe bağlı):</span>
             <input id="coach-app-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={loading} />

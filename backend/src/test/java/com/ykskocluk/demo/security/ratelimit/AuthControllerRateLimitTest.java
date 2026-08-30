@@ -82,7 +82,7 @@ class AuthControllerRateLimitTest {
     @Test
     @WithMockUser
     void register_rateLimitExceeded_returns429AndRetryAfterHeader() throws Exception {
-        RegisterRequest request = new RegisterRequest("student@example.com", "SecurePassphrase42!", "FullName", Role.STUDENT, LocalDate.of(2008, 1, 1));
+        RegisterRequest request = new RegisterRequest("student@example.com", "SecurePassphrase42!", "FullName", LocalDate.of(2008, 1, 1));
 
         doThrow(new RateLimitExceededException(30L))
                 .when(rateLimitService).checkRegister(any(), any());

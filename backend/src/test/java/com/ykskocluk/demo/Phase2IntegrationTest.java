@@ -41,12 +41,12 @@ class Phase2IntegrationTest {
         return loginToken(email, "TestPassword123!");
     }
 
-    private String register(String email, String role) throws Exception {
+    private String register(String email) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"TestPassword123!","fullName":"Test User","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
-                                """.formatted(email, role)))
+                                {"email":"%s","password":"TestPassword123!","fullName":"Test User","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
+                                """.formatted(email)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return JsonPath.read(json, "$.accessToken");
@@ -114,7 +114,7 @@ class Phase2IntegrationTest {
 
     @Test
     void authorizationMatrix() throws Exception {
-        String studentToken = register("student1@example.com", "STUDENT");
+        String studentToken = register("student1@example.com");
         String coachToken = registerCoach("coach2@example.com");
 
         // student cannot create a coach profile -> 403

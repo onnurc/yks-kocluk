@@ -1,15 +1,13 @@
 package com.ykskocluk.demo.dto;
 
-import com.ykskocluk.demo.enums.Role;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import com.ykskocluk.demo.validation.StrictEmail;
 
 public record RegisterRequest(
 
         @NotBlank(message = "E-posta boş olamaz")
-        @Email(message = "Geçerli bir e-posta girin")
+        @StrictEmail
         @Size(max = 255, message = "E-posta en fazla 255 karakter olabilir")
         String email,
 
@@ -21,20 +19,17 @@ public record RegisterRequest(
         @Size(max = 150, message = "Ad en fazla 150 karakter olabilir")
         String fullName,
 
-        @NotNull(message = "Rol seçilmeli")
-        Role role,
-
         java.time.LocalDate dateOfBirth,
         Long acceptedTermsDocumentId,
         Long acceptedExplicitConsentDocumentId,
         Boolean marketingEmailOptIn,
         Boolean marketingSmsOptIn
 ) {
-    public RegisterRequest(String email, String password, String fullName, Role role) {
-        this(email, password, fullName, role, null, null, null, false, false);
+    public RegisterRequest(String email, String password, String fullName) {
+        this(email, password, fullName, null, null, null, false, false);
     }
 
-    public RegisterRequest(String email, String password, String fullName, Role role, java.time.LocalDate dateOfBirth) {
-        this(email, password, fullName, role, dateOfBirth, null, null, false, false);
+    public RegisterRequest(String email, String password, String fullName, java.time.LocalDate dateOfBirth) {
+        this(email, password, fullName, dateOfBirth, null, null, false, false);
     }
 }

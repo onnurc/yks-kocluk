@@ -48,12 +48,12 @@ class SubscriptionIntegrationTest {
         return JsonPath.read(json, "$.accessToken");
     }
 
-    private String register(String email, String role) throws Exception {
+    private String register(String email) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"TestPassword123!","fullName":"%s","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
-                                """.formatted(email, email.split("@")[0], role)))
+                                {"email":"%s","password":"TestPassword123!","fullName":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
+                                """.formatted(email, email.split("@")[0])))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         TestUsers.verifyEmail(userRepository, email);
@@ -101,7 +101,7 @@ class SubscriptionIntegrationTest {
     void subscribe_flow_andDuplicateGuard() throws Exception {
         String admin = adminToken();
         int coachId = approvedCoachProfileId("coach-sub@example.com", admin);
-        String student = register("student-sub@example.com", "STUDENT");
+        String student = register("student-sub@example.com");
         long packageId = firstPackageId(student);
 
         String body = "{\"coachId\":%d,\"packageId\":%d}".formatted(coachId, packageId);

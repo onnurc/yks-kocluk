@@ -69,7 +69,7 @@ class EmailVerificationServiceTest {
     void correctCodeVerifiesAndInvalidatesEveryOutstandingCode() {
         String raw = "123456";
         EmailVerificationCode stored = activeCode(raw);
-        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(user));
         when(codeRepository.findLatestForUpdate(7L)).thenReturn(Optional.of(stored));
 
         assertThat(service.verify(7L, raw).emailVerified()).isTrue();
@@ -80,7 +80,7 @@ class EmailVerificationServiceTest {
 
     @Test
     void invalidAndExpiredCodesHaveDistinctErrors() {
-        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(user));
         EmailVerificationCode invalid = activeCode("123456");
         when(codeRepository.findLatestForUpdate(7L)).thenReturn(Optional.of(invalid));
         ApiException invalidError = catchThrowableOfType(ApiException.class, () -> service.verify(7L, "654321"));
@@ -97,6 +97,7 @@ class EmailVerificationServiceTest {
     @Test
     void verifiedUserIsIdempotentAndDoesNotCreateOrSendCode() {
         user.setEmailVerified(true);
+        when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(user));
         when(userRepository.findById(7L)).thenReturn(Optional.of(user));
 
         assertThat(service.verify(7L, "anything").emailVerified()).isTrue();

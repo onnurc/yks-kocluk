@@ -2,35 +2,28 @@ package com.ykskocluk.demo.service;
 
 import com.ykskocluk.demo.dto.CoachApplicationRequest;
 import com.ykskocluk.demo.dto.CoachApplicationResponse;
-import com.ykskocluk.demo.dto.ForgotPasswordRequest;
 import com.ykskocluk.demo.dto.PageResponse;
 import com.ykskocluk.demo.entity.CoachApplication;
-import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.User;
+import com.ykskocluk.demo.enums.AccountOrigin;
 import com.ykskocluk.demo.enums.CoachApplicationStatus;
-import com.ykskocluk.demo.enums.CoachProfileStatus;
-import com.ykskocluk.demo.enums.Role;
-import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.CoachApplicationRepository;
-import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.UserRepository;
+import com.ykskocluk.demo.validation.EmailAddresses;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.security.SecureRandom;
 import java.time.Instant;
-import java.util.Base64;
 
 /**
  * Coach onboarding front door. Anyone can {@link #submit} an application (no account, no
  * OAuth — a plain form). An admin reviews it and either {@link #reject}s it or {@link #approve}s
- * it, which is the only place a {@code COACH} {@link User} account gets created (self-registration
- * as COACH is blocked in {@code AuthService.register}). Approval never sets a password directly:
+ * it. Approval and manual admin creation share {@link CoachAccountProvisioningService}; public
+ * self-registration never accepts a role. Provisioning never sets a password directly:
  * it creates the account with an unusable placeholder hash and immediately routes through the
  * existing {@link PasswordSecurityService#forgotPassword} flow, so the coach picks their own
  * password via the same emailed reset link every other user already uses — the admin never
@@ -39,29 +32,24 @@ import java.util.Base64;
 @Service
 public class CoachApplicationService {
 
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-
     private final CoachApplicationRepository coachApplicationRepository;
     private final UserRepository userRepository;
-    private final CoachProfileRepository coachProfileRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final PasswordSecurityService passwordSecurityService;
+    private final CoachAccountProvisioningService provisioningService;
 
     public CoachApplicationService(CoachApplicationRepository coachApplicationRepository,
                                    UserRepository userRepository,
-                                   CoachProfileRepository coachProfileRepository,
-                                   PasswordEncoder passwordEncoder,
-                                   PasswordSecurityService passwordSecurityService) {
+                                   CoachAccountProvisioningService provisioningService) {
         this.coachApplicationRepository = coachApplicationRepository;
         this.userRepository = userRepository;
-        this.coachProfileRepository = coachProfileRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.passwordSecurityService = passwordSecurityService;
+        this.provisioningService = provisioningService;
     }
 
     @Transactional
     public void submit(CoachApplicationRequest request) {
-        String email = request.email().trim().toLowerCase();
+        String email = EmailAddresses.normalize(request.email());
+        if (!EmailAddresses.isValid(email)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_EMAIL", "Geçerli bir e-posta girin");
+        }
 
         // Checked in order of specificity, so the applicant always sees the most useful message
         // rather than a generic one: an approved coach's email is also a User email (approve()
@@ -110,45 +98,13 @@ public class CoachApplicationService {
         CoachApplication application = findOrThrow(id);
         ensurePending(application);
 
-        userRepository.findByEmailIgnoreCase(application.getEmail()).ifPresent(existing -> {
-            throw new ApiException(HttpStatus.CONFLICT, "EMAIL_ALREADY_EXISTS",
-                    "Bu e-posta zaten %s rolüyle kayıtlı (kullanıcı #%d). Devam etmeden önce mevcut hesabı inceleyin."
-                            .formatted(existing.getRole(), existing.getId()));
-        });
-
-        User user = new User();
-        user.setEmail(application.getEmail());
-        user.setFullName(application.getFullName());
-        user.setRole(Role.COACH);
-        user.setStatus(UserStatus.ACTIVE);
-        // Unusable placeholder — never handed to anyone. Its only purpose is making this
-        // account "eligible" (PasswordSecurityService.eligible requires passwordHash != null)
-        // for the reset-link flow triggered right below, which is how the coach sets their
-        // real password. No account can authenticate with this value: it's discarded and
-        // never logged, printed, or transmitted anywhere.
-        user.setPasswordHash(passwordEncoder.encode(randomPlaceholder()));
-        // Vetted by the application review itself — no separate email-ownership code step.
-        user.setEmailVerified(true);
-        // Same convention as a fresh Google sign-up (AuthService.upsertGoogleUser): the account
-        // still needs to pass through the standard legal-onboarding gate on first login.
-        user.setLegalOnboardingCompleted(false);
-        userRepository.save(user);
-
-        CoachProfile profile = new CoachProfile();
-        profile.setUser(user);
-        profile.setStatus(CoachProfileStatus.PENDING);
-        profile.setActiveStudentCount(0);
-        profile.setMaxStudentCapacity(10);
-        profile.setPayoutAccountReady(false);
-        coachProfileRepository.save(profile);
+        var provisioned = provisioningService.provision(
+                application.getFullName(), application.getEmail(), AccountOrigin.COACH_APPLICATION);
+        User user = provisioned.user();
 
         application.setStatus(CoachApplicationStatus.APPROVED);
         application.setReviewedAt(Instant.now());
         application.setLinkedUser(user);
-
-        // Reuses the existing, tested forgot-password flow end to end (token, email, TTL) —
-        // joins this method's transaction, so the email only fires after this commits.
-        passwordSecurityService.forgotPassword(new ForgotPasswordRequest(application.getEmail()));
 
         return CoachApplicationResponse.from(application);
     }
@@ -174,11 +130,5 @@ public class CoachApplicationService {
             throw new ApiException(HttpStatus.CONFLICT, "COACH_APPLICATION_ALREADY_REVIEWED",
                     "Bu başvuru zaten değerlendirilmiş");
         }
-    }
-
-    private static String randomPlaceholder() {
-        byte[] bytes = new byte[32];
-        SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 }

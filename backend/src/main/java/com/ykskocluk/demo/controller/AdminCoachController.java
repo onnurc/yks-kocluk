@@ -1,5 +1,7 @@
 package com.ykskocluk.demo.controller;
 
+import com.ykskocluk.demo.dto.AdminCoachCreateRequest;
+import com.ykskocluk.demo.dto.AdminCoachCreateResponse;
 import com.ykskocluk.demo.dto.CoachProfileResponse;
 import com.ykskocluk.demo.dto.CoachYoutubeIntroRequest;
 import com.ykskocluk.demo.dto.CoachYoutubeIntroResponse;
@@ -10,6 +12,7 @@ import com.ykskocluk.demo.service.CoachProfileService;
 import com.ykskocluk.demo.service.AdminDashboardService;
 import com.ykskocluk.demo.service.CoachDashboardService;
 import com.ykskocluk.demo.service.CoachYoutubeIntroService;
+import com.ykskocluk.demo.service.AdminCoachCreationService;
 import com.ykskocluk.demo.dto.CoachStudentResponse;
 import com.ykskocluk.demo.dto.AdminCoachDirectoryResponse;
 import com.ykskocluk.demo.enums.AdminCoachFilter;
@@ -40,15 +43,24 @@ public class AdminCoachController {
     private final AdminDashboardService adminDashboardService;
     private final CoachDashboardService coachDashboardService;
     private final CoachYoutubeIntroService youtubeIntroService;
+    private final AdminCoachCreationService coachCreationService;
 
     public AdminCoachController(CoachProfileService coachProfileService,
                                 AdminDashboardService adminDashboardService,
                                 CoachDashboardService coachDashboardService,
-                                CoachYoutubeIntroService youtubeIntroService) {
+                                CoachYoutubeIntroService youtubeIntroService,
+                                AdminCoachCreationService coachCreationService) {
         this.coachProfileService = coachProfileService;
         this.adminDashboardService = adminDashboardService;
         this.coachDashboardService = coachDashboardService;
         this.youtubeIntroService = youtubeIntroService;
+        this.coachCreationService = coachCreationService;
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public AdminCoachCreateResponse create(@Valid @RequestBody AdminCoachCreateRequest request) {
+        return coachCreationService.create(request);
     }
 
     @GetMapping

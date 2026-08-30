@@ -68,7 +68,9 @@ public class EmailVerificationService {
 
     @Transactional(noRollbackFor = ApiException.class)
     public EmailVerificationResponse verify(Long userId, String rawCode) {
-        User user = requireUser(userId);
+        // User row first, then verification-code row. The stale-registration cleanup uses the
+        // same order, preventing verification/cleanup from racing through opposite lock orders.
+        User user = requireUserForUpdate(userId);
         if (user.isEmailVerified()) return new EmailVerificationResponse(true, null);
         EmailVerificationCode code = codeRepository.findLatestForUpdate(userId)
                 .orElseThrow(this::invalidCode);
@@ -114,6 +116,11 @@ public class EmailVerificationService {
 
     private User requireUser(Long userId) {
         return userRepository.findById(userId).orElseThrow(() -> new ApiException(
+                HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
+    }
+
+    private User requireUserForUpdate(Long userId) {
+        return userRepository.findByIdForUpdate(userId).orElseThrow(() -> new ApiException(
                 HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
     }
 
