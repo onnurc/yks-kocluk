@@ -71,6 +71,23 @@
   outline-offset: 1px;
 }
 
+.coach-application-field-group {
+  display: grid;
+  gap: 8px;
+}
+
+.coach-application-field input[aria-invalid="true"] {
+  border-color: #a33b43;
+  background: #fff8f7;
+}
+
+.coach-application-field__error {
+  color: #8b1d27;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
 .coach-application-submit {
   align-self: flex-start;
   padding: 12px 28px;

@@ -66,12 +66,12 @@ class SubscriptionCheckoutIntegrationTest {
         return JsonPath.read(json, "$.accessToken");
     }
 
-    private String register(String email, String role) throws Exception {
+    private String register(String email) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"TestPassword123!","fullName":"%s","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
-                                """.formatted(email, email.split("@")[0], role)))
+                                {"email":"%s","password":"TestPassword123!","fullName":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
+                                """.formatted(email, email.split("@")[0])))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         TestUsers.verifyEmail(userRepository, email);
@@ -118,7 +118,7 @@ class SubscriptionCheckoutIntegrationTest {
         String admin = adminToken();
         int coachId = approvedCoachProfileId("coach-checkout@example.com", admin);
         String studentEmail = "student-checkout@example.com";
-        String student = register(studentEmail, "STUDENT");
+        String student = register(studentEmail);
         long packageId = firstPackageId(student);
 
         String body = checkoutBody(coachId, packageId);
@@ -156,7 +156,7 @@ class SubscriptionCheckoutIntegrationTest {
     void checkout_duplicatePendingIsRejected() throws Exception {
         String admin = adminToken();
         int coachId = approvedCoachProfileId("coach-checkout-dupe@example.com", admin);
-        String student = register("student-checkout-dupe@example.com", "STUDENT");
+        String student = register("student-checkout-dupe@example.com");
         long packageId = firstPackageId(student);
         String body = checkoutBody(coachId, packageId);
 
@@ -196,7 +196,7 @@ class SubscriptionCheckoutIntegrationTest {
     void succeedPayment_e2e_flow_success_andIdempotency() throws Exception {
         String admin = adminToken();
         int coachId = approvedCoachProfileId("coach-succeed@example.com", admin);
-        String student = register("student-succeed@example.com", "STUDENT");
+        String student = register("student-succeed@example.com");
         long packageId = firstPackageId(student);
 
         String body = checkoutBody(coachId, packageId);
@@ -244,8 +244,8 @@ class SubscriptionCheckoutIntegrationTest {
     void succeedPayment_unauthorizedStudent_forbidden() throws Exception {
         String admin = adminToken();
         int coachId = approvedCoachProfileId("coach-succeed-authz@example.com", admin);
-        String studentA = register("student-succeed-a@example.com", "STUDENT");
-        String studentB = register("student-succeed-b@example.com", "STUDENT");
+        String studentA = register("student-succeed-a@example.com");
+        String studentB = register("student-succeed-b@example.com");
         long packageId = firstPackageId(studentA);
 
         String body = checkoutBody(coachId, packageId);

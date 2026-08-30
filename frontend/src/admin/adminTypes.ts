@@ -16,3 +16,5 @@ export interface AdminCoach { id:number; userId:number; coachProfileId:number; n
 export interface CoachStudent { studentId:number; displayName:string; packageId:number; packageName:string; subscriptionStatus:string; subscriptionStart:string; subscriptionEnd:string; sessionsUsedInCurrentWeek:number; sessionsRemainingInCurrentWeek:number; conversationId:number|null; nextSession:{id:number;startTime:string;endTime:string;status:string}|null; }
 export interface AdminSession { id:number; type:"PAID"|"TRIAL"; coachProfileId:number; coachUserId:number; coachName:string; studentId:number; studentName:string; studentEmail?:string; startsAt:string; endsAt:string; status:string; subscriptionId:number|null; meetingUrl?:string|null; }
 export interface SuspendResponse { userId:number; status:UserStatus; reason:string|null; }
+export interface AdminCoachCreateRequest { fullName:string; email:string; }
+export interface AdminCoachCreateResponse { userId:number; coachProfileId:number; fullName:string; email:string; accountStatus:UserStatus; profileStatus:string; }

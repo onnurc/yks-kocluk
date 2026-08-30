@@ -11,6 +11,7 @@ import { AdminCoachApplicationsPage } from "../pages/admin/AdminCoachApplication
 
 const mocks = vi.hoisted(() => ({
   summary: vi.fn(), users: vi.fn(), user: vi.fn(), coaches: vi.fn(), coach: vi.fn(), coachStudents: vi.fn(),
+  createCoach: vi.fn(), approveCoachProfile: vi.fn(), rejectCoachProfile: vi.fn(),
   suspendUser: vi.fn(), activateUser: vi.fn(), sessions: vi.fn(),
   removeProfileImage: vi.fn(), confirmTrial: vi.fn(),
   financeSummary: vi.fn(), payments: vi.fn(), subscriptions: vi.fn(), refundAudit: vi.fn(), refund: vi.fn(), terminate: vi.fn(),
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../admin/adminApi", () => ({ adminApi: {
   summary: mocks.summary, users: mocks.users, coaches: mocks.coaches, coach: mocks.coach,
   user: mocks.user,
+  createCoach: mocks.createCoach, approveCoachProfile: mocks.approveCoachProfile, rejectCoachProfile: mocks.rejectCoachProfile,
   coachStudents: mocks.coachStudents, suspendUser: mocks.suspendUser, activateUser: mocks.activateUser,
   sessions: mocks.sessions, removeProfileImage: mocks.removeProfileImage, confirmTrial: mocks.confirmTrial,
 } }));
@@ -37,6 +39,7 @@ vi.mock("../coachApplications/coachApplicationAdminApi", () => ({ coachApplicati
 
 const page = <T,>(content: T[]) => ({ content, page: 0, size: 20, totalElements: content.length, totalPages: 1, last: true });
 const coach = { id: 7, userId: 70, coachProfileId: 7, name: "Derya Koç", email: "derya@example.com", status: "APPROVED", approvalState: "APPROVED", accountStatus: "ACTIVE" as const, universityId: 4, university: "ODTÜ", department: "Fizik", publiclyVisible: true, createdAt: "2026-01-01T10:00:00Z" };
+const pendingCoach = { ...coach, id: 8, userId: 80, coachProfileId: 8, name: "Yeni Koç", email: "yeni@example.com", status: "PENDING", approvalState: "PENDING", publiclyVisible: false };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -92,6 +95,54 @@ describe("admin management experience", () => {
     fireEvent.change(screen.getByLabelText("Gerekçe"), { target: { value: "Operasyon" } });
     fireEvent.click(screen.getByRole("button", { name: "Onayla" }));
     await waitFor(() => expect(mocks.suspendUser).toHaveBeenCalledWith(70, "Operasyon"));
+  });
+
+  it("creates a coach without an application and refreshes the directory", async () => {
+    mocks.createCoach.mockResolvedValue({ userId: 80, coachProfileId: 8, fullName: "Yeni Koç", email: "yeni@example.com", accountStatus: "ACTIVE", profileStatus: "PENDING" });
+    render(<AdminCoachesPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Koç Ekle" }));
+    fireEvent.change(screen.getByLabelText("Ad Soyad"), { target: { value: "Yeni Koç" } });
+    fireEvent.change(screen.getByLabelText("E-posta"), { target: { value: " Yeni@Example.com " } });
+    fireEvent.click(screen.getByRole("button", { name: "Koç Hesabı Oluştur" }));
+    await waitFor(() => expect(mocks.createCoach).toHaveBeenCalledWith({ fullName: "Yeni Koç", email: "Yeni@Example.com" }));
+    expect(await screen.findByText(/Parola belirleme bağlantısı koça e-posta ile gönderildi/)).toBeInTheDocument();
+    await waitFor(() => expect(mocks.coaches.mock.calls.length).toBeGreaterThanOrEqual(2));
+  });
+
+  it("shows malformed manual-coach email directly below its input", async () => {
+    render(<AdminCoachesPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Koç Ekle" }));
+    fireEvent.change(screen.getByLabelText("Ad Soyad"), { target: { value: "Yeni Koç" } });
+    fireEvent.change(screen.getByLabelText("E-posta"), { target: { value: "@gmail.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Koç Hesabı Oluştur" }));
+
+    expect(screen.getByText("Geçerli bir e-posta adresi girin. Örnek: adiniz@gmail.com", { selector: ".admin-field-error" })).toBeInTheDocument();
+    expect(screen.getByLabelText("E-posta")).toHaveAttribute("aria-invalid", "true");
+    expect(mocks.createCoach).not.toHaveBeenCalled();
+  });
+
+  it("approves a pending coach profile and refreshes the directory", async () => {
+    mocks.coaches.mockResolvedValue(page([pendingCoach])); mocks.coach.mockResolvedValue(pendingCoach);
+    mocks.coachStudents.mockResolvedValue(page([])); mocks.approveCoachProfile.mockResolvedValue({});
+    render(<AdminCoachesPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Detay" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Profili Onayla" }));
+    fireEvent.click(screen.getByRole("button", { name: "Profil Onayını Doğrula" }));
+    await waitFor(() => expect(mocks.approveCoachProfile).toHaveBeenCalledWith(8));
+    expect(await screen.findByText("Koç profili onaylandı.")).toBeInTheDocument();
+  });
+
+  it("requires a reason when rejecting a pending coach profile", async () => {
+    mocks.coaches.mockResolvedValue(page([pendingCoach])); mocks.coach.mockResolvedValue(pendingCoach);
+    mocks.coachStudents.mockResolvedValue(page([])); mocks.rejectCoachProfile.mockResolvedValue({});
+    render(<AdminCoachesPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Detay" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Profili Reddet" }));
+    const confirm = screen.getAllByRole("button", { name: "Profili Reddet" })[1];
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Profil red gerekçesi"), { target: { value: "Profil bilgileri eksik" } });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(mocks.rejectCoachProfile).toHaveBeenCalledWith(8, "Profil bilgileri eksik"));
   });
 
   it("distinguishes paid sessions and trials and treats an empty result as valid", async () => {

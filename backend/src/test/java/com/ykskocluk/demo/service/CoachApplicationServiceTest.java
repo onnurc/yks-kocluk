@@ -6,17 +6,16 @@ import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachApplicationStatus;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
+import com.ykskocluk.demo.enums.AccountOrigin;
 import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.CoachApplicationRepository;
-import com.ykskocluk.demo.repository.CoachProfileRepository;
 import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
 
@@ -33,13 +32,10 @@ class CoachApplicationServiceTest {
 
     @Mock CoachApplicationRepository coachApplicationRepository;
     @Mock UserRepository userRepository;
-    @Mock CoachProfileRepository coachProfileRepository;
-    @Mock PasswordEncoder passwordEncoder;
-    @Mock PasswordSecurityService passwordSecurityService;
+    @Mock CoachAccountProvisioningService provisioningService;
 
     private CoachApplicationService service() {
-        return new CoachApplicationService(coachApplicationRepository, userRepository, coachProfileRepository,
-                passwordEncoder, passwordSecurityService);
+        return new CoachApplicationService(coachApplicationRepository, userRepository, provisioningService);
     }
 
     private CoachApplicationRequest request(String email) {
@@ -47,6 +43,14 @@ class CoachApplicationServiceTest {
     }
 
     // --- submit: duplicate-application guard ---
+
+    @Test
+    void submit_invalidEmailDoesNotCreateApplication() {
+        ApiException error = catchThrowableOfType(ApiException.class,
+                () -> service().submit(request("emre@gmail..com")));
+        assertThat(error.getErrorCode()).isEqualTo("INVALID_EMAIL");
+        verify(coachApplicationRepository, never()).save(any());
+    }
 
     @Test
     void submit_pendingApplicationExists_rejected() {
@@ -150,18 +154,21 @@ class CoachApplicationServiceTest {
         application.setFullName("Approved Coach");
         application.setStatus(CoachApplicationStatus.PENDING);
         when(coachApplicationRepository.findById(14L)).thenReturn(Optional.of(application));
-        when(userRepository.findByEmailIgnoreCase("approved@example.com")).thenReturn(Optional.empty());
-        when(passwordEncoder.encode(any())).thenReturn("encoded-placeholder");
+        User user = new User();
+        user.setEmail("approved@example.com");
+        user.setFullName("Approved Coach");
+        user.setRole(Role.COACH);
+        CoachProfile profile = new CoachProfile();
+        profile.setUser(user);
+        profile.setStatus(CoachProfileStatus.PENDING);
+        when(provisioningService.provision("Approved Coach", "approved@example.com", AccountOrigin.COACH_APPLICATION))
+                .thenReturn(new CoachAccountProvisioningService.ProvisionedCoach(user, profile));
 
         service.approve(14L);
 
-        ArgumentCaptor<CoachProfile> profileCaptor = ArgumentCaptor.forClass(CoachProfile.class);
-        verify(coachProfileRepository).save(profileCaptor.capture());
-        assertThat(profileCaptor.getValue().getUser().getRole()).isEqualTo(Role.COACH);
-        assertThat(profileCaptor.getValue().getStatus()).isEqualTo(CoachProfileStatus.PENDING);
-        assertThat(profileCaptor.getValue().getHeadline()).isNull();
-        assertThat(profileCaptor.getValue().getUniversity()).isNull();
-        assertThat(profileCaptor.getValue().getActiveStudentCount()).isZero();
-        verify(passwordSecurityService).forgotPassword(any());
+        verify(provisioningService).provision(
+                "Approved Coach", "approved@example.com", AccountOrigin.COACH_APPLICATION);
+        assertThat(application.getLinkedUser()).isSameAs(user);
+        assertThat(application.getStatus()).isEqualTo(CoachApplicationStatus.APPROVED);
     }
 }

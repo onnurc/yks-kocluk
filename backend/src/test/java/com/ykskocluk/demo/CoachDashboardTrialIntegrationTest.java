@@ -43,8 +43,8 @@ class CoachDashboardTrialIntegrationTest {
         long coachId = (long) firstCoach[1];
         Object[] secondCoach = approvedCoach("dashboard-trial-other@example.com", admin);
         String otherCoach = (String) secondCoach[0];
-        String student = register("dashboard-trial-student@example.com", "STUDENT");
-        String secondStudent = register("dashboard-trial-student-2@example.com", "STUDENT");
+        String student = register("dashboard-trial-student@example.com");
+        String secondStudent = register("dashboard-trial-student-2@example.com");
 
         mockMvc.perform(get("/api/v1/coach/dashboard/summary").header("Authorization", "Bearer " + coach))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.activeStudentCount").value(0))
@@ -90,11 +90,11 @@ class CoachDashboardTrialIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$[?(@.id == %d)]".formatted(firstSlot)).isEmpty());
     }
 
-    private String register(String email, String role) throws Exception {
+    private String register(String email) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"TestPassword123!","fullName":"Test User","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
-                                """.formatted(email, role)))
+                                {"email":"%s","password":"TestPassword123!","fullName":"Test User","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
+                                """.formatted(email)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         TestUsers.verifyEmail(userRepository, email);
         return JsonPath.read(json, "$.accessToken");

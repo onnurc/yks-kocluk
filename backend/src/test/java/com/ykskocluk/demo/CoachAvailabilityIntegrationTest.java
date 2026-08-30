@@ -39,12 +39,12 @@ class CoachAvailabilityIntegrationTest {
     @Autowired
     PasswordEncoder passwordEncoder;
 
-    private String register(String email, String role) throws Exception {
+    private String register(String email) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"TestPassword123!","fullName":"%s","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
-                                """.formatted(email, email.split("@")[0], role)))
+                                {"email":"%s","password":"TestPassword123!","fullName":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
+                                """.formatted(email, email.split("@")[0])))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return JsonPath.read(json, "$.accessToken");
@@ -127,7 +127,7 @@ class CoachAvailabilityIntegrationTest {
                 .andExpect(jsonPath("$[0].id").value(slotId));
 
         // student sees the open future slot
-        String student = register("student-avail@example.com", "STUDENT");
+        String student = register("student-avail@example.com");
         mockMvc.perform(get("/api/v1/coaches/" + profileId + "/availability")
                         .header("Authorization", "Bearer " + student))
                 .andExpect(status().isOk())
@@ -176,7 +176,7 @@ class CoachAvailabilityIntegrationTest {
 
     @Test
     void authorization_studentCannotManageSlots() throws Exception {
-        String student = register("student-avail-authz@example.com", "STUDENT");
+        String student = register("student-avail-authz@example.com");
         Instant start = Instant.now().plus(1, ChronoUnit.DAYS);
 
         // STUDENT cannot create coach slots -> 403

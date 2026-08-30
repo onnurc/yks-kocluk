@@ -28,7 +28,7 @@ class AdminDashboardIntegrationTest {
     @Test
     void adminReadModelsLoadAgainstPostgresAndNonAdminsAreDenied() throws Exception {
         String admin = login("admin@yks.local", "admin1234");
-        String student = register("admin-dashboard-auth-student@example.com", "STUDENT");
+        String student = register("admin-dashboard-auth-student@example.com");
         // Coaches no longer self-register (see AuthService.register) — build the fixture
         // directly and log it in for a real token, same as every other case here.
         String coachEmail = "admin-dashboard-auth-coach@example.com";
@@ -59,11 +59,11 @@ class AdminDashboardIntegrationTest {
         return JsonPath.read(body, "$.accessToken");
     }
 
-    private String register(String email, String role) throws Exception {
+    private String register(String email) throws Exception {
         String body = mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"TestPassword123!","fullName":"Admin Dashboard Test","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
-                                """.formatted(email, role)))
+                                {"email":"%s","password":"TestPassword123!","fullName":"Admin Dashboard Test","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
+                                """.formatted(email)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         return JsonPath.read(body, "$.accessToken");
     }

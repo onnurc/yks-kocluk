@@ -25,4 +25,8 @@ public interface EmailVerificationCodeRepository extends JpaRepository<EmailVeri
     @Modifying
     @Query("delete from EmailVerificationCode c where c.expiresAt < :expiredBefore or (c.usedAt is not null and c.usedAt < :usedBefore)")
     int deleteRetired(@Param("expiredBefore") Instant expiredBefore, @Param("usedBefore") Instant usedBefore);
+
+    @Modifying
+    @Query("delete from EmailVerificationCode c where c.user.id = :userId")
+    int deleteByUserId(@Param("userId") Long userId);
 }

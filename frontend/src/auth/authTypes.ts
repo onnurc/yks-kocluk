@@ -28,7 +28,6 @@ export interface RegisterRequest {
   email: string;
   password: string;
   fullName: string;
-  role: "STUDENT" | "COACH";
   dateOfBirth?: string;
   acceptedTermsDocumentId: number;
   acceptedExplicitConsentDocumentId: number;

@@ -28,6 +28,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -68,6 +69,18 @@ class AuthControllerRegisterTest {
             .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
 
     @Test
+    @WithMockUser
+    void malformedRegistrationEmailIsRejectedBeforeUserCreation() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"emre@.com\",\"password\":\"SecurePassphrase42!\",\"fullName\":\"Emre\",\"dateOfBirth\":\"2005-01-01\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        verifyNoInteractions(authService);
+    }
+
+    @Test
     void verifyEmail_authenticatedUserUsesPrincipalAndReturnsState() throws Exception {
         when(emailVerificationService.verify(7L, "123456"))
                 .thenReturn(new EmailVerificationResponse(true, null));
@@ -91,7 +104,7 @@ class AuthControllerRegisterTest {
     @Test
     @WithMockUser
     void register_studentNullDob_returnsBadRequest() throws Exception {
-        RegisterRequest request = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", Role.STUDENT, null);
+        RegisterRequest request = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", null);
 
         when(authService.register(any(RegisterRequest.class)))
                 .thenThrow(new ApiException(HttpStatus.BAD_REQUEST, "DATE_OF_BIRTH_REQUIRED", "Öğrenci kaydı için doğum tarihi zorunludur"));
@@ -109,7 +122,7 @@ class AuthControllerRegisterTest {
     @WithMockUser
     void register_studentFutureDob_returnsBadRequest() throws Exception {
         LocalDate future = LocalDate.now().plusDays(5);
-        RegisterRequest request = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", Role.STUDENT, future);
+        RegisterRequest request = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", future);
 
         when(authService.register(any(RegisterRequest.class)))
                 .thenThrow(new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_OF_BIRTH", "Doğum tarihi gelecekte olamaz"));
@@ -127,7 +140,7 @@ class AuthControllerRegisterTest {
     @WithMockUser
     void register_studentValidDob_returnsCreated() throws Exception {
         LocalDate dob = LocalDate.of(2005, 5, 5);
-        RegisterRequest request = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", Role.STUDENT, dob);
+        RegisterRequest request = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", dob);
         UserResponse userResponse = new UserResponse(1L, "student@example.com", "Student", Role.STUDENT, UserStatus.ACTIVE);
         AuthResponse authResponse = new AuthResponse("access-token", "refresh-token", "Bearer", 900L, userResponse);
 

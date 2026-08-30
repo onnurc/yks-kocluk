@@ -56,12 +56,12 @@ class SubscriptionCancelRenewalIntegrationTest {
         return JsonPath.read(json, "$.accessToken");
     }
 
-    private String register(String email, String role) throws Exception {
+    private String register(String email) throws Exception {
         String json = mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"TestPassword123!","fullName":"%s","role":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
-                                """.formatted(email, email.split("@")[0], role)))
+                                {"email":"%s","password":"TestPassword123!","fullName":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
+                                """.formatted(email, email.split("@")[0])))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         TestUsers.verifyEmail(userRepository, email);
@@ -116,7 +116,7 @@ class SubscriptionCancelRenewalIntegrationTest {
         String admin = adminToken();
         int coachId = approvedCoachProfileId("coach-cancel@example.com", admin);
         String studentEmail = "student-cancel@example.com";
-        String student = register(studentEmail, "STUDENT");
+        String student = register(studentEmail);
         Subscription saved = seedActiveSubscription(studentEmail, coachId);
 
         mockMvc.perform(post("/api/v1/subscriptions/" + saved.getId() + "/cancel")
@@ -136,9 +136,9 @@ class SubscriptionCancelRenewalIntegrationTest {
         String admin = adminToken();
         int coachId = approvedCoachProfileId("coach-cancel-other@example.com", admin);
         String ownerEmail = "student-owner@example.com";
-        String owner = register(ownerEmail, "STUDENT");
+        String owner = register(ownerEmail);
         Subscription saved = seedActiveSubscription(ownerEmail, coachId);
-        String otherStudent = register("student-other@example.com", "STUDENT");
+        String otherStudent = register("student-other@example.com");
 
         mockMvc.perform(post("/api/v1/subscriptions/" + saved.getId() + "/cancel")
                         .header("Authorization", "Bearer " + otherStudent))
@@ -159,7 +159,7 @@ class SubscriptionCancelRenewalIntegrationTest {
     void cancelRenewal_pendingPayment_isRejected() throws Exception {
         String admin = adminToken();
         int coachId = approvedCoachProfileId("coach-cancel-pending@example.com", admin);
-        String student = register("student-cancel-pending@example.com", "STUDENT");
+        String student = register("student-cancel-pending@example.com");
         long packageId = ((Number) JsonPath.read(
                 mockMvc.perform(get("/api/v1/packages").header("Authorization", "Bearer " + student))
                         .andReturn().getResponse().getContentAsString(), "$[0].id")).longValue();
