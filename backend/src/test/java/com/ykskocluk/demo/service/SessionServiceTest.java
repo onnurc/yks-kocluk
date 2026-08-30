@@ -93,9 +93,11 @@ class SessionServiceTest {
         ReflectionTestUtils.setField(sub, "id", SUB_ID);
         sub.setStatus(SubscriptionStatus.ACTIVE);
         sub.setPkg(pkg);
+        sub.setCoachProfile(coach);
 
+        lenient().when(availabilityRepository.findCoachProfileIdById(SLOT_ID)).thenReturn(Optional.of(COACH_ID));
         lenient().when(availabilityRepository.findByIdForUpdate(SLOT_ID)).thenReturn(Optional.of(slot));
-        lenient().when(subscriptionRepository.findLiveSubscription(
+        lenient().when(subscriptionRepository.findLiveSubscriptionForUpdate(
                 STUDENT_ID, COACH_ID)).thenReturn(Optional.of(sub));
         lenient().when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(new User()));
         lenient().when(sessionRepository.countQuotaConsuming(eq(SUB_ID), any(), any(), any())).thenReturn(0L);
@@ -122,6 +124,28 @@ class SessionServiceTest {
     }
 
     @Test
+    void book_usesScalarCoachLookup_thenLocksSubscriptionBeforeAuthoritativeSlot() {
+        service.book(STUDENT_ID, request());
+
+        InOrder locks = inOrder(availabilityRepository, subscriptionRepository);
+        locks.verify(availabilityRepository).findCoachProfileIdById(SLOT_ID);
+        locks.verify(subscriptionRepository).findLiveSubscriptionForUpdate(STUDENT_ID, COACH_ID);
+        locks.verify(availabilityRepository).findByIdForUpdate(SLOT_ID);
+        verify(availabilityRepository, never()).findById(SLOT_ID);
+    }
+
+    @Test
+    void book_slotAlreadyBookedAfterRowLock_throwsDomainConflictWithoutInsert() {
+        slot.setBooked(true);
+
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.book(STUDENT_ID, request()));
+
+        assertThat(ex.getErrorCode()).isEqualTo("SLOT_TAKEN");
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+        verify(sessionRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void book_slotNotFound_throwsNotFound() {
         when(availabilityRepository.findByIdForUpdate(SLOT_ID)).thenReturn(Optional.empty());
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.book(STUDENT_ID, request()));
@@ -138,7 +162,7 @@ class SessionServiceTest {
 
     @Test
     void book_noActiveSubscription_throwsConflict() {
-        when(subscriptionRepository.findLiveSubscription(
+        when(subscriptionRepository.findLiveSubscriptionForUpdate(
                 STUDENT_ID, COACH_ID)).thenReturn(Optional.empty());
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.book(STUDENT_ID, request()));
         assertThat(ex.getErrorCode()).isEqualTo("NO_ACTIVE_SUBSCRIPTION");

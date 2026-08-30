@@ -39,9 +39,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * The double-booking race: two students booking the SAME availability slot at the same
- * instant. The guarantee is the UNIQUE(sessions.availability_id) collision at insert — not
- * a read of is_booked — so exactly one insert wins and the other gets SLOT_TAKEN. The slot
- * can never back two sessions.
+ * instant. The slot row lock serializes the authoritative booked-state transition; the
+ * UNIQUE(sessions.availability_id) constraint remains the database-level second guard. Exactly
+ * one request succeeds and the other gets SLOT_TAKEN, so the slot can never back two sessions.
  */
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)

@@ -7,7 +7,6 @@ import com.ykskocluk.demo.entity.Conversation;
 import com.ykskocluk.demo.entity.CoachProfile;
 import com.ykskocluk.demo.entity.Message;
 import com.ykskocluk.demo.entity.User;
-import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.mapper.ConversationMapper;
 import com.ykskocluk.demo.mapper.MessageMapper;
@@ -122,7 +121,8 @@ public class MessageService {
 
         // If the sender is the student, verify they still have an ACTIVE subscription
         if (conversation.getStudent().getId().equals(senderUserId)) {
-            if (!subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(senderUserId, conversation.getCoachProfile().getId(), SubscriptionStatus.ACTIVE)) {
+            if (subscriptionRepository.findActiveSubscriptionForUpdate(
+                    senderUserId, conversation.getCoachProfile().getId()).isEmpty()) {
                 throw new ApiException(HttpStatus.FORBIDDEN, "MESSAGING_NOT_ALLOWED",
                         "Mesaj göndermek için aktif bir aboneliğiniz olmalıdır");
             }

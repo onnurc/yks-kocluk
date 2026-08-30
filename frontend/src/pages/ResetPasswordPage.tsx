@@ -18,6 +18,8 @@ export const ResetPasswordPage: React.FC = () => {
   const token = params.get("token") || "";
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<Error | string | null>(
@@ -49,6 +51,8 @@ export const ResetPasswordPage: React.FC = () => {
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === "PASSWORD_RESET_TOKEN_INVALID") {
         setError("Parola sıfırlama bağlantısı geçersiz veya süresi dolmuş.");
+      } else if (caught instanceof ApiError && caught.code === "PASSWORD_REUSE_NOT_ALLOWED") {
+        setError("Yeni şifreniz mevcut şifrenizle aynı olamaz.");
       } else {
         setError(caught instanceof Error ? caught : "Parola yenilenemedi.");
       }
@@ -85,11 +89,11 @@ export const ResetPasswordPage: React.FC = () => {
         </p>
 
         <div className="auth-field-group">
-          <label className="auth-field" htmlFor="new-password">
+          <label className="auth-field auth-field--password" htmlFor="new-password">
             <span>Yeni Parola</span>
             <input
               id="new-password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               autoComplete="new-password"
               required
               maxLength={MAX_PASSWORD_LENGTH}
@@ -102,16 +106,22 @@ export const ResetPasswordPage: React.FC = () => {
               aria-invalid={Boolean(validationErrors.password)}
               aria-describedby={`reset-password-requirements${validationErrors.password ? " reset-password-error" : ""}`}
             />
+            <button
+              type="button"
+              aria-label={showPassword ? "Yeni parolayı gizle" : "Yeni parolayı göster"}
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((visible) => !visible)}
+            >◉</button>
           </label>
           {validationErrors.password && <p className="auth-field-error" id="reset-password-error" role="alert">{validationErrors.password}</p>}
         </div>
 
         <div className="auth-field-group">
-          <label className="auth-field" htmlFor="confirm-password">
+          <label className="auth-field auth-field--password" htmlFor="confirm-password">
             <span>Yeni Parola Tekrar</span>
             <input
               id="confirm-password"
-              type="password"
+              type={showConfirmation ? "text" : "password"}
               autoComplete="new-password"
               required
               maxLength={MAX_PASSWORD_LENGTH}
@@ -124,6 +134,12 @@ export const ResetPasswordPage: React.FC = () => {
               aria-invalid={Boolean(validationErrors.confirmation)}
               aria-describedby={validationErrors.confirmation ? "confirm-password-error" : undefined}
             />
+            <button
+              type="button"
+              aria-label={showConfirmation ? "Parola tekrarını gizle" : "Parola tekrarını göster"}
+              aria-pressed={showConfirmation}
+              onClick={() => setShowConfirmation((visible) => !visible)}
+            >◉</button>
           </label>
           {validationErrors.confirmation && <p className="auth-field-error" id="confirm-password-error" role="alert">{validationErrors.confirmation}</p>}
         </div>

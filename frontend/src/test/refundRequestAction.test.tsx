@@ -27,7 +27,7 @@ describe("student refund eligibility presentation", () => {
   it("enables the request action only when backend says eligible", async () => {
     mocks.eligibility.mockResolvedValue(response());
     render(<RefundRequestAction subscriptionId={41} onSuccess={vi.fn()} />);
-    expect(await screen.findByRole("button", { name: "İade Talep Et" })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "İade Al" })).toBeEnabled();
   });
 
   it("disables an expired request and renders the backend expiry explanation", async () => {
@@ -35,7 +35,7 @@ describe("student refund eligibility presentation", () => {
     mocks.eligibility.mockResolvedValue(response({ eligible: false, status: "WINDOW_EXPIRED", explanation }));
     render(<RefundRequestAction subscriptionId={41} onSuccess={vi.fn()} />);
     expect(await screen.findByText(explanation)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "İade Talep Et" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "İade Al" })).toBeDisabled();
   });
 
   it("disables the action while an existing refund request is active", async () => {
@@ -45,7 +45,7 @@ describe("student refund eligibility presentation", () => {
     }));
     render(<RefundRequestAction subscriptionId={41} onSuccess={vi.fn()} />);
     expect(await screen.findByText("Bu ödeme için işleme alınmış bir iade talebiniz var.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "İade Talep Et" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "İade Al" })).toBeDisabled();
   });
 
   it("disables the action when no refundable balance remains", async () => {
@@ -55,12 +55,12 @@ describe("student refund eligibility presentation", () => {
     }));
     render(<RefundRequestAction subscriptionId={41} onSuccess={vi.fn()} />);
     expect(await screen.findByText("Bu ödeme için iade edilebilir bakiye kalmadı.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "İade Talep Et" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "İade Al" })).toBeDisabled();
   });
 
   it("does not override backend eligibility based on client-side session usage", async () => {
     mocks.eligibility.mockResolvedValue(response({ sessionsUsed: 5 }));
     render(<RefundRequestAction subscriptionId={41} onSuccess={vi.fn()} />);
-    expect(await screen.findByRole("button", { name: "İade Talep Et" })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "İade Al" })).toBeEnabled();
   });
 });

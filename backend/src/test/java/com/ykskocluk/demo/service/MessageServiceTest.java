@@ -235,7 +235,7 @@ class MessageServiceTest {
     @Test
     void sendMessage_participant_persists_andBumpsLastMessageAt() {
         when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
-        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(STUDENT_ID, COACH_PROFILE_ID, SubscriptionStatus.ACTIVE)).thenReturn(true);
+        when(subscriptionRepository.findActiveSubscriptionForUpdate(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(Optional.of(new com.ykskocluk.demo.entity.Subscription()));
         User student = conversation.getStudent();
         when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
         Instant sentAt = Instant.now();
@@ -257,7 +257,7 @@ class MessageServiceTest {
     @Test
     void sendMessage_studentSubscriptionLaterInactive_throws403() {
         when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
-        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(STUDENT_ID, COACH_PROFILE_ID, SubscriptionStatus.ACTIVE)).thenReturn(false);
+        when(subscriptionRepository.findActiveSubscriptionForUpdate(STUDENT_ID, COACH_PROFILE_ID)).thenReturn(Optional.empty());
 
         ApiException ex = catchThrowableOfType(ApiException.class,
                 () -> service.sendMessage(STUDENT_ID, CONVERSATION_ID, "hi"));
@@ -456,8 +456,8 @@ class MessageServiceTest {
     @Test
     void sendGate_allowsActive() {
         when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
-        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(STUDENT_ID, COACH_PROFILE_ID, SubscriptionStatus.ACTIVE))
-                .thenReturn(true);
+        when(subscriptionRepository.findActiveSubscriptionForUpdate(STUDENT_ID, COACH_PROFILE_ID))
+                .thenReturn(Optional.of(new com.ykskocluk.demo.entity.Subscription()));
         User student = conversation.getStudent();
         when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
         Instant sentAt = Instant.now();
@@ -474,8 +474,8 @@ class MessageServiceTest {
     @Test
     void sendGate_rejectsPastDueExpiredCancelledPendingPaymentTerminatedOrNone() {
         when(conversationRepository.findById(CONVERSATION_ID)).thenReturn(Optional.of(conversation));
-        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(STUDENT_ID, COACH_PROFILE_ID, SubscriptionStatus.ACTIVE))
-                .thenReturn(false);
+        when(subscriptionRepository.findActiveSubscriptionForUpdate(STUDENT_ID, COACH_PROFILE_ID))
+                .thenReturn(Optional.empty());
 
         ApiException ex = catchThrowableOfType(ApiException.class,
                 () -> service.sendMessage(STUDENT_ID, CONVERSATION_ID, "content"));
@@ -495,8 +495,8 @@ class MessageServiceTest {
         verify(messageRepository).findByConversationIdOrderByCreatedAtDesc(eq(CONVERSATION_ID), any());
 
         // Send gate rejects (no active subscription, maybe only pending or failed renewal)
-        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(STUDENT_ID, COACH_PROFILE_ID, SubscriptionStatus.ACTIVE))
-                .thenReturn(false);
+        when(subscriptionRepository.findActiveSubscriptionForUpdate(STUDENT_ID, COACH_PROFILE_ID))
+                .thenReturn(Optional.empty());
 
         ApiException ex = catchThrowableOfType(ApiException.class,
                 () -> service.sendMessage(STUDENT_ID, CONVERSATION_ID, "content"));

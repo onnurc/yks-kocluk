@@ -70,6 +70,28 @@ describe("password recovery and security pages", () => {
     expect(screen.getByLabelText("Yeni Parola Tekrar")).toHaveAttribute("type", "password");
   });
 
+  it("toggles both reset password fields independently while keeping them masked by default", () => {
+    render(<MemoryRouter initialEntries={["/reset-password?token=abc"]}><ResetPasswordPage /></MemoryRouter>);
+    const password = screen.getByLabelText("Yeni Parola");
+    const confirmation = screen.getByLabelText("Yeni Parola Tekrar");
+
+    expect(password).toHaveAttribute("type", "password");
+    expect(confirmation).toHaveAttribute("type", "password");
+
+    fireEvent.click(screen.getByRole("button", { name: "Yeni parolayı göster" }));
+    expect(password).toHaveAttribute("type", "text");
+    expect(confirmation).toHaveAttribute("type", "password");
+    expect(screen.getByRole("button", { name: "Yeni parolayı gizle" })).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Parola tekrarını göster" }));
+    expect(password).toHaveAttribute("type", "text");
+    expect(confirmation).toHaveAttribute("type", "text");
+
+    fireEvent.click(screen.getByRole("button", { name: "Yeni parolayı gizle" }));
+    expect(password).toHaveAttribute("type", "password");
+    expect(confirmation).toHaveAttribute("type", "text");
+  });
+
   it("shows in-app validation for a too-short password and does not submit", () => {
     render(<MemoryRouter initialEntries={["/reset-password?token=abc"]}><ResetPasswordPage /></MemoryRouter>);
     fireEvent.change(screen.getByLabelText("Yeni Parola"), { target: { value: "short" } });
@@ -100,6 +122,18 @@ describe("password recovery and security pages", () => {
     fireEvent.click(screen.getByRole("button", { name: "Parolayı Yenile" }));
 
     await waitFor(() => expect(mocks.resetPassword).toHaveBeenCalledWith("abc", "password-one"));
+  });
+
+  it("shows the stable same-current-password error and leaves the form retryable", async () => {
+    const { ApiError } = await import("../api/ApiError");
+    mocks.resetPassword.mockRejectedValue(new ApiError(400, "Bad Request", "safe", "PASSWORD_REUSE_NOT_ALLOWED"));
+    render(<MemoryRouter initialEntries={["/reset-password?token=abc"]}><ResetPasswordPage /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("Yeni Parola"), { target: { value: "password-one" } });
+    fireEvent.change(screen.getByLabelText("Yeni Parola Tekrar"), { target: { value: "password-one" } });
+    fireEvent.click(screen.getByRole("button", { name: "Parolayı Yenile" }));
+
+    expect(await screen.findByText("Yeni şifreniz mevcut şifrenizle aynı olamaz.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Parolayı Yenile" })).toBeEnabled();
   });
 
   it("shows a styled success state with a login action", async () => {

@@ -89,6 +89,20 @@ public class SessionService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
         accountReadinessService.requireReady(student);
 
+        // Read only the scalar coach id before taking locks. Loading the versioned slot entity here
+        // and then reloading it with PESSIMISTIC_WRITE can conflict with the stale managed version
+        // after another booking commits while this transaction waits for the slot row lock.
+        Long coachProfileId = availabilityRepository.findCoachProfileIdById(request.availabilityId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SLOT_NOT_FOUND", "Uygunluk bulunamadı"));
+
+        // Keep the shared-resource order subscription -> slot. Refund finalization takes the same
+        // subscription lock first, so a booking either commits before the refund (and is cancelled
+        // by it) or observes the terminal subscription afterwards.
+        Subscription subscription = subscriptionRepository
+                .findLiveSubscriptionForUpdate(studentUserId, coachProfileId)
+                .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "NO_ACTIVE_SUBSCRIPTION",
+                        "Bu koç ile aktif aboneliğiniz yok"));
+
         CoachAvailability slot = availabilityRepository.findByIdForUpdate(request.availabilityId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SLOT_NOT_FOUND", "Uygunluk bulunamadı"));
 
@@ -107,6 +121,10 @@ public class SessionService {
         }
 
         CoachProfile coach = slot.getCoachProfile();
+        if (!coach.getId().equals(subscription.getCoachProfile().getId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "NO_ACTIVE_SUBSCRIPTION",
+                    "Bu koç ile aktif aboneliğiniz yok");
+        }
         if (coach.getStatus() != CoachProfileStatus.APPROVED) {
             throw new ApiException(HttpStatus.FORBIDDEN, "COACH_NOT_APPROVED",
                     "Koç henüz onaylı değil");
@@ -114,11 +132,6 @@ public class SessionService {
 
         // (3) Must have a LIVE subscription with this coach — ACTIVE or PAST_DUE (grace window:
         // access stays open while a failed renewal is being retried). EXPIRED/CANCELLED → blocked.
-        Subscription subscription = subscriptionRepository
-                .findLiveSubscription(studentUserId, coach.getId())
-                .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "NO_ACTIVE_SUBSCRIPTION",
-                        "Bu koç ile aktif aboneliğiniz yok"));
-
         // (2) Weekly quota: count quota-consuming sessions in the slot's Mon–Sun (Istanbul) week.
         enforceWeeklyQuota(subscription, slot.getStartTime());
 
