@@ -95,7 +95,7 @@ class SessionServiceTest {
         sub.setPkg(pkg);
         sub.setCoachProfile(coach);
 
-        lenient().when(availabilityRepository.findById(SLOT_ID)).thenReturn(Optional.of(slot));
+        lenient().when(availabilityRepository.findCoachProfileIdById(SLOT_ID)).thenReturn(Optional.of(COACH_ID));
         lenient().when(availabilityRepository.findByIdForUpdate(SLOT_ID)).thenReturn(Optional.of(slot));
         lenient().when(subscriptionRepository.findLiveSubscriptionForUpdate(
                 STUDENT_ID, COACH_ID)).thenReturn(Optional.of(sub));
@@ -121,6 +121,28 @@ class SessionServiceTest {
         assertThat(saved.getStartTime()).isEqualTo(slot.getStartTime());
         assertThat(saved.getAvailability()).isSameAs(slot);
         assertThat(slot.isBooked()).isTrue();
+    }
+
+    @Test
+    void book_usesScalarCoachLookup_thenLocksSubscriptionBeforeAuthoritativeSlot() {
+        service.book(STUDENT_ID, request());
+
+        InOrder locks = inOrder(availabilityRepository, subscriptionRepository);
+        locks.verify(availabilityRepository).findCoachProfileIdById(SLOT_ID);
+        locks.verify(subscriptionRepository).findLiveSubscriptionForUpdate(STUDENT_ID, COACH_ID);
+        locks.verify(availabilityRepository).findByIdForUpdate(SLOT_ID);
+        verify(availabilityRepository, never()).findById(SLOT_ID);
+    }
+
+    @Test
+    void book_slotAlreadyBookedAfterRowLock_throwsDomainConflictWithoutInsert() {
+        slot.setBooked(true);
+
+        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.book(STUDENT_ID, request()));
+
+        assertThat(ex.getErrorCode()).isEqualTo("SLOT_TAKEN");
+        assertThat(ex.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+        verify(sessionRepository, never()).saveAndFlush(any());
     }
 
     @Test

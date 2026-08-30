@@ -855,7 +855,7 @@ class SubscriptionServiceTest {
         ReflectionTestUtils.setField(coach, "id", 50L);
         sub.setCoachProfile(coach);
 
-        when(subscriptionRepository.findById(100L)).thenReturn(Optional.of(sub));
+        when(subscriptionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(sub));
 
         AdminSubscriptionTerminateResponse response = service.terminateSubscription(100L, "Violation of terms");
 
@@ -878,7 +878,7 @@ class SubscriptionServiceTest {
         ReflectionTestUtils.setField(coach, "id", 50L);
         sub.setCoachProfile(coach);
 
-        when(subscriptionRepository.findById(100L)).thenReturn(Optional.of(sub));
+        when(subscriptionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(sub));
 
         AdminSubscriptionTerminateResponse response = service.terminateSubscription(100L, "Cleanup");
 
@@ -899,7 +899,7 @@ class SubscriptionServiceTest {
         Instant terminatedAt = Instant.now().minusSeconds(100);
         sub.setCancelledAt(terminatedAt);
 
-        when(subscriptionRepository.findById(100L)).thenReturn(Optional.of(sub));
+        when(subscriptionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(sub));
 
         AdminSubscriptionTerminateResponse response = service.terminateSubscription(100L, "Another reason");
 
@@ -921,7 +921,7 @@ class SubscriptionServiceTest {
         ReflectionTestUtils.setField(coach, "id", 50L);
         sub.setCoachProfile(coach);
 
-        when(subscriptionRepository.findById(100L)).thenReturn(Optional.of(sub));
+        when(subscriptionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(sub));
 
         AdminSubscriptionTerminateResponse response = service.terminateSubscription(100L, "Clean expired");
 

@@ -32,6 +32,15 @@ public interface CoachAvailabilityRepository extends JpaRepository<CoachAvailabi
     /** Ownership-scoped lookup for delete — only matches the coach's own slot. */
     Optional<CoachAvailability> findByIdAndCoachProfileId(Long id, Long coachProfileId);
 
+    /**
+     * Scalar lookup used before the booking locks are acquired. Returning only the coach id is
+     * intentional: loading the versioned availability entity here would leave a potentially stale
+     * managed instance in the persistence context before {@link #findByIdForUpdate(Long)} waits for
+     * a concurrent booking to commit.
+     */
+    @Query("select a.coachProfile.id from CoachAvailability a where a.id = :id")
+    Optional<Long> findCoachProfileIdById(@Param("id") Long id);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from CoachAvailability a where a.id = :id")
     Optional<CoachAvailability> findByIdForUpdate(@Param("id") Long id);

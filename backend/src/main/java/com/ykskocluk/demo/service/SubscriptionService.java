@@ -640,7 +640,9 @@ public class SubscriptionService {
 
     @Transactional
     public AdminSubscriptionTerminateResponse terminateSubscription(Long id, String reason) {
-        Subscription subscription = subscriptionRepository.findById(id)
+        // Serialize access-ending termination with booking, which locks the same subscription
+        // before it locks an availability slot.
+        Subscription subscription = subscriptionRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SUBSCRIPTION_NOT_FOUND",
                         "Abonelik bulunamadı"));
 

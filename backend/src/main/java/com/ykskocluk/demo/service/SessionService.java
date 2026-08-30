@@ -89,13 +89,17 @@ public class SessionService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
         accountReadinessService.requireReady(student);
 
-        // Read once to identify the coach, then lock the subscription before the slot. Refund
-        // finalization takes the same subscription lock, so a booking either commits before the
-        // refund (and is cancelled by it) or observes the terminal subscription afterwards.
-        CoachAvailability candidate = availabilityRepository.findById(request.availabilityId())
+        // Read only the scalar coach id before taking locks. Loading the versioned slot entity here
+        // and then reloading it with PESSIMISTIC_WRITE can conflict with the stale managed version
+        // after another booking commits while this transaction waits for the slot row lock.
+        Long coachProfileId = availabilityRepository.findCoachProfileIdById(request.availabilityId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SLOT_NOT_FOUND", "Uygunluk bulunamadı"));
+
+        // Keep the shared-resource order subscription -> slot. Refund finalization takes the same
+        // subscription lock first, so a booking either commits before the refund (and is cancelled
+        // by it) or observes the terminal subscription afterwards.
         Subscription subscription = subscriptionRepository
-                .findLiveSubscriptionForUpdate(studentUserId, candidate.getCoachProfile().getId())
+                .findLiveSubscriptionForUpdate(studentUserId, coachProfileId)
                 .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "NO_ACTIVE_SUBSCRIPTION",
                         "Bu koç ile aktif aboneliğiniz yok"));
 
