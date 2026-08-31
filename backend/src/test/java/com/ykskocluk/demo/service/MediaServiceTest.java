@@ -18,6 +18,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -129,7 +130,7 @@ class MediaServiceTest {
         assertThat(fresh.getStatus()).isEqualTo(MediaStatus.ACTIVE);
         assertThat(old.getStatus()).isEqualTo(MediaStatus.DELETED);
         assertThat(profile.getProfileImageAsset()).isSameAs(fresh);
-        verify(storageDeletion).deleteAfterCommit(old.getObjectKey());
+        verify(storageDeletion).deleteAfterCommit(old.getId(), old.getObjectKey());
         verify(storage, never()).deleteObject(old.getObjectKey());
     }
 
@@ -141,7 +142,7 @@ class MediaServiceTest {
         when(coaches.findByUserId(7L)).thenReturn(Optional.of(profile));
         service.complete(7L, 20L);
         assertThat(profile.getProfileImageAsset()).isSameAs(fresh);
-        verify(storageDeletion, never()).deleteAfterCommit(anyString());
+        verify(storageDeletion, never()).deleteAfterCommit(any(), anyString());
     }
 
     @Test void finalizeRejectsContentWhoseBytesDoNotMatchDeclaredMimeType() {
@@ -222,7 +223,7 @@ class MediaServiceTest {
         MediaAsset asset = asset(40L, coach, MediaType.DOCUMENT, MediaVisibility.PRIVATE, MediaStatus.ACTIVE);
         when(assets.findById(40L)).thenReturn(Optional.of(asset));
         assertThatThrownBy(() -> service.delete(2L, 40L)).isInstanceOf(ApiException.class);
-        verify(storageDeletion, never()).deleteAfterCommit(anyString());
+        verify(storageDeletion, never()).deleteAfterCommit(any(), anyString());
         assertThat(asset.getStatus()).isEqualTo(MediaStatus.ACTIVE);
     }
 
@@ -232,7 +233,7 @@ class MediaServiceTest {
         when(coaches.findByUserId(7L)).thenReturn(Optional.empty());
         when(students.findByUserId(7L)).thenReturn(Optional.empty());
         service.delete(7L, 41L);
-        verify(storageDeletion).deleteAfterCommit(asset.getObjectKey());
+        verify(storageDeletion).deleteAfterCommit(asset.getId(), asset.getObjectKey());
         verify(storage, never()).deleteObject(asset.getObjectKey());
         assertThat(asset.getStatus()).isEqualTo(MediaStatus.DELETED);
     }
@@ -247,7 +248,7 @@ class MediaServiceTest {
 
         service.delete(7L, 42L);
 
-        verify(storageDeletion).deleteAfterCommit(asset.getObjectKey());
+        verify(storageDeletion).deleteAfterCommit(asset.getId(), asset.getObjectKey());
         assertThat(profile.getProfileImageAsset()).isNull();
         assertThat(asset.getStatus()).isEqualTo(MediaStatus.DELETED);
     }
@@ -262,6 +263,25 @@ class MediaServiceTest {
 
         assertThat(error.getStatus()).isEqualTo(org.springframework.http.HttpStatus.CONFLICT);
         assertThat(error.getErrorCode()).isEqualTo("MEDIA_PROFILE_MISSING");
+    }
+
+    @Test void accountDeletionRetiresPublicAndPrivateMediaAndDetachesProfileReferences() {
+        MediaAsset image = asset(51L, coach, MediaType.PROFILE_IMAGE, MediaVisibility.PUBLIC, MediaStatus.ACTIVE);
+        MediaAsset document = asset(52L, coach, MediaType.DOCUMENT, MediaVisibility.PRIVATE, MediaStatus.ACTIVE);
+        CoachProfile profile = new CoachProfile();
+        profile.setProfileImageAsset(image);
+        when(assets.findByOwnerIdAndStorageDeletedAtIsNullOrderByIdAsc(7L)).thenReturn(List.of(image, document));
+        when(coaches.findByUserId(7L)).thenReturn(Optional.of(profile));
+        when(students.findByUserId(7L)).thenReturn(Optional.empty());
+
+        assertThat(service.retireAllOwnedBy(7L)).isEqualTo(2);
+
+        assertThat(image.getStatus()).isEqualTo(MediaStatus.DELETED);
+        assertThat(document.getStatus()).isEqualTo(MediaStatus.DELETED);
+        assertThat(profile.getProfileImageAsset()).isNull();
+        verify(storageDeletion).deleteAfterCommit(51L, image.getObjectKey());
+        verify(storageDeletion).deleteAfterCommit(52L, document.getObjectKey());
+        verify(storage, never()).deleteObject(anyString());
     }
 
     private User user(Long id, Role role) { User u = new User(); ReflectionTestUtils.setField(u, "id", id); u.setRole(role); return u; }

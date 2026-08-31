@@ -60,8 +60,8 @@ export const CoachApplicationPage: React.FC = () => {
         <div className="coach-application-page__inner coach-application-page__success">
           <h1>Başvurunuz alındı</h1>
           <p>
-            İlginiz için teşekkür ederiz. Ekibimiz başvurunuzu inceleyecek ve uygun bulunması
-            durumunda belirttiğiniz e-posta adresine hesap bilgileriniz iletilecektir.
+            Başvuru talebiniz alındı. Başvurunuzun durumuyla ilgili gerekli bilgilendirme
+            e-posta adresiniz üzerinden yapılacaktır.
           </p>
         </div>
       </div>

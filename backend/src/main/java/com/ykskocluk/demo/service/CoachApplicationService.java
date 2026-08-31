@@ -13,11 +13,14 @@ import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.validation.EmailAddresses;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Set;
 
 /**
  * Coach onboarding front door. Anyone can {@link #submit} an application (no account, no
@@ -31,6 +34,9 @@ import java.time.Instant;
  */
 @Service
 public class CoachApplicationService {
+
+    private static final Set<String> ADMIN_SORT_PROPERTIES = Set.of(
+            "id", "fullName", "email", "status", "createdAt", "reviewedAt");
 
     private final CoachApplicationRepository coachApplicationRepository;
     private final UserRepository userRepository;
@@ -51,26 +57,18 @@ public class CoachApplicationService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_EMAIL", "Geçerli bir e-posta girin");
         }
 
-        // Checked in order of specificity, so the applicant always sees the most useful message
-        // rather than a generic one: an approved coach's email is also a User email (approve()
-        // creates one), so that check must run before the general "already registered" check.
+        // Duplicate state remains private: the public controller always returns its one static
+        // accepted response, while these checks prevent duplicate rows and provisioning.
         if (coachApplicationRepository.existsByEmailIgnoreCaseAndStatus(email, CoachApplicationStatus.PENDING)) {
-            throw new ApiException(HttpStatus.CONFLICT, "COACH_APPLICATION_ALREADY_PENDING",
-                    "Bu e-posta ile değerlendirme aşamasında bir başvurunuz bulunuyor");
+            return;
         }
         if (coachApplicationRepository.existsByEmailIgnoreCaseAndStatus(email, CoachApplicationStatus.APPROVED)) {
-            throw new ApiException(HttpStatus.CONFLICT, "COACH_APPLICATION_ALREADY_APPROVED",
-                    "Bu e-posta ile zaten bir koç hesabınız var, giriş yapabilirsiniz");
+            return;
         }
-        // Catches emails registered by any other path (student self-register, Google sign-up,
-        // an admin-created account never routed through a CoachApplication). This does trade
-        // away the enumeration-resistance forgot-password deliberately keeps (an anonymous
-        // submitter learns the email is taken) — accepted here because a clear, actionable
-        // message for the applicant matters more for this form. approve() keeps the same check
-        // as a defense-in-depth backstop for the trusted admin-facing path.
+        // Catches emails registered by any other path. approve() keeps the same check as a
+        // defense-in-depth backstop for the trusted admin-facing path.
         if (userRepository.findByEmailIgnoreCase(email).isPresent()) {
-            throw new ApiException(HttpStatus.CONFLICT, "EMAIL_ALREADY_EXISTS",
-                    "Bu e-posta adresi zaten bir hesaba ait. Koç başvurusu için farklı bir e-posta adresi kullanın.");
+            return;
         }
 
         CoachApplication application = new CoachApplication();
@@ -84,7 +82,18 @@ public class CoachApplicationService {
 
     @Transactional(readOnly = true)
     public PageResponse<CoachApplicationResponse> list(CoachApplicationStatus status, Pageable pageable) {
-        Page<CoachApplication> page = coachApplicationRepository.findByStatus(status, pageable);
+        java.util.List<Sort.Order> safeOrders = pageable.getSort().stream()
+                .map(order -> {
+                    if (!ADMIN_SORT_PROPERTIES.contains(order.getProperty())) {
+                        throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SORT_PROPERTY",
+                                "Desteklenmeyen sıralama alanı");
+                    }
+                    return order;
+                })
+                .toList();
+        Sort safeSort = safeOrders.isEmpty() ? Sort.unsorted() : Sort.by(safeOrders);
+        Pageable safePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), safeSort);
+        Page<CoachApplication> page = coachApplicationRepository.findByStatus(status, safePageable);
         return PageResponse.from(page.map(CoachApplicationResponse::from));
     }
 

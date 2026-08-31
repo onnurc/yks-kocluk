@@ -5,6 +5,8 @@ import { authApi } from "../auth/authApi";
 import { readinessPathForUser } from "../auth/authNavigation";
 import { useAuth } from "../auth/AuthProvider";
 import { FormError } from "../components/FormError";
+import { AuthPageShell } from "./AuthPageShell";
+import "./auth-page.css";
 
 const secondsUntil = (value?: string): number => value
   ? Math.max(0, Math.ceil((new Date(value).getTime() - Date.now()) / 1000))
@@ -18,6 +20,7 @@ export const VerifyEmailPage: React.FC = () => {
   const [resending, setResending] = useState(false);
   const [error, setError] = useState<ApiError | Error | string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [resendNotice, setResendNotice] = useState(false);
   const [cooldown, setCooldown] = useState(0);
 
   useEffect(() => {
@@ -38,6 +41,7 @@ export const VerifyEmailPage: React.FC = () => {
     }
     setLoading(true);
     setError(null);
+    setResendNotice(false);
     try {
       await authApi.verifyEmail(code);
       setSuccess(true);
@@ -59,10 +63,12 @@ export const VerifyEmailPage: React.FC = () => {
   const resend = async () => {
     setResending(true);
     setError(null);
+    setResendNotice(false);
     try {
       const response = await authApi.resendVerification();
       setCooldown(secondsUntil(response.nextResendAt) || 60);
       setCode("");
+      setResendNotice(true);
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === "EMAIL_VERIFICATION_RESEND_TOO_SOON") {
         setCooldown(secondsUntil(cause.nextAllowedAt));
@@ -76,23 +82,40 @@ export const VerifyEmailPage: React.FC = () => {
   };
 
   return (
-    <main style={{ maxWidth: "440px", margin: "4rem auto", padding: "2rem", border: "1px solid #cbd5e1", borderRadius: "8px", background: "white" }}>
-      <h1 style={{ fontSize: "1.6rem" }}>E-posta adresinizi doğrulayın</h1>
-      <p>E-posta adresinize gönderdiğimiz 6 haneli doğrulama kodunu girin. Kod 10 dakika geçerlidir.</p>
-      <FormError error={error} />
-      {success && <p role="status" style={{ color: "#166534" }}>E-posta adresiniz doğrulandı. Yönlendiriliyorsunuz…</p>}
-      <form onSubmit={verify}>
-        <label htmlFor="verification-code" style={{ display: "block", fontWeight: 700, marginBottom: ".5rem" }}>6 haneli kod</label>
-        <input id="verification-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
-          value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-          disabled={loading || success} style={{ width: "100%", boxSizing: "border-box", padding: ".75rem", letterSpacing: ".35rem", fontSize: "1.25rem" }} />
-        <button type="submit" disabled={loading || success || code.length !== 6} style={{ width: "100%", marginTop: "1rem", padding: ".75rem" }}>
-          {loading ? "Doğrulanıyor…" : "E-postayı doğrula"}
+    <AuthPageShell
+      title="E-posta Adresini Doğrula"
+      lead="E-posta adresine gönderdiğimiz 6 haneli kodu gir. Kod 10 dakika boyunca geçerlidir."
+      icon="✉"
+    >
+      <div className="auth-error-slot" id="verification-error" aria-live="polite"><FormError error={error} /></div>
+      {success && <p className="auth-notice auth-notice--success" role="status">E-posta adresiniz doğrulandı. Yönlendiriliyorsunuz…</p>}
+      {resendNotice && !success && <p className="auth-notice auth-notice--success" role="status">Yeni doğrulama kodu e-posta adresinize gönderildi.</p>}
+      <form className="auth-form" onSubmit={verify} noValidate>
+        <label className="auth-field auth-field--verification" htmlFor="verification-code">
+          <span>6 haneli doğrulama kodu:</span>
+          <input
+            id="verification-code"
+            inputMode="numeric"
+            pattern="[0-9]{6}"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={code}
+            onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+            disabled={loading || success}
+            aria-invalid={error ? true : undefined}
+            aria-describedby="verification-code-hint verification-error"
+            required
+          />
+        </label>
+        <p className="auth-form-hint" id="verification-code-hint">Kod ulaşmadıysa geri sayım tamamlandığında yeni bir kod isteyebilirsin.</p>
+        <button className="auth-submit" type="submit" disabled={loading || success || code.length !== 6}>
+          {loading ? "Doğrulanıyor…" : "E-postayı Doğrula"}
         </button>
       </form>
-      <button type="button" onClick={() => void resend()} disabled={resending || cooldown > 0 || success} style={{ marginTop: "1rem" }}>
-        {resending ? "Gönderiliyor…" : cooldown > 0 ? `Yeni kod için ${cooldown} sn` : "Yeni kod gönder"}
+      <button className="auth-secondary" type="button" onClick={() => void resend()} disabled={resending || cooldown > 0 || success}>
+        {resending ? "Gönderiliyor…" : cooldown > 0 ? `Yeni kod için ${cooldown} sn` : "Yeni Kod Gönder"}
       </button>
-    </main>
+      <p className="auth-security"><span aria-hidden="true">◇</span> Kodunuzu kimseyle paylaşmayın.</p>
+    </AuthPageShell>
   );
 };

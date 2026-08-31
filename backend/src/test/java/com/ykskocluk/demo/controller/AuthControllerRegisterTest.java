@@ -1,11 +1,7 @@
 package com.ykskocluk.demo.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ykskocluk.demo.dto.AuthResponse;
 import com.ykskocluk.demo.dto.RegisterRequest;
-import com.ykskocluk.demo.dto.UserResponse;
-import com.ykskocluk.demo.enums.Role;
-import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.security.JwtService;
@@ -28,6 +24,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -81,6 +78,18 @@ class AuthControllerRegisterTest {
     }
 
     @Test
+    @WithMockUser
+    void oversizedLoginFieldsAreRejectedBeforeAuthentication() throws Exception {
+        String hugePassword = "x".repeat(129);
+        mockMvc.perform(post("/api/v1/auth/login").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"student@example.com\",\"password\":\"" + hugePassword + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+        verifyNoInteractions(authService);
+    }
+
+    @Test
     void verifyEmail_authenticatedUserUsesPrincipalAndReturnsState() throws Exception {
         when(emailVerificationService.verify(7L, "123456"))
                 .thenReturn(new EmailVerificationResponse(true, null));
@@ -106,8 +115,8 @@ class AuthControllerRegisterTest {
     void register_studentNullDob_returnsBadRequest() throws Exception {
         RegisterRequest request = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", null);
 
-        when(authService.register(any(RegisterRequest.class)))
-                .thenThrow(new ApiException(HttpStatus.BAD_REQUEST, "DATE_OF_BIRTH_REQUIRED", "Öğrenci kaydı için doğum tarihi zorunludur"));
+        doThrow(new ApiException(HttpStatus.BAD_REQUEST, "DATE_OF_BIRTH_REQUIRED", "Öğrenci kaydı için doğum tarihi zorunludur"))
+                .when(authService).register(any(RegisterRequest.class));
 
         mockMvc.perform(post("/api/v1/auth/register")
                         .with(csrf())
@@ -124,8 +133,8 @@ class AuthControllerRegisterTest {
         LocalDate future = LocalDate.now().plusDays(5);
         RegisterRequest request = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", future);
 
-        when(authService.register(any(RegisterRequest.class)))
-                .thenThrow(new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_OF_BIRTH", "Doğum tarihi gelecekte olamaz"));
+        doThrow(new ApiException(HttpStatus.BAD_REQUEST, "INVALID_DATE_OF_BIRTH", "Doğum tarihi gelecekte olamaz"))
+                .when(authService).register(any(RegisterRequest.class));
 
         mockMvc.perform(post("/api/v1/auth/register")
                         .with(csrf())
@@ -138,23 +147,34 @@ class AuthControllerRegisterTest {
 
     @Test
     @WithMockUser
-    void register_studentValidDob_returnsCreated() throws Exception {
+    void register_studentValidDob_returnsUniformAcceptedResponseWithoutSessionToken() throws Exception {
         LocalDate dob = LocalDate.of(2005, 5, 5);
         RegisterRequest request = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", dob);
-        UserResponse userResponse = new UserResponse(1L, "student@example.com", "Student", Role.STUDENT, UserStatus.ACTIVE);
-        AuthResponse authResponse = new AuthResponse("access-token", "refresh-token", "Bearer", 900L, userResponse);
-
-        when(authService.register(any(RegisterRequest.class))).thenReturn(authResponse);
-        when(refreshTokenCookieService.setCookieHeader("refresh-token"))
-                .thenReturn("yks_refresh_token=refresh-token; Path=/api/v1/auth; HttpOnly; SameSite=Lax");
-
         mockMvc.perform(post("/api/v1/auth/register")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.accessToken").value("access-token"))
-                .andExpect(jsonPath("$.user.email").value("student@example.com"));
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.message").value(
+                        "E-posta adresinizi kontrol edin. Kayıt işleminiz uygunsa doğrulama kodu gönderilecektir. "
+                                + "Bu e-posta adresiyle daha önce hesap oluşturduysanız mevcut hesabınızla giriş yapabilirsiniz."))
+                .andExpect(jsonPath("$.accessToken").doesNotExist());
+    }
+
+    @Test
+    @WithMockUser
+    void duplicateRegistrationRaceReturnsTheSameEnumerationSafeResponse() throws Exception {
+        doThrow(new org.springframework.dao.DataIntegrityViolationException("duplicate"))
+                .when(authService).register(any(RegisterRequest.class));
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"existing@example.com\",\"password\":\"SecurePassphrase42!\",\"fullName\":\"Existing User\",\"dateOfBirth\":\"2005-01-01\"}"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.message").value(
+                        "E-posta adresinizi kontrol edin. Kayıt işleminiz uygunsa doğrulama kodu gönderilecektir. "
+                                + "Bu e-posta adresiyle daha önce hesap oluşturduysanız mevcut hesabınızla giriş yapabilirsiniz."));
     }
 
     @Test

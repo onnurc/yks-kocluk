@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.Instant;
+
 @Entity
 @Table(name = "media_assets")
 @Getter @Setter @NoArgsConstructor
@@ -43,4 +45,7 @@ public class MediaAsset extends BaseEntity {
 
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 30)
     private MediaStatus status;
+
+    @Column(name = "storage_deleted_at")
+    private Instant storageDeletedAt;
 }

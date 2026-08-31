@@ -81,12 +81,11 @@ public class AuthService {
     }
 
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public void register(RegisterRequest request) {
         String email = EmailAddresses.normalize(request.email());
         if (!EmailAddresses.isValid(email)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_EMAIL", "Geçerli bir e-posta girin");
         }
-        ensureIdentityWasNotDeleted(email, null);
         if (request.dateOfBirth() == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "DATE_OF_BIRTH_REQUIRED",
                     "Öğrenci kaydı için doğum tarihi zorunludur");
@@ -99,12 +98,14 @@ public class AuthService {
             }
         }
         PasswordPolicy.validate(request.password());
-        if (userRepository.findByEmailIgnoreCase(email).isPresent()) {
-            throw new ApiException(HttpStatus.CONFLICT, "EMAIL_ALREADY_EXISTS",
-                    "Bu e-posta zaten kayıtlı");
-        }
         LegalAcceptanceService.RequiredDocuments requiredDocuments = legalAcceptanceService.validateRequired(
                 request.acceptedTermsDocumentId(), request.acceptedExplicitConsentDocumentId());
+        if (identityWasDeleted(email, null)) {
+            return;
+        }
+        if (userRepository.findByEmailIgnoreCase(email).isPresent()) {
+            return;
+        }
         User user = new User();
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
@@ -114,11 +115,11 @@ public class AuthService {
         user.setEmailVerified(false);
         user.setDateOfBirth(request.dateOfBirth());
         user.setAccountOrigin(AccountOrigin.PUBLIC_PASSWORD);
-        userRepository.save(user);
+        userRepository.saveAndFlush(user);
+        studentProfileProvisioningService.ensureForStudent(user);
         legalAcceptanceService.recordRegistrationAcceptances(user, requiredDocuments,
                 Boolean.TRUE.equals(request.marketingEmailOptIn()), Boolean.TRUE.equals(request.marketingSmsOptIn()));
         emailVerificationService.issueForRegistration(user);
-        return issueTokens(user);
     }
 
     @Transactional
@@ -251,15 +252,19 @@ public class AuthService {
     }
 
     private void ensureIdentityWasNotDeleted(String email, String googleSub) {
+        if (identityWasDeleted(email, googleSub)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "ACCOUNT_DELETED",
+                    "Silinmiş hesap kimliği yeniden kullanılamaz");
+        }
+    }
+
+    private boolean identityWasDeleted(String email, String googleSub) {
         boolean deletedEmail = accountDeletionRequestRepository.existsByIdentityEmailHashAndStatus(
                 AccountDeletionService.identityHash(email), AccountDeletionStatus.COMPLETED);
         boolean deletedSubject = googleSub != null
                 && accountDeletionRequestRepository.existsByOauthSubjectHashAndStatus(
                         AccountDeletionService.identityHash(googleSub), AccountDeletionStatus.COMPLETED);
-        if (deletedEmail || deletedSubject) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "ACCOUNT_DELETED",
-                    "Silinmiş hesap kimliği yeniden kullanılamaz");
-        }
+        return deletedEmail || deletedSubject;
     }
 
     private ApiException invalidCredentials() {

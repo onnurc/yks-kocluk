@@ -4,9 +4,9 @@ import { ApiError } from "../api/ApiError";
 import { coachDiscoveryApi } from "../coaches/coachDiscoveryApi";
 import type { CoachSummaryResponse, PackageResponse, PublicCoachDetailResponse } from "../coaches/coachDiscoveryTypes";
 import { useAuth } from "../auth/AuthProvider";
-import { studentDashboardApi } from "../studentDashboard/studentDashboardApi";
+import { studentDashboardApi, SUBSCRIPTION_STATE_CHANGED_EVENT } from "../studentDashboard/studentDashboardApi";
 import type { StudentDashboardResponse } from "../studentDashboard/studentDashboardTypes";
-import { canMessageWithSubscription } from "../access/subscriptionAccess";
+import { blocksNewCoachCheckout, canMessageWithSubscription, isLiveCoachRelationship } from "../access/subscriptionAccess";
 import { messagingApi } from "../messaging/messagingApi";
 import { safeYoutubeEmbedUrl, YouTubeEmbed } from "../coaches/YouTubeEmbed";
 import { CheckoutSection } from "../subscriptionCheckout/CheckoutSection";
@@ -72,13 +72,18 @@ export function CoachProfilePage() {
     if (user?.role !== "STUDENT") return;
     let active = true;
     const userId = user.id;
-    studentDashboardApi
-      .getDashboardData()
-      .then((data) => {
-        if (!active) return;
-        setDashboardResult({ userId, state: "ready", data });
-      })
-      .catch(() => { if (active) setDashboardResult({ userId, state: "error", data: null }); });
+    const loadDashboard = () => {
+      setDashboardResult({ userId, state: "loading", data: null });
+      studentDashboardApi
+        .getDashboardData()
+        .then((data) => {
+          if (!active) return;
+          setDashboardResult({ userId, state: "ready", data });
+        })
+        .catch(() => { if (active) setDashboardResult({ userId, state: "error", data: null }); });
+    };
+    loadDashboard();
+    window.addEventListener(SUBSCRIPTION_STATE_CHANGED_EVENT, loadDashboard);
     coachDiscoveryApi
       .listPackages()
       .then((items) => {
@@ -86,8 +91,11 @@ export function CoachProfilePage() {
         setPackageResult({ userId, state: "ready", data: items ?? [] });
       })
       .catch(() => { if (active) setPackageResult({ userId, state: "error", data: [] }); });
-    return () => { active = false; };
-  }, [user?.id, user?.role]);
+    return () => {
+      active = false;
+      window.removeEventListener(SUBSCRIPTION_STATE_CHANGED_EVENT, loadDashboard);
+    };
+  }, [coachId, user?.id, user?.role]);
 
   useEffect(() => {
     if ((user?.role !== "STUDENT" && user?.role !== "ADMIN") || invalidCoachId) return;
@@ -114,8 +122,10 @@ export function CoachProfilePage() {
     : null;
 
   const sub = dashboardData?.subscription;
-  const isSubscribedToThisCoach = sub?.coachId === coachId;
+  const hasActiveCoachRelationship = isLiveCoachRelationship(sub?.status);
+  const isSubscribedToThisCoach = sub?.coachId === coachId && hasActiveCoachRelationship;
   const isMessageAllowed = isSubscribedToThisCoach && canMessageWithSubscription(sub?.status);
+  const hasBlockingCheckoutRelationship = blocksNewCoachCheckout(sub?.status);
 
   const handleOpenConversation = async () => {
     if (msgLoading) return;
@@ -227,8 +237,8 @@ export function CoachProfilePage() {
           </section>
 
           <section className="coach-profile-trial" aria-label="Ücretsiz Tanışma Görüşmesi">
-            {user?.role === "STUDENT" && !isSubscribedToThisCoach ? (
-              <TrialConsultationSection coachId={coach.id} />
+            {user?.role === "STUDENT" && !isSubscribedToThisCoach && !hasActiveCoachRelationship ? (
+              <TrialConsultationSection key={coach.id} coachId={coach.id} />
             ) : (
               <>
                 <h2 id="coach-profile-trial-title">Ücretsiz Tanışma Görüşmesi</h2>
@@ -239,15 +249,24 @@ export function CoachProfilePage() {
                   <li><span aria-hidden="true">▣</span><div><strong>Uygun saatler</strong><small>Kayıt sonrası görüntülenir</small></div></li>
                 </ul>
                 {isSubscribedToThisCoach ? (
-                  isMessageAllowed ? (
-                    <button type="button" onClick={handleOpenConversation} disabled={msgLoading}>
-                      {msgLoading ? "Sohbet Açılıyor…" : "Mesaj Gönder"}
-                    </button>
-                  ) : (
+                  <>
                     <span className="coach-profile-trial__disabled" aria-disabled="true">
-                      Mesaj gönderebilmek için aktif veya geçmiş bir aboneliğiniz olmalı
+                      Aktif koçluk aboneliğiniz bulunduğu için ücretsiz tanışma görüşmesi planlanamaz.
                     </span>
-                  )
+                    {isMessageAllowed ? (
+                      <button type="button" onClick={handleOpenConversation} disabled={msgLoading}>
+                        {msgLoading ? "Sohbet Açılıyor…" : "Mesaj Gönder"}
+                      </button>
+                    ) : (
+                      <span className="coach-profile-trial__disabled" aria-disabled="true">
+                        Mesaj gönderebilmek için aktif veya geçmiş bir aboneliğiniz olmalı
+                      </span>
+                    )}
+                  </>
+                ) : user?.role === "STUDENT" && hasActiveCoachRelationship ? (
+                  <span className="coach-profile-trial__disabled" aria-disabled="true">
+                    Mevcut aktif koçluk aboneliğiniz nedeniyle başka bir koç için görüşme planlayamazsınız.
+                  </span>
                 ) : !user ? (
                   coach.acceptingNewStudents ? (
                     <Link to={`/register?coachId=${coach.id}`}>Ücretsiz Görüşme İçin Kayıt Ol</Link>
@@ -292,12 +311,17 @@ export function CoachProfilePage() {
                 Abonelik durumunuz doğrulanamadığı için yeni ödeme başlatılamıyor. Lütfen sayfayı yenileyin.
               </p>
             )}
+            {dashboardState === "ready" && hasBlockingCheckoutRelationship && (
+              <p className="coach-profile-product-state coach-profile-product-state--warning" role="status">
+                Yeni bir koç seçebilmek için mevcut koçluk aboneliğinizin veya bekleyen ödeme işleminizin sona ermesi gerekir.
+              </p>
+            )}
 
             {packages.length > 0 && (
               <div className="coach-profile-packages">
                 {packages.map((pkg) => {
                   const selected = selectedPackage?.id === pkg.id;
-                  const unavailable = dashboardState !== "ready" || !coach.acceptingNewStudents;
+                  const unavailable = dashboardState !== "ready" || !coach.acceptingNewStudents || hasBlockingCheckoutRelationship;
                   return (
                     <article className={`coach-profile-package${selected ? " coach-profile-package--selected" : ""}`} key={pkg.id}>
                       <h3>{pkg.name}</h3>
@@ -316,7 +340,7 @@ export function CoachProfilePage() {
               <p className="coach-profile-product-state coach-profile-product-state--warning">Bu koçun kontenjanı dolu olduğu için yeni satın alım başlatılamaz.</p>
             )}
 
-            {selectedPackage && dashboardState === "ready" && coach.acceptingNewStudents && (
+            {selectedPackage && dashboardState === "ready" && coach.acceptingNewStudents && !hasBlockingCheckoutRelationship && (
               <div className="coach-profile-checkout">
                 <CheckoutSection
                   coachId={coach.id}

@@ -8,6 +8,7 @@ import com.ykskocluk.demo.integration.MailClient;
 import com.ykskocluk.demo.service.CancelResult;
 import com.ykskocluk.demo.service.SubscriptionBillingService;
 import com.ykskocluk.demo.service.SubscriptionService;
+import com.ykskocluk.demo.security.ratelimit.AuthenticatedActionRateLimitService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,13 +35,16 @@ public class SubscriptionController {
     private final SubscriptionService subscriptionService;
     private final SubscriptionBillingService billingService;
     private final MailClient mailClient;
+    private final AuthenticatedActionRateLimitService actionRateLimit;
 
     public SubscriptionController(SubscriptionService subscriptionService,
-                                 SubscriptionBillingService billingService,
-                                 MailClient mailClient) {
+                                  SubscriptionBillingService billingService,
+                                  MailClient mailClient,
+                                  AuthenticatedActionRateLimitService actionRateLimit) {
         this.subscriptionService = subscriptionService;
         this.billingService = billingService;
         this.mailClient = mailClient;
+        this.actionRateLimit = actionRateLimit;
     }
 
     @PostMapping
@@ -57,6 +61,7 @@ public class SubscriptionController {
     @PostMapping("/checkout")
     public ResponseEntity<SubscriptionCheckoutResponse> checkout(@AuthenticationPrincipal Long studentUserId,
                                                                  @Valid @RequestBody SubscriptionCheckoutRequest request) {
+        actionRateLimit.checkCheckoutCreate(studentUserId);
         return ResponseEntity.status(HttpStatus.CREATED).body(subscriptionService.checkout(studentUserId, request));
     }
 

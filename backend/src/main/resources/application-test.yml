@@ -20,6 +20,9 @@ spring:
       admin_password_hash: '$2y$10$yl6BvY2.9REyRTbV.9FYP.2xPDn2C1ZhDaggZQLcYAyRBc9Ri4.HC'
 
 app:
+  rate-limit:
+    store: IN_MEMORY
+    environment: test
   jwt:
     # Test-only HS256 key (>= 32 bytes). Not a real secret — safe to commit.
     secret: test-only-jwt-secret-not-for-production-0123456789

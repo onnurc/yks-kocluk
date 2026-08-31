@@ -6,8 +6,8 @@ import java.time.Duration;
 
 /**
  * Per-user abuse controls shared by authenticated HTTP and STOMP actions. The backing store is
- * intentionally abstract; the current single-instance deployment uses the JVM-local store, while
- * a multi-instance deployment must provide a shared {@link RateLimitStore} implementation.
+ * intentionally abstract; production uses the atomic shared Redis store while explicit
+ * local/test/stub profiles retain the JVM-local implementation.
  */
 @Service
 public class AuthenticatedActionRateLimitService {
@@ -38,6 +38,11 @@ public class AuthenticatedActionRateLimitService {
     public void checkMediaComplete(Long userId) {
         check("media:complete", userId, properties.getMediaComplete(),
                 "MEDIA_COMPLETE_RATE_LIMIT_EXCEEDED", "Çok fazla yükleme tamamlama isteği gönderdiniz.");
+    }
+
+    public void checkCheckoutCreate(Long userId) {
+        check("checkout:create", userId, properties.getCheckoutCreate(),
+                "CHECKOUT_RATE_LIMIT_EXCEEDED", "Çok fazla ödeme başlatma isteği gönderdiniz. Lütfen daha sonra tekrar deneyin.");
     }
 
     private void check(String action, Long userId, RateLimitProperties.UserLimitRule rule,

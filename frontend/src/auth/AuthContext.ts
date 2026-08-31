@@ -9,7 +9,7 @@ export interface AuthContextType {
   isLoading: boolean;
   isSuspended: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (request: RegisterRequest) => Promise<void>;
+  register: (request: RegisterRequest) => Promise<string>;
   completeOAuthLogin: (code: string) => Promise<CurrentUser>;
   logout: () => Promise<void>;
   refreshCurrentUser: () => Promise<CurrentUser | null>;

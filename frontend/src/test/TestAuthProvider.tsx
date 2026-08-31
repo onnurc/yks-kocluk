@@ -8,7 +8,7 @@ const defaultAuthValue: AuthContextType = {
   isLoading: false,
   isSuspended: false,
   login: async () => undefined,
-  register: async () => undefined,
+  register: async () => "E-posta adresinizi kontrol edin. Kayıt işleminiz uygunsa doğrulama kodu gönderilecektir. Bu e-posta adresiyle daha önce hesap oluşturduysanız mevcut hesabınızla giriş yapabilirsiniz.",
   completeOAuthLogin: async () => {
     throw new Error("OAuth girişi bu test sağlayıcısında yapılandırılmadı.");
   },

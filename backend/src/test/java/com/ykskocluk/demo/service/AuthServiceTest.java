@@ -37,6 +37,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doThrow;
 
@@ -106,20 +107,27 @@ class AuthServiceTest {
     }
 
     @Test
-    void register_hashesPasswordAndIssuesTokens() {
+    void register_existingEmailReturnsNormallyWithoutCreatingDuplicateOrSession() {
+        when(userRepository.findByEmailIgnoreCase("user@example.com")).thenReturn(Optional.of(activeUser("hash")));
+
+        authService.register(new RegisterRequest("user@example.com", "SecurePassphrase42!", "Test User",
+                java.time.LocalDate.of(2005, 1, 1)));
+
+        verify(userRepository, never()).saveAndFlush(any());
+        verify(refreshTokenRepository, never()).save(any());
+        verifyNoInteractions(emailVerificationService);
+    }
+
+    @Test
+    void register_hashesPasswordAndIssuesVerificationWithoutIssuingSessionTokens() {
         when(userRepository.findByEmailIgnoreCase("user@example.com")).thenReturn(Optional.empty());
         when(passwordEncoder.encode("SecurePassphrase42!")).thenReturn("hashed-pw");
 
-        AuthResponse res = authService.register(
+        authService.register(
                 new RegisterRequest("user@example.com", "SecurePassphrase42!", "Test User", java.time.LocalDate.of(2005, 1, 1)));
 
-        assertThat(res.accessToken()).isEqualTo("access-token");
-        assertThat(res.refreshToken()).isNotBlank();
-        assertThat(res.tokenType()).isEqualTo("Bearer");
-        assertThat(res.expiresIn()).isEqualTo(900L);
-
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
-        verify(userRepository).save(captor.capture());
+        verify(userRepository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getPasswordHash()).isEqualTo("hashed-pw");
         assertThat(captor.getValue().getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(captor.getValue().getRole()).isEqualTo(Role.STUDENT);
@@ -127,7 +135,7 @@ class AuthServiceTest {
         assertThat(captor.getValue().isEmailVerified()).isFalse();
         verify(studentProfileProvisioningService).ensureForStudent(captor.getValue());
         verify(emailVerificationService).issueForRegistration(captor.getValue());
-        verify(refreshTokenRepository).save(any(RefreshToken.class));
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
     }
 
     @Test
@@ -139,7 +147,7 @@ class AuthServiceTest {
                 java.time.LocalDate.of(2005, 1, 1)));
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
-        verify(userRepository).save(captor.capture());
+        verify(userRepository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getEmail()).isEqualTo("user@example.com");
     }
 
@@ -162,12 +170,11 @@ class AuthServiceTest {
     }
 
     @Test
-    void register_duplicateEmail_throwsConflict() {
+    void register_duplicateEmailReturnsNormallyWithoutExposingExistence() {
         when(userRepository.findByEmailIgnoreCase("user@example.com")).thenReturn(Optional.of(new User()));
 
-        ApiException ex = catchThrowableOfType(ApiException.class, () -> authService.register(
-                new RegisterRequest("user@example.com", "SecurePassphrase42!", "Test User", java.time.LocalDate.of(2005, 1, 1))));
-        assertThat(ex.getErrorCode()).isEqualTo("EMAIL_ALREADY_EXISTS");
+        authService.register(new RegisterRequest("user@example.com", "SecurePassphrase42!", "Test User",
+                java.time.LocalDate.of(2005, 1, 1)));
         verify(userRepository, never()).save(any());
     }
 
@@ -192,8 +199,6 @@ class AuthServiceTest {
         RegisterRequest req = new RegisterRequest("student@example.com", "SecurePassphrase42!", "Student", dob);
         when(userRepository.findByEmailIgnoreCase(req.email())).thenReturn(Optional.empty());
         when(passwordEncoder.encode(req.password())).thenReturn("hashed");
-        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
-
         authService.register(req);
     }
 

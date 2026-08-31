@@ -5,6 +5,9 @@
 # this flag becomes meaningful as those clients are added in later phases.
 # ============================================================================
 app:
+  rate-limit:
+    store: IN_MEMORY
+    environment: stub
   external:
     mode: stub
 

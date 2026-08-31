@@ -34,17 +34,19 @@ describe("email verification flow", () => {
 
   it("accepts only six numeric digits", () => {
     render(<MemoryRouter><VerifyEmailPage /></MemoryRouter>);
-    const input = screen.getByLabelText("6 haneli kod");
+    const input = screen.getByLabelText("6 haneli doğrulama kodu:");
+    const verifyButton = screen.getByRole("button", { name: "E-postayı Doğrula" });
+    expect(verifyButton).toBeDisabled();
     fireEvent.change(input, { target: { value: "12a34-567" } });
     expect(input).toHaveValue("123456");
-    expect(screen.getByRole("button", { name: "E-postayı doğrula" })).toBeEnabled();
+    expect(verifyButton).toBeEnabled();
   });
 
   it("shows the invalid-code error", async () => {
     mocks.verifyEmail.mockRejectedValue(new ApiError(400, "Bad Request", "invalid", "EMAIL_VERIFICATION_CODE_INVALID"));
     render(<MemoryRouter><VerifyEmailPage /></MemoryRouter>);
-    fireEvent.change(screen.getByLabelText("6 haneli kod"), { target: { value: "123456" } });
-    fireEvent.click(screen.getByRole("button", { name: "E-postayı doğrula" }));
+    fireEvent.change(screen.getByLabelText("6 haneli doğrulama kodu:"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "E-postayı Doğrula" }));
     expect(await screen.findByText("Girdiğiniz doğrulama kodu geçersiz.")).toBeInTheDocument();
   });
 
@@ -61,8 +63,8 @@ describe("email verification flow", () => {
         </Routes>
       </MemoryRouter>,
     );
-    fireEvent.change(screen.getByLabelText("6 haneli kod"), { target: { value: "123456" } });
-    fireEvent.click(screen.getByRole("button", { name: "E-postayı doğrula" }));
+    fireEvent.change(screen.getByLabelText("6 haneli doğrulama kodu:"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "E-postayı Doğrula" }));
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/legal-onboarding"));
     expect(refreshCurrentUser).toHaveBeenCalled();
   });
@@ -70,8 +72,9 @@ describe("email verification flow", () => {
   it("resend starts the server-provided cooldown", async () => {
     mocks.resendVerification.mockResolvedValue({ emailVerified: false, nextResendAt: new Date(Date.now() + 60_000).toISOString() });
     render(<MemoryRouter><VerifyEmailPage /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("button", { name: "Yeni kod gönder" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yeni Kod Gönder" }));
     expect(await screen.findByRole("button", { name: /Yeni kod için/ })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Yeni doğrulama kodu e-posta adresinize gönderildi.");
   });
 
   it("protected product routes redirect unverified users", () => {

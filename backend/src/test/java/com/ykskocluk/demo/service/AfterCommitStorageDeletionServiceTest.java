@@ -1,6 +1,5 @@
 package com.ykskocluk.demo.service;
 
-import com.ykskocluk.demo.storage.StorageService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,22 +11,20 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class AfterCommitStorageDeletionServiceTest {
-    @Mock StorageService storage;
+    @Mock RetiredMediaStorageCleanupService cleanup;
     AfterCommitStorageDeletionService service;
 
     @BeforeEach
     void setUp() {
         TransactionSynchronizationManager.initSynchronization();
         TransactionSynchronizationManager.setActualTransactionActive(true);
-        service = new AfterCommitStorageDeletionService(storage);
+        service = new AfterCommitStorageDeletionService(cleanup);
     }
 
     @AfterEach
@@ -42,32 +39,31 @@ class AfterCommitStorageDeletionServiceTest {
 
     @Test
     void commitDeletesOnlyAfterCommitAndCoalescesDuplicateKeys() {
-        service.deleteAfterCommit("public/old.jpg");
-        service.deleteAfterCommit("public/old.jpg");
-        verify(storage, never()).deleteObject("public/old.jpg");
+        service.deleteAfterCommit(7L, "public/old.jpg");
+        service.deleteAfterCommit(7L, "public/old.jpg");
+        verify(cleanup, never()).deleteSafely(7L, "public/old.jpg");
 
         List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
         synchronizations.forEach(TransactionSynchronization::afterCommit);
-        verify(storage, times(1)).deleteObject("public/old.jpg");
+        verify(cleanup, times(1)).deleteSafely(7L, "public/old.jpg");
         synchronizations.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
     }
 
     @Test
     void rollbackNeverDeletesTheStorageObject() {
-        service.deleteAfterCommit("public/kept.jpg");
+        service.deleteAfterCommit(8L, "public/kept.jpg");
 
         TransactionSynchronizationManager.getSynchronizations()
                 .forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
 
-        verify(storage, never()).deleteObject("public/kept.jpg");
+        verify(cleanup, never()).deleteSafely(8L, "public/kept.jpg");
     }
 
     @Test
-    void afterCommitStorageFailureIsHandledWithoutEscapingCommitCallback() {
-        doThrow(new IllegalStateException("R2 unavailable")).when(storage).deleteObject("public/orphan.jpg");
-        service.deleteAfterCommit("public/orphan.jpg");
-
-        assertThatCode(() -> TransactionSynchronizationManager.getSynchronizations()
-                .forEach(TransactionSynchronization::afterCommit)).doesNotThrowAnyException();
+    void noTransactionDelegatesToRetrySafeCleanupImmediately() {
+        TransactionSynchronizationManager.clearSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(false);
+        service.deleteAfterCommit(9L, "public/orphan.jpg");
+        verify(cleanup).deleteSafely(9L, "public/orphan.jpg");
     }
 }

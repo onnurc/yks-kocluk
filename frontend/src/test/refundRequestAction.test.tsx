@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RefundRequestAction } from "../refunds/RefundRequestAction";
 
@@ -62,5 +62,21 @@ describe("student refund eligibility presentation", () => {
     mocks.eligibility.mockResolvedValue(response({ sessionsUsed: 5 }));
     render(<RefundRequestAction subscriptionId={41} onSuccess={vi.fn()} />);
     expect(await screen.findByRole("button", { name: "İade Al" })).toBeEnabled();
+  });
+
+  it("notifies subscription consumers after a successful refund termination", async () => {
+    mocks.eligibility.mockResolvedValue(response());
+    mocks.create.mockResolvedValue({ id: 9, status: "REFUNDED" });
+    const onSuccess = vi.fn();
+    const listener = vi.fn();
+    window.addEventListener("uniform:subscription-state-changed", listener);
+    render(<RefundRequestAction subscriptionId={41} onSuccess={onSuccess} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "İade Al" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "İadeyi doğrula" })).getByRole("button", { name: "İadeyi Onayla" }));
+
+    await waitFor(() => expect(listener).toHaveBeenCalledOnce());
+    expect(onSuccess).toHaveBeenCalledOnce();
+    window.removeEventListener("uniform:subscription-state-changed", listener);
   });
 });

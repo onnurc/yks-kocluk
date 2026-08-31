@@ -29,11 +29,12 @@ class TrialConsultationServiceTest {
     @Mock CoachProfileRepository coaches;
     @Mock SessionRepository sessions;
     @Mock UserRepository users;
+    @Mock SubscriptionRepository subscriptions;
     @Mock AccountReadinessService readiness;
     TrialConsultationService service;
 
     @BeforeEach void setUp() {
-        service = new TrialConsultationService(trials, availabilities, coaches, sessions, users, readiness,
+        service = new TrialConsultationService(trials, availabilities, coaches, sessions, users, subscriptions, readiness,
                 Clock.systemUTC());
     }
 
@@ -53,6 +54,19 @@ class TrialConsultationServiceTest {
         assertTrue(slot.isBooked());
         verify(readiness).requireReady(student);
         verify(trials).saveAndFlush(any(TrialConsultation.class));
+    }
+
+    @Test
+    void activePaidSubscriptionBlocksTrialWithCurrentOrDifferentCoachBeforeSlotLookup() {
+        User student = user(18L, Role.STUDENT, UserStatus.ACTIVE);
+        when(users.findByIdForUpdate(18L)).thenReturn(Optional.of(student));
+        when(subscriptions.existsByStudentIdAndStatusIn(eq(18L), any())).thenReturn(true);
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> service.request(18L, new TrialConsultationCreateRequest(99L)));
+
+        assertEquals("ACTIVE_COACH_EXISTS", error.getErrorCode());
+        verifyNoInteractions(availabilities);
     }
 
     @Test
@@ -132,7 +146,7 @@ class TrialConsultationServiceTest {
     @Test
     void thirdTrialInsideAnyRollingSevenDaysIsRejected() {
         Instant candidate = Instant.parse("2026-09-05T10:00:00Z");
-        service = new TrialConsultationService(trials, availabilities, coaches, sessions, users, readiness,
+        service = new TrialConsultationService(trials, availabilities, coaches, sessions, users, subscriptions, readiness,
                 Clock.fixed(Instant.parse("2026-09-01T10:00:00Z"), ZoneOffset.UTC));
         User student = user(15L, Role.STUDENT, UserStatus.ACTIVE);
         CoachProfile coach = coach(26L, 36L, CoachProfileStatus.APPROVED);
@@ -154,7 +168,7 @@ class TrialConsultationServiceTest {
     @Test
     void adminConfirmationStoresMeetingLinkAndIsIdempotent() {
         Instant now = Instant.parse("2026-09-01T10:00:00Z");
-        service = new TrialConsultationService(trials, availabilities, coaches, sessions, users, readiness,
+        service = new TrialConsultationService(trials, availabilities, coaches, sessions, users, subscriptions, readiness,
                 Clock.fixed(now, ZoneOffset.UTC));
         User admin = user(1L, Role.ADMIN, UserStatus.ACTIVE);
         CoachProfile coach = coach(28L, 38L, CoachProfileStatus.APPROVED);

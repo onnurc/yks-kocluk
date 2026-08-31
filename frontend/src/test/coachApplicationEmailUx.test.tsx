@@ -48,5 +48,6 @@ describe("coach application email UX", () => {
 
     await waitFor(() => expect(mocks.submit).toHaveBeenCalledWith(expect.objectContaining({ email: "ada@example.com" })));
     expect(await screen.findByRole("heading", { name: "Başvurunuz alındı" })).toBeInTheDocument();
+    expect(screen.getByText("Başvuru talebiniz alındı. Başvurunuzun durumuyla ilgili gerekli bilgilendirme e-posta adresiniz üzerinden yapılacaktır.")).toBeInTheDocument();
   });
 });

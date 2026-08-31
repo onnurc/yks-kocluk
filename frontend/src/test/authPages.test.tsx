@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { LoginPage } from "../pages/LoginPage";
 import { RegisterPage } from "../pages/RegisterPage";
 import { ApiError } from "../api/ApiError";
@@ -111,6 +111,22 @@ describe("auth page family", () => {
       marketingSmsOptIn: false,
     })));
     expect(mocks.register.mock.calls[0][0]).not.toHaveProperty("role");
+  });
+
+  it("surfaces the uniform public registration response on the login page", async () => {
+    mocks.register.mockResolvedValue("E-posta adresinizi kontrol edin. Kayıt işleminiz uygunsa doğrulama kodu gönderilecektir. Bu e-posta adresiyle daha önce hesap oluşturduysanız mevcut hesabınızla giriş yapabilirsiniz.");
+    render(
+      <MemoryRouter initialEntries={["/register"]}>
+        <Routes>
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/login" element={<LoginPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fillRegistration("ada@example.com");
+    fireEvent.click(screen.getByRole("button", { name: "Kayıt Ol" }));
+
+    expect(await screen.findByText("E-posta adresinizi kontrol edin. Kayıt işleminiz uygunsa doğrulama kodu gönderilecektir. Bu e-posta adresiyle daha önce hesap oluşturduysanız mevcut hesabınızla giriş yapabilirsiniz.")).toBeInTheDocument();
   });
 
   it("shows blank and malformed registration email errors only below the field", () => {

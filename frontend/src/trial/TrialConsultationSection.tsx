@@ -43,6 +43,11 @@ export const TrialConsultationSection: React.FC<TrialConsultationSectionProps> =
   const [error, setError] = useState<ApiError | Error | null>(null);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setExistingTrial(null);
+    setSlots([]);
+    setSelectedSlotId(null);
     try {
       const [trials, availability] = await Promise.all([
         trialConsultationApi.myTrials(),
@@ -98,7 +103,9 @@ export const TrialConsultationSection: React.FC<TrialConsultationSectionProps> =
   if (error) {
     const code = error instanceof ApiError ? error.code : undefined;
     errorMessage =
-      code === "SLOT_TAKEN"
+      code === "ACTIVE_COACH_EXISTS"
+        ? "Mevcut aktif koçluk aboneliğiniz nedeniyle başka bir koç için görüşme planlayamazsınız."
+        : code === "SLOT_TAKEN"
         ? "Seçtiğiniz saat az önce dolmuş. Lütfen başka bir saat seçin."
         : code === "SLOT_IN_PAST"
           ? "Geçmiş bir saate görüşme planlanamaz."
@@ -140,11 +147,15 @@ export const TrialConsultationSection: React.FC<TrialConsultationSectionProps> =
             <p className="trial-card__status">
               Durum: {existingTrial.status === "REQUESTED" ? "Onay bekliyor" : "Onaylandı"}
             </p>
-            {existingTrial.meetingUrl && (
+            {existingTrial.meetingUrl ? (
               <a className="trial-card__meeting-link" href={existingTrial.meetingUrl} target="_blank" rel="noreferrer">
                 Görüşmeye Katıl
               </a>
-            )}
+            ) : existingTrial.status === "CONFIRMED" ? (
+              <span className="trial-card__meeting-link trial-card__meeting-link--disabled" aria-disabled="true">
+                Görüşme bağlantısı henüz eklenmedi
+              </span>
+            ) : null}
             <button className="trial-card__cancel" onClick={handleCancel} disabled={cancelling}>
               {cancelling ? "İptal ediliyor…" : "Görüşmeyi İptal Et"}
             </button>

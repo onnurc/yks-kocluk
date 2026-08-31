@@ -31,6 +31,7 @@ class ClientIpResolverTest {
     @Test
     void resolveIp_trustProxyHeadersEnabled_usesFirstIpInForwardedForHeader() {
         properties.setTrustProxyHeaders(true);
+        properties.setTrustedProxyCidrs(java.util.List.of("192.168.1.0/24"));
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("192.168.1.5");
         request.addHeader("X-Forwarded-For", "203.0.113.195, 70.41.3.18");
@@ -42,6 +43,7 @@ class ClientIpResolverTest {
     @Test
     void resolveIp_trustProxyHeadersEnabledButHeaderEmpty_fallsBackToRemoteAddress() {
         properties.setTrustProxyHeaders(true);
+        properties.setTrustedProxyCidrs(java.util.List.of("192.168.1.0/24"));
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("192.168.1.5");
         request.addHeader("X-Forwarded-For", "");
@@ -53,10 +55,22 @@ class ClientIpResolverTest {
     @Test
     void resolveIp_trustProxyHeadersEnabledButHeaderMissing_fallsBackToRemoteAddress() {
         properties.setTrustProxyHeaders(true);
+        properties.setTrustedProxyCidrs(java.util.List.of("192.168.1.0/24"));
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("192.168.1.5");
 
         String resolved = ipResolver.resolveIp(request);
         assertThat(resolved).isEqualTo("192.168.1.5");
+    }
+
+    @Test
+    void spoofedForwardedHeaderFromUntrustedPeerIsIgnored() {
+        properties.setTrustProxyHeaders(true);
+        properties.setTrustedProxyCidrs(java.util.List.of("10.0.0.0/8"));
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("198.51.100.7");
+        request.addHeader("X-Forwarded-For", "203.0.113.99");
+
+        assertThat(ipResolver.resolveIp(request)).isEqualTo("198.51.100.7");
     }
 }

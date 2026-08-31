@@ -3,9 +3,11 @@ package com.ykskocluk.demo.controller;
 import com.ykskocluk.demo.dto.CoachApplicationRequest;
 import com.ykskocluk.demo.security.ratelimit.AuthRateLimitService;
 import com.ykskocluk.demo.service.CoachApplicationService;
+import com.ykskocluk.demo.dto.PublicRequestResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -30,9 +32,15 @@ public class PublicCoachApplicationController {
     }
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public void submit(@Valid @RequestBody CoachApplicationRequest request) {
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public PublicRequestResponse submit(@Valid @RequestBody CoachApplicationRequest request) {
         rateLimitService.checkCoachApplication(request.email(), httpServletRequest);
-        coachApplicationService.submit(request);
+        try {
+            coachApplicationService.submit(request);
+        } catch (DataIntegrityViolationException duplicateRace) {
+            // Preserve duplicate protection without turning a concurrent duplicate into an
+            // account/application existence oracle.
+        }
+        return PublicRequestResponse.coachApplicationAccepted();
     }
 }

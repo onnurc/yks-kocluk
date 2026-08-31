@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { FormError } from "../components/FormError";
 import { getApiBaseUrl } from "../api/httpClient";
@@ -11,6 +11,7 @@ import "./auth-page.css";
 export const LoginPage: React.FC = () => {
   const { login, isAuthenticated, user, isSuspended } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,6 +47,7 @@ export const LoginPage: React.FC = () => {
       lead="Uniform hesabına giriş yaparak koçluk programlarına, çalışma planına ve Community ayrıcalıklarına kaldığın yerden devam et."
       icon="↪"
     >
+      {typeof location.state?.notice === "string" && <div role="status" className="auth-notice auth-notice--success">{location.state.notice}</div>}
       {searchParams.get("accountDeleted") === "1" && <div role="status" className="auth-notice auth-notice--info">Hesabınızla ilgili silme işlemi tamamlandı. Oturumunuz güvenli biçimde kapatıldı.</div>}
       {searchParams.get("passwordChanged") === "1" && <div role="status" className="auth-notice auth-notice--success">Şifreniz değiştirildi ve tüm oturumlar kapatıldı. Yeni şifrenizle giriş yapın.</div>}
       <div className="auth-error-slot"><FormError error={error} /></div>

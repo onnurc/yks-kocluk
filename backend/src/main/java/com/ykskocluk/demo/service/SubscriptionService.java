@@ -172,6 +172,22 @@ public class SubscriptionService {
     }
 
     private Subscription preparePendingSubscription(Long studentUserId, SubscriptionCreateRequest request) {
+        // The user-row lock is the cross-coach serialization point. Together with V38's partial
+        // unique index it prevents simultaneous checkouts for two different coaches.
+        User student = userRepository.findByIdForUpdate(studentUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
+        accountReadinessService.requireReady(student);
+        List<Subscription> currentRelationships = subscriptionRepository.findCurrentCoachRelationships(studentUserId);
+        if (!currentRelationships.isEmpty()) {
+            Subscription current = currentRelationships.getFirst();
+            if (current.getStatus() == SubscriptionStatus.PENDING_PAYMENT) {
+                throw new ApiException(HttpStatus.CONFLICT, "PENDING_COACH_CHECKOUT_EXISTS",
+                        "Zaten bekleyen bir koçluk ödeme işleminiz bulunuyor");
+            }
+            throw new ApiException(HttpStatus.CONFLICT, "ACTIVE_COACH_EXISTS",
+                    "Zaten aktif bir koçluk aboneliğiniz bulunuyor. Yeni bir koç seçebilmek için mevcut aboneliğinizin sona ermesi gerekir.");
+        }
+
         Package pkg = packageRepository.findById(request.packageId())
             .filter(pkgCandidate -> pkgCandidate.isActive())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "PACKAGE_NOT_FOUND", "Paket bulunamadı"));
@@ -179,18 +195,6 @@ public class SubscriptionService {
         // APPROVED-only (non-approved coaches are invisible/unbookable).
         CoachProfile coach = coachProfileRepository.findByIdAndStatus(request.coachId(), CoachProfileStatus.APPROVED)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "COACH_NOT_FOUND", "Koç bulunamadı"));
-
-        if (subscriptionRepository.findLiveSubscription(studentUserId, coach.getId()).isPresent()
-                || subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(
-                studentUserId, coach.getId(), SubscriptionStatus.PENDING_PAYMENT)) {
-            throw new ApiException(HttpStatus.CONFLICT, "ALREADY_SUBSCRIBED",
-                    "Bu koç ile zaten aktif aboneliğiniz var");
-        }
-
-        User student = userRepository.findById(studentUserId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
-
-        accountReadinessService.requireReady(student);
 
         Instant now = Instant.now();
         Subscription subscription = new Subscription();
@@ -210,8 +214,8 @@ public class SubscriptionService {
         try {
             return subscriptionRepository.saveAndFlush(subscription);
         } catch (DataIntegrityViolationException e) {
-            throw new ApiException(HttpStatus.CONFLICT, "ALREADY_SUBSCRIBED",
-                    "Bu koç ile zaten aktif aboneliğiniz var");
+            throw new ApiException(HttpStatus.CONFLICT, "ACTIVE_COACH_EXISTS",
+                    "Zaten aktif veya bekleyen bir koçluk ilişkiniz bulunuyor");
         }
     }
 

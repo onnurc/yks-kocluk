@@ -8,6 +8,7 @@ import { LegalDocumentViewer } from "../legal/LegalDocumentViewer";
 import { isStaleLegalDocumentError, legalErrorMessage } from "../legal/legalErrors";
 import { useLegalDocuments } from "../legal/useLegalDocuments";
 import { ApiError } from "../api/ApiError";
+import { blocksNewCoachCheckout, isLiveCoachRelationship } from "../access/subscriptionAccess";
 
 const CHECKOUT_DOCUMENT_TYPES = ["PRE_INFORMATION_FORM", "DISTANCE_SALES_AGREEMENT", "REFUND_CANCELLATION_POLICY"] as const;
 
@@ -37,8 +38,8 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
 
   const subStatus = dashboardData?.subscription?.status;
   const isPending = subStatus === "PENDING_PAYMENT";
-  const isActive = subStatus === "ACTIVE";
-  const isEligible = user?.role === "STUDENT" && user.legalOnboardingCompleted && !isPending && !isActive;
+  const isActive = isLiveCoachRelationship(subStatus);
+  const isEligible = user?.role === "STUDENT" && user.legalOnboardingCompleted && !blocksNewCoachCheckout(subStatus);
 
   const handleCheckout = async () => {
     if (!isEligible || loading || !legalDocuments.ready || !legalDocumentsAccepted) return;
@@ -125,8 +126,12 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
     const status = error instanceof ApiError ? error.status : undefined;
     const code = error instanceof ApiError ? error.code : undefined;
 
-    if (status === 409 || code === "ALREADY_SUBSCRIBED") {
-      customErrorMessage = "Bu koç ile zaten aktif veya bekleyen bir aboneliğiniz var.";
+    if (code === "ACTIVE_COACH_EXISTS") {
+      customErrorMessage = "Zaten aktif bir koçluk aboneliğiniz bulunuyor. Yeni bir koç seçebilmek için mevcut aboneliğinizin sona ermesi gerekir.";
+    } else if (code === "PENDING_COACH_CHECKOUT_EXISTS") {
+      customErrorMessage = "Zaten bekleyen bir ödeme işleminiz bulunuyor. Yeni bir koç seçmeden önce bu işlemin sonuçlanması gerekir.";
+    } else if (status === 409 || code === "ALREADY_SUBSCRIBED") {
+      customErrorMessage = "Zaten aktif veya bekleyen bir aboneliğiniz var.";
     } else if (code === "NOT_PAYMENT_OWNER") {
       customErrorMessage = "Bu işlem size ait değil.";
     } else if (code === "COACH_FULL") {
@@ -148,7 +153,12 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
       {customErrorMessage ? (
         <div style={{ padding: "0.75rem", border: "1px solid #f5c6cb", borderRadius: "4px", backgroundColor: "#f8d7da", color: "#721c24", marginBottom: "1rem", fontSize: "0.9rem" }}>
           ⚠️ {customErrorMessage}
-          {(error instanceof ApiError && (error.status === 409 || error.code === "ALREADY_SUBSCRIBED")) && (
+          {(error instanceof ApiError && (
+            error.status === 409
+            || error.code === "ALREADY_SUBSCRIBED"
+            || error.code === "ACTIVE_COACH_EXISTS"
+            || error.code === "PENDING_COACH_CHECKOUT_EXISTS"
+          )) && (
             <div style={{ marginTop: "0.5rem" }}>
               <Link to="/dashboard" style={{ color: "#721c24", fontWeight: "bold", textDecoration: "underline" }}>
                 Panele Geri Dön
@@ -168,7 +178,7 @@ export const CheckoutSection: React.FC<CheckoutSectionProps> = ({
 
       {isActive && (
         <div style={{ padding: "0.75rem", border: "1px solid #bee5eb", borderRadius: "4px", backgroundColor: "#d1ecf1", color: "#0c5460", marginBottom: "1rem", fontSize: "0.9rem" }}>
-          ℹ️ Aktif aboneliğiniz bulunduğu için yeni checkout bu aşamada başlatılamaz.
+          ℹ️ Yeni bir koç seçebilmek için mevcut koçluk aboneliğinizin sona ermesi gerekir.
         </div>
       )}
 

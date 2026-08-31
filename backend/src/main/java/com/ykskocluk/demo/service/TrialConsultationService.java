@@ -35,6 +35,7 @@ public class TrialConsultationService {
     private final CoachProfileRepository coaches;
     private final SessionRepository sessions;
     private final UserRepository users;
+    private final SubscriptionRepository subscriptions;
     private final AccountReadinessService readiness;
     private final Clock clock;
 
@@ -43,6 +44,7 @@ public class TrialConsultationService {
                                     CoachProfileRepository coaches,
                                     SessionRepository sessions,
                                     UserRepository users,
+                                    SubscriptionRepository subscriptions,
                                     AccountReadinessService readiness,
                                     Clock clock) {
         this.trials = trials;
@@ -50,6 +52,7 @@ public class TrialConsultationService {
         this.coaches = coaches;
         this.sessions = sessions;
         this.users = users;
+        this.subscriptions = subscriptions;
         this.readiness = readiness;
         this.clock = clock;
     }
@@ -61,6 +64,11 @@ public class TrialConsultationService {
         User student = users.findByIdForUpdate(studentId)
                 .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Kullanıcı bulunamadı"));
         readiness.requireReady(student);
+        if (subscriptions.existsByStudentIdAndStatusIn(studentId,
+                Set.of(SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE))) {
+            throw error(HttpStatus.CONFLICT, "ACTIVE_COACH_EXISTS",
+                    "Mevcut aktif koçluk aboneliğiniz nedeniyle ücretsiz görüşme planlayamazsınız");
+        }
         CoachAvailability slot = availabilities.findByIdForUpdate(request.availabilityId())
                 .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "SLOT_NOT_FOUND", "Uygunluk bulunamadı"));
         CoachProfile coach = slot.getCoachProfile();

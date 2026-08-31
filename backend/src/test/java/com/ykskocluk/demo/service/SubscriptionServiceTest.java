@@ -119,6 +119,7 @@ class SubscriptionServiceTest {
                 .thenReturn(Optional.of(coach));
 
         lenient().when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(new User()));
+        lenient().when(userRepository.findByIdForUpdate(STUDENT_ID)).thenReturn(Optional.of(new User()));
     lenient().when(subscriptionRepository.findLiveSubscription(STUDENT_ID, COACH_ID))
         .thenReturn(Optional.empty());
     lenient().when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(
@@ -143,9 +144,6 @@ class SubscriptionServiceTest {
 
     @Test
     void subscribe_success_createsPendingPayment_andDoesNotIncrementCapacity() {
-        when(subscriptionRepository.findLiveSubscription(STUDENT_ID, COACH_ID)).thenReturn(Optional.empty());
-        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(
-                STUDENT_ID, COACH_ID, SubscriptionStatus.PENDING_PAYMENT)).thenReturn(false);
         when(subscriptionRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         SubscriptionResponse response = service.subscribe(STUDENT_ID, request());
@@ -159,7 +157,7 @@ class SubscriptionServiceTest {
     void subscribe_minorStudentWithoutLegacyConsent_isNotSeparatelyBlocked() {
         User minor = new User();
         minor.setDateOfBirth(java.time.LocalDate.now().minusYears(16));
-        when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(minor));
+        when(userRepository.findByIdForUpdate(STUDENT_ID)).thenReturn(Optional.of(minor));
         when(subscriptionRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         SubscriptionResponse response = service.subscribe(STUDENT_ID, request());
@@ -170,22 +168,24 @@ class SubscriptionServiceTest {
 
     @Test
     void subscribe_existingLiveSubscription_throwsConflict_noCapacityChange() {
-        when(subscriptionRepository.findLiveSubscription(STUDENT_ID, COACH_ID))
-                .thenReturn(Optional.of(new Subscription()));
+        Subscription active = new Subscription();
+        active.setStatus(SubscriptionStatus.ACTIVE);
+        when(subscriptionRepository.findCurrentCoachRelationships(STUDENT_ID)).thenReturn(List.of(active));
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.subscribe(STUDENT_ID, request()));
-        assertThat(ex.getErrorCode()).isEqualTo("ALREADY_SUBSCRIBED");
+        assertThat(ex.getErrorCode()).isEqualTo("ACTIVE_COACH_EXISTS");
         verify(coachProfileRepository, never()).incrementActiveStudentCountIfRoom(COACH_ID);
         verify(subscriptionRepository, never()).saveAndFlush(any());
     }
 
     @Test
     void subscribe_existingPendingPayment_throwsConflict_noCapacityChange() {
-        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(
-                STUDENT_ID, COACH_ID, SubscriptionStatus.PENDING_PAYMENT)).thenReturn(true);
+        Subscription pending = new Subscription();
+        pending.setStatus(SubscriptionStatus.PENDING_PAYMENT);
+        when(subscriptionRepository.findCurrentCoachRelationships(STUDENT_ID)).thenReturn(List.of(pending));
 
         ApiException ex = catchThrowableOfType(ApiException.class, () -> service.subscribe(STUDENT_ID, request()));
-        assertThat(ex.getErrorCode()).isEqualTo("ALREADY_SUBSCRIBED");
+        assertThat(ex.getErrorCode()).isEqualTo("PENDING_COACH_CHECKOUT_EXISTS");
         verify(coachProfileRepository, never()).incrementActiveStudentCountIfRoom(eq(COACH_ID));
         verify(subscriptionRepository, never()).saveAndFlush(any());
     }
@@ -211,9 +211,6 @@ class SubscriptionServiceTest {
 
     @Test
     void checkout_success_createsPendingPayment_andReturnsInitializationInfo() {
-        when(subscriptionRepository.findLiveSubscription(STUDENT_ID, COACH_ID)).thenReturn(Optional.empty());
-        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(
-                STUDENT_ID, COACH_ID, SubscriptionStatus.PENDING_PAYMENT)).thenReturn(false);
         when(subscriptionRepository.saveAndFlush(any())).thenAnswer(invocation -> {
             Subscription subscription = invocation.getArgument(0);
             ReflectionTestUtils.setField(subscription, "id", 11L);
@@ -275,13 +272,14 @@ class SubscriptionServiceTest {
 
     @Test
     void checkout_existingPendingPayment_preservesDuplicateGuardAndCreatesNoEvidence() {
-        when(subscriptionRepository.existsByStudentIdAndCoachProfileIdAndStatus(
-                STUDENT_ID, COACH_ID, SubscriptionStatus.PENDING_PAYMENT)).thenReturn(true);
+        Subscription pending = new Subscription();
+        pending.setStatus(SubscriptionStatus.PENDING_PAYMENT);
+        when(subscriptionRepository.findCurrentCoachRelationships(STUDENT_ID)).thenReturn(List.of(pending));
 
         ApiException ex = catchThrowableOfType(ApiException.class,
                 () -> service.checkout(STUDENT_ID, checkoutRequest()));
 
-        assertThat(ex.getErrorCode()).isEqualTo("ALREADY_SUBSCRIBED");
+        assertThat(ex.getErrorCode()).isEqualTo("PENDING_COACH_CHECKOUT_EXISTS");
         verifyNoInteractions(legalAcceptanceService);
         verify(iyzicoClient, never()).initializeCheckout(any(), any(), any(), any());
     }

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ApiError } from "../api/ApiError";
@@ -19,6 +19,7 @@ vi.mock("../coaches/coachDiscoveryApi", () => ({
 
 vi.mock("../studentDashboard/studentDashboardApi", () => ({
   studentDashboardApi: { getDashboardData: vi.fn() },
+  SUBSCRIPTION_STATE_CHANGED_EVENT: "uniform:subscription-state-changed",
 }));
 
 vi.mock("../trial/trialConsultationApi", () => ({
@@ -35,11 +36,12 @@ vi.mock("../subscriptionCheckout/CheckoutSection", () => ({
     dashboardData: StudentDashboardResponse | null;
   }) => {
     const status = dashboardData?.subscription?.status;
-    const label = status === "ACTIVE" ? "Aktif Abonelik Mevcut" : status === "PENDING_PAYMENT" ? "Bekleyen Ödeme Mevcut" : "Ödemeye Geç";
+    const checkoutBlocked = status === "ACTIVE" || status === "PAST_DUE" || status === "PENDING_PAYMENT";
+    const label = status === "ACTIVE" || status === "PAST_DUE" ? "Aktif Abonelik Mevcut" : status === "PENDING_PAYMENT" ? "Bekleyen Ödeme Mevcut" : "Ödemeye Geç";
     return (
       <div data-testid="checkout-section">
         <span>{`Seçilen checkout: ${coachId} ${coachName} ${packageId} ${packageName} ${price}`}</span>
-        <button disabled={status === "ACTIVE" || status === "PENDING_PAYMENT"}>{label}</button>
+        <button disabled={checkoutBlocked}>{label}</button>
       </div>
     );
   },
@@ -92,11 +94,11 @@ const student = {
 const coachUser = { ...student, id: 11, email: "coach@example.com", role: "COACH" as const };
 const admin = { ...student, id: 12, email: "admin@example.com", role: "ADMIN" as const };
 
-function dashboard(status: "ACTIVE" | "PENDING_PAYMENT" | null) {
+function dashboard(status: "ACTIVE" | "PAST_DUE" | "PENDING_PAYMENT" | "TERMINATED" | "EXPIRED" | null, coachId = 42) {
   return {
     user: student,
     subscription: status ? {
-      id: 90, status, coachId: 42, coachName: "Ayşe Yılmaz", packageId: 5, packageName: "Başlangıç Paketi",
+      id: 90, status, coachId, coachName: coachId === 42 ? "Ayşe Yılmaz" : "Başka Koç", packageId: 5, packageName: "Başlangıç Paketi",
       startAt: "2026-01-01T00:00:00Z", endAt: "2026-02-01T00:00:00Z", autoRenew: true,
       cancelledAt: null, terminationReason: null,
     } : null,
@@ -223,15 +225,68 @@ describe("Public koç profili", () => {
     expect(coachDiscoveryApi.listPackages).toHaveBeenCalledTimes(1);
   });
 
-  it.each([
-    ["ACTIVE", "Aktif Abonelik Mevcut"],
-    ["PENDING_PAYMENT", "Bekleyen Ödeme Mevcut"],
-  ] as const)("keeps %s subscriptions from exposing an actionable checkout", async (status, label) => {
+  it.each(["ACTIVE", "PAST_DUE", "PENDING_PAYMENT"] as const)(
+    "keeps %s relationships from exposing an actionable checkout and explains why", async (status) => {
     vi.mocked(studentDashboardApi.getDashboardData).mockResolvedValue(dashboard(status));
     renderRoute("/coaches/42", { user: student, isAuthenticated: true });
 
-    fireEvent.click((await screen.findAllByRole("button", { name: "Paketi Seç" }))[0]);
-    expect(await screen.findByRole("button", { name: label })).toBeDisabled();
+    expect((await screen.findAllByRole("button", { name: "Paketi Seç" }))[0]).toBeDisabled();
+    expect(screen.getByText(/Yeni bir koç seçebilmek için mevcut koçluk aboneliğinizin veya bekleyen ödeme işleminizin sona ermesi gerekir/)).toBeInTheDocument();
+    expect(screen.queryByTestId("checkout-section")).not.toBeInTheDocument();
+  });
+
+  it("explains that an active coach blocks trials and checkout for another coach", async () => {
+    vi.mocked(studentDashboardApi.getDashboardData).mockResolvedValue(dashboard("ACTIVE", 77));
+    renderRoute("/coaches/42", { user: student, isAuthenticated: true });
+
+    expect(await screen.findByText(/Mevcut aktif koçluk aboneliğiniz nedeniyle başka bir koç için görüşme planlayamazsınız/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ücretsiz Görüşme Planla" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Paketi Seç" })[0]).toBeDisabled();
+  });
+
+  it.each(["TERMINATED", "EXPIRED"] as const)(
+    "treats a %s former relationship as non-live for trial and checkout",
+    async (status) => {
+      vi.mocked(studentDashboardApi.getDashboardData).mockResolvedValue(dashboard(status, 77));
+      renderRoute("/coaches/42", { user: student, isAuthenticated: true });
+
+      expect(await screen.findByText("Bu koçun şu anda tanımlı uygun deneme görüşmesi saati bulunmuyor.")).toBeInTheDocument();
+      expect(screen.queryByText(/Mevcut aktif koçluk aboneliğiniz nedeniyle/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/mevcut koçluk aboneliğinizin veya bekleyen ödeme işleminizin sona ermesi gerekir/)).not.toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: "Paketi Seç" })[0]).toBeEnabled();
+      fireEvent.click(screen.getAllByRole("button", { name: "Paketi Seç" })[0]);
+      expect(await screen.findByRole("button", { name: "Ödemeye Geç" })).toBeEnabled();
+    },
+  );
+
+  it("treats a terminated relationship with the viewed coach as non-live", async () => {
+    vi.mocked(studentDashboardApi.getDashboardData).mockResolvedValue(dashboard("TERMINATED", 42));
+    renderRoute("/coaches/42", { user: student, isAuthenticated: true });
+
+    expect(await screen.findByText("Bu koçun şu anda tanımlı uygun deneme görüşmesi saati bulunmuyor.")).toBeInTheDocument();
+    expect(screen.queryByText(/Aktif koçluk aboneliğiniz bulunduğu için/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Randevu akışı 42")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Paketi Seç" })[0]).toBeEnabled();
+  });
+
+  it("re-fetches the relationship after a refund termination event and removes all blocking UI", async () => {
+    vi.mocked(studentDashboardApi.getDashboardData)
+      .mockResolvedValueOnce(dashboard("ACTIVE", 77))
+      .mockResolvedValue(dashboard("TERMINATED", 77));
+    renderRoute("/coaches/42", { user: student, isAuthenticated: true });
+
+    expect(await screen.findByText(/Mevcut aktif koçluk aboneliğiniz nedeniyle/)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Paketi Seç" })[0]).toBeDisabled();
+
+    await act(async () => {
+      window.dispatchEvent(new Event("uniform:subscription-state-changed"));
+    });
+
+    expect(await screen.findByText("Bu koçun şu anda tanımlı uygun deneme görüşmesi saati bulunmuyor.")).toBeInTheDocument();
+    expect(screen.queryByText(/Mevcut aktif koçluk aboneliğiniz nedeniyle/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/mevcut koçluk aboneliğinizin veya bekleyen ödeme işleminizin sona ermesi gerekir/)).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Paketi Seç" })[0]).toBeEnabled();
+    expect(studentDashboardApi.getDashboardData).toHaveBeenCalledTimes(2);
   });
 
   it("keeps messaging and booking available for an eligible subscribed student", async () => {
@@ -277,6 +332,35 @@ describe("Public koç profili", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ücretsiz Görüşme Planla" }));
     await waitFor(() => expect(trialConsultationApi.request).toHaveBeenCalledWith({ availabilityId: 501 }));
     expect(await screen.findByText("Durum: Onay bekliyor")).toBeInTheDocument();
+  });
+
+  it("renders a confirmed trial meeting URL as an active safe join action", async () => {
+    vi.mocked(trialConsultationApi.myTrials).mockResolvedValue([{
+      id: 701, coachProfileId: 42, coachName: "Ayşe Yılmaz", studentId: 10, studentName: "Öğrenci",
+      availabilityId: 502, status: "CONFIRMED", startsAt: "2026-09-10T10:00:00Z", endsAt: "2026-09-10T10:30:00Z",
+      meetingUrl: "https://meet.jit.si/uniform-safe-room", requestedAt: "2026-09-01T10:00:00Z", updatedAt: "2026-09-02T10:00:00Z",
+    }]);
+    renderRoute("/coaches/42", { user: student, isAuthenticated: true });
+
+    const join = await screen.findByRole("link", { name: "Görüşmeye Katıl" });
+    expect(join).toHaveAttribute("href", "https://meet.jit.si/uniform-safe-room");
+    expect(join).toHaveAttribute("target", "_blank");
+    expect(join).toHaveAttribute("rel", "noreferrer");
+    expect(join).toHaveClass("trial-card__meeting-link");
+  });
+
+  it("renders a confirmed trial without a meeting URL as a readable unavailable state", async () => {
+    vi.mocked(trialConsultationApi.myTrials).mockResolvedValue([{
+      id: 702, coachProfileId: 42, coachName: "Ayşe Yılmaz", studentId: 10, studentName: "Öğrenci",
+      availabilityId: 503, status: "CONFIRMED", startsAt: "2026-09-10T10:00:00Z", endsAt: "2026-09-10T10:30:00Z",
+      meetingUrl: null, requestedAt: "2026-09-01T10:00:00Z", updatedAt: "2026-09-02T10:00:00Z",
+    }]);
+    renderRoute("/coaches/42", { user: student, isAuthenticated: true });
+
+    const unavailable = await screen.findByText("Görüşme bağlantısı henüz eklenmedi");
+    expect(unavailable).toHaveAttribute("aria-disabled", "true");
+    expect(unavailable).toHaveClass("trial-card__meeting-link--disabled");
+    expect(screen.queryByRole("link", { name: "Görüşmeye Katıl" })).not.toBeInTheDocument();
   });
 
   it("shows the clear UTF-8 trial empty state only after availability loads empty", async () => {

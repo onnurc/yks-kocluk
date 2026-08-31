@@ -32,7 +32,7 @@ public class JitsiMeetClient implements MeetClient {
     public String createMeetLink(Long sessionId, Instant startTime, Instant endTime) {
         // UUID v4 = the unguessable entropy source. The "yks-" prefix is readability only.
         String link = BASE_URL + "/yks-" + UUID.randomUUID();
-        log.info("[Jitsi MeetClient] created link {} for session {}", link, sessionId);
+        log.info("[Jitsi MeetClient] meeting created for session {}", sessionId);
         return link;
     }
 }
