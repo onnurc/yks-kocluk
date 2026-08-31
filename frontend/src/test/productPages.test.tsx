@@ -82,7 +82,9 @@ describe("authenticated meetings page", () => {
     expect(await screen.findByText("Ece Demir")).toBeInTheDocument();
     expect(screen.getByText("Mert Kaya")).toBeInTheDocument();
     expect(screen.getByText("Derya Yalçın")).toBeInTheDocument();
-    expect(screen.getAllByText("11:00 – 12:00")).toHaveLength(3);
+    const timeFormatter = new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    const expectedTimeRange = `${timeFormatter.format(new Date(plannedSession.startTime))} – ${timeFormatter.format(new Date(plannedSession.endTime))}`;
+    expect(screen.getAllByText(expectedTimeRange)).toHaveLength(3);
     expect(screen.getByText("Tamamlandı")).toBeInTheDocument();
     expect(container.querySelector(".app-layout__header")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Görüşmeler" })).toHaveAttribute("aria-current", "page");

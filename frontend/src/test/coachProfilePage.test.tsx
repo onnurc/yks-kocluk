@@ -327,7 +327,11 @@ describe("Public koç profili", () => {
     });
     renderRoute("/coaches/42", { user: student, isAuthenticated: true });
 
-    const slot = await screen.findByRole("button", { name: /10 Eylül Perşembe.*13:00/i });
+    const expectedTime = new Date("2026-09-10T10:00:00Z").toLocaleTimeString("tr-TR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const slot = await screen.findByRole("button", { name: new RegExp(`10 Eylül Perşembe.*${expectedTime}`, "i") });
     fireEvent.click(slot);
     fireEvent.click(screen.getByRole("button", { name: "Ücretsiz Görüşme Planla" }));
     await waitFor(() => expect(trialConsultationApi.request).toHaveBeenCalledWith({ availabilityId: 501 }));
