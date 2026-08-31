@@ -41,8 +41,9 @@ public class StudentDashboardService {
 
         UserResponse userResponse = userMapper.toResponse(user);
 
-        Subscription latestSub = subscriptionRepository.findFirstByStudentIdOrderByCreatedAtDesc(studentUserId)
-                .orElse(null);
+        Subscription latestSub = subscriptionRepository.findCurrentCoachRelationship(studentUserId)
+                .orElseGet(() -> subscriptionRepository.findFirstByStudentIdOrderByCreatedAtDesc(studentUserId)
+                        .orElse(null));
         if (latestSub == null) {
             return new StudentDashboardResponse(userResponse, null, null);
         }

@@ -65,7 +65,7 @@ class MediaModerationServiceTest {
 
         assertThat(profile.getProfileImageAsset()).isNull();
         assertThat(asset.getStatus()).isEqualTo(MediaStatus.DELETED);
-        verify(storageDeletion).deleteAfterCommit(asset.getObjectKey());
+        verify(storageDeletion).deleteAfterCommit(asset.getId(), asset.getObjectKey());
         ArgumentCaptor<MediaModerationLog> captor = ArgumentCaptor.forClass(MediaModerationLog.class);
         verify(logs).save(captor.capture());
         assertThat(captor.getValue().getAdmin()).isSameAs(admin);
@@ -99,7 +99,7 @@ class MediaModerationServiceTest {
                 .isInstanceOf(ApiException.class)
                 .extracting(error -> ((ApiException) error).getErrorCode())
                 .isEqualTo("MEDIA_MODERATION_TARGET_INVALID");
-        verify(storageDeletion, never()).deleteAfterCommit(document.getObjectKey());
+        verify(storageDeletion, never()).deleteAfterCommit(document.getId(), document.getObjectKey());
     }
 
     private MediaAsset profileImage(Long id, User owner) {

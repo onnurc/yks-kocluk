@@ -72,7 +72,7 @@ class StudentDashboardServiceTest {
         when(userMapper.toResponse(student)).thenReturn(new com.ykskocluk.demo.dto.UserResponse(
                 1L, student.getEmail(), student.getFullName(), student.getRole(), student.getStatus(),
                 null, true, true, true, null));
-        when(subscriptionRepository.findFirstByStudentIdOrderByCreatedAtDesc(1L)).thenReturn(Optional.of(sub));
+        when(subscriptionRepository.findCurrentCoachRelationship(1L)).thenReturn(Optional.of(sub));
         when(paymentRepository.findFirstBySubscriptionIdOrderByCreatedAtDesc(sub.getId())).thenReturn(Optional.of(payment));
 
         StudentDashboardResponse response = studentDashboardService.getDashboardData(1L);
@@ -84,5 +84,34 @@ class StudentDashboardServiceTest {
         assertThat(response.user().hasLocalPassword()).isTrue();
         assertThat(response.subscription().status()).isEqualTo(SubscriptionStatus.ACTIVE);
         assertThat(response.payment().status()).isEqualTo(PaymentStatus.SUCCESS);
+    }
+
+    @Test
+    void getDashboardData_prefersTheLiveRelationshipOverNewerTerminalHistory() {
+        User student = new User();
+        student.setRole(Role.STUDENT);
+        student.setStatus(UserStatus.ACTIVE);
+        User coachUser = new User();
+        coachUser.setFullName("Live Coach");
+        CoachProfile coach = new CoachProfile();
+        coach.setUser(coachUser);
+        com.ykskocluk.demo.entity.Package pkg = new com.ykskocluk.demo.entity.Package();
+        pkg.setName("Live Package");
+        Subscription live = new Subscription();
+        live.setStatus(SubscriptionStatus.PAST_DUE);
+        live.setCoachProfile(coach);
+        live.setPkg(pkg);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(student));
+        when(userMapper.toResponse(student)).thenReturn(new com.ykskocluk.demo.dto.UserResponse(
+                1L, "student@example.com", "Student", Role.STUDENT, UserStatus.ACTIVE,
+                null, true, true, true, null));
+        when(subscriptionRepository.findCurrentCoachRelationship(1L)).thenReturn(Optional.of(live));
+
+        StudentDashboardResponse response = studentDashboardService.getDashboardData(1L);
+
+        assertThat(response.subscription().status()).isEqualTo(SubscriptionStatus.PAST_DUE);
+        org.mockito.Mockito.verify(subscriptionRepository, org.mockito.Mockito.never())
+                .findFirstByStudentIdOrderByCreatedAtDesc(1L);
     }
 }

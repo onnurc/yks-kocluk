@@ -4,13 +4,19 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Getter
 @Setter
 @ConfigurationProperties(prefix = "app.rate-limit")
 public class RateLimitProperties {
     private boolean enabled = true;
     private String environment = "local";
+    private Store store = Store.REDIS;
+    private FailurePolicy failurePolicy = FailurePolicy.IN_MEMORY_FALLBACK;
     private boolean trustProxyHeaders = false;
+    private List<String> trustedProxyCidrs = new ArrayList<>();
     private LimitRule login = new LimitRule(20, 5, 60);
     private LimitRule register = new LimitRule(20, 3, 3600);
     private RefreshLimitRule refresh = new RefreshLimitRule(30, 30, 60);
@@ -26,6 +32,10 @@ public class RateLimitProperties {
     private UserLimitRule trialCreate = new UserLimitRule(5, 3600);
     private UserLimitRule reportCreate = new UserLimitRule(10, 3600);
     private UserLimitRule mediaComplete = new UserLimitRule(30, 600);
+    private UserLimitRule checkoutCreate = new UserLimitRule(5, 3600);
+
+    public enum Store { IN_MEMORY, REDIS }
+    public enum FailurePolicy { IN_MEMORY_FALLBACK, FAIL_CLOSED }
 
     @Getter
     @Setter

@@ -22,6 +22,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,6 +36,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class UnverifiedRegistrationCleanupServiceTest {
+    private static final Instant NOW = Instant.parse("2026-08-31T12:00:00Z");
     @Mock UserRepository users;
     @Mock EmailVerificationCodeRepository verificationCodes;
     @Mock PasswordResetTokenRepository resetTokens;
@@ -49,11 +52,12 @@ class UnverifiedRegistrationCleanupServiceTest {
     void setUp() {
         service = new UnverifiedRegistrationCleanupService(users, verificationCodes, resetTokens, refreshTokens,
                 studentProfiles, legalAcceptances, marketingPreferences, privacyPreferences, consentRecords);
+        ReflectionTestUtils.setField(service, "clock", Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
     void staleUnverifiedPublicRegistrationAndArtifactsAreDeleted() {
-        User user = user(AccountOrigin.PUBLIC_PASSWORD, Role.STUDENT, false, Instant.now().minusSeconds(25 * 3600));
+        User user = user(AccountOrigin.PUBLIC_PASSWORD, Role.STUDENT, false, NOW.minusSeconds(25 * 3600));
         candidates(user);
 
         assertThat(service.cleanup()).isEqualTo(1);
@@ -72,8 +76,8 @@ class UnverifiedRegistrationCleanupServiceTest {
 
     @Test
     void youngerOrVerifiedPublicRegistrationsAreRetainedAfterLockedRecheck() {
-        User young = user(AccountOrigin.PUBLIC_PASSWORD, Role.STUDENT, false, Instant.now().minusSeconds(23 * 3600));
-        User verified = user(AccountOrigin.PUBLIC_PASSWORD, Role.STUDENT, true, Instant.now().minusSeconds(30 * 3600));
+        User young = user(AccountOrigin.PUBLIC_PASSWORD, Role.STUDENT, false, NOW.minusSeconds(23 * 3600));
+        User verified = user(AccountOrigin.PUBLIC_PASSWORD, Role.STUDENT, true, NOW.minusSeconds(30 * 3600));
         when(users.findUnverifiedPublicRegistrationIds(any(), any(Pageable.class)))
                 .thenReturn(List.of(young.getId(), verified.getId()));
         when(users.findByIdForUpdate(young.getId())).thenReturn(Optional.of(young));
@@ -84,11 +88,37 @@ class UnverifiedRegistrationCleanupServiceTest {
     }
 
     @Test
+    void exactlyTwentyFourHoursOldIsEligibleButOneSecondYoungerIsRetained() {
+        User boundary = user(AccountOrigin.PUBLIC_PASSWORD, Role.STUDENT, false, NOW.minusSeconds(24 * 3600));
+        User younger = user(AccountOrigin.PUBLIC_PASSWORD, Role.STUDENT, false, NOW.minusSeconds(24 * 3600).plusSeconds(1));
+        ReflectionTestUtils.setField(boundary, "id", 501L);
+        ReflectionTestUtils.setField(younger, "id", 502L);
+        when(users.findUnverifiedPublicRegistrationIds(any(), any(Pageable.class)))
+                .thenReturn(List.of(boundary.getId(), younger.getId()));
+        when(users.findByIdForUpdate(boundary.getId())).thenReturn(Optional.of(boundary));
+        when(users.findByIdForUpdate(younger.getId())).thenReturn(Optional.of(younger));
+
+        assertThat(service.cleanup()).isEqualTo(1);
+        verify(users).delete(boundary);
+        verify(users, never()).delete(younger);
+    }
+
+    @Test
+    void inactivePublicRegistrationIsRetainedByLockedRecheck() {
+        User inactive = user(AccountOrigin.PUBLIC_PASSWORD, Role.STUDENT, false, NOW.minusSeconds(48 * 3600));
+        inactive.setStatus(UserStatus.SUSPENDED);
+        candidates(inactive);
+
+        assertThat(service.cleanup()).isZero();
+        verify(users, never()).delete(any());
+    }
+
+    @Test
     void oauthAdminAndBothCoachProvisioningOriginsAreNeverDeleted() {
-        User oauth = user(AccountOrigin.OAUTH, Role.STUDENT, false, Instant.now().minusSeconds(48 * 3600));
-        User admin = user(AccountOrigin.LEGACY, Role.ADMIN, false, Instant.now().minusSeconds(48 * 3600));
-        User manualCoach = user(AccountOrigin.ADMIN_MANUAL, Role.COACH, false, Instant.now().minusSeconds(48 * 3600));
-        User applicationCoach = user(AccountOrigin.COACH_APPLICATION, Role.COACH, false, Instant.now().minusSeconds(48 * 3600));
+        User oauth = user(AccountOrigin.OAUTH, Role.STUDENT, false, NOW.minusSeconds(48 * 3600));
+        User admin = user(AccountOrigin.LEGACY, Role.ADMIN, false, NOW.minusSeconds(48 * 3600));
+        User manualCoach = user(AccountOrigin.ADMIN_MANUAL, Role.COACH, false, NOW.minusSeconds(48 * 3600));
+        User applicationCoach = user(AccountOrigin.COACH_APPLICATION, Role.COACH, false, NOW.minusSeconds(48 * 3600));
         List<User> retained = List.of(oauth, admin, manualCoach, applicationCoach);
         when(users.findUnverifiedPublicRegistrationIds(any(), any(Pageable.class)))
                 .thenReturn(retained.stream().map(User::getId).toList());

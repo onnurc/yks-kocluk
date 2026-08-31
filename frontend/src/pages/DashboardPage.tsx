@@ -18,9 +18,8 @@ import type {
   StudentDashboardResponse,
   SubscriptionStatus,
 } from "../studentDashboard/studentDashboardTypes";
+import { isLiveCoachRelationship } from "../access/subscriptionAccess";
 import "./student-dashboard.css";
-
-const liveSubscriptionStatuses: SubscriptionStatus[] = ["ACTIVE", "PAST_DUE"];
 
 const subscriptionStatusLabels: Record<SubscriptionStatus, string> = {
   PENDING_PAYMENT: "Ödeme bekleniyor",
@@ -40,7 +39,7 @@ const sessionStatusLabels: Record<SessionResponse["status"], string> = {
 };
 
 const isLiveSubscription = (subscription: DashboardSubscription | null | undefined) =>
-  Boolean(subscription && liveSubscriptionStatuses.includes(subscription.status));
+  Boolean(subscription && isLiveCoachRelationship(subscription.status));
 
 const initials = (name: string) =>
   name

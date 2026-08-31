@@ -21,4 +21,10 @@ public interface MediaAssetRepository extends JpaRepository<MediaAsset, Long> {
     List<Long> findStaleIds(@Param("status") MediaStatus status,
                             @Param("cutoff") Instant cutoff,
                             Pageable pageable);
+
+    List<MediaAsset> findByOwnerIdAndStorageDeletedAtIsNullOrderByIdAsc(Long ownerId);
+
+    @Query("select asset.id from MediaAsset asset where asset.status = :status "
+            + "and asset.storageDeletedAt is null order by asset.id asc")
+    List<Long> findStorageCleanupIds(@Param("status") MediaStatus status, Pageable pageable);
 }

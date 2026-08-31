@@ -1,13 +1,13 @@
 import { httpClient } from "../api/httpClient";
-import type { AuthResponse, CurrentUser, LegalOnboardingRequest, LegalOnboardingResponse, RegisterRequest, PasswordActionResponse, EmailVerificationResponse } from "./authTypes";
+import type { AuthResponse, CurrentUser, LegalOnboardingRequest, LegalOnboardingResponse, RegisterRequest, PasswordActionResponse, EmailVerificationResponse, PublicRequestResponse } from "./authTypes";
 
 export const authApi = {
   login: async (email: string, password: string): Promise<AuthResponse> => {
     return httpClient.postWithCredentials<AuthResponse>("/api/v1/auth/login", { email, password });
   },
 
-  register: (request: RegisterRequest): Promise<AuthResponse> =>
-    httpClient.postWithCredentials<AuthResponse>("/api/v1/auth/register", request),
+  register: (request: RegisterRequest): Promise<PublicRequestResponse> =>
+    httpClient.post<PublicRequestResponse>("/api/v1/auth/register", request),
 
   exchangeOAuthCode: (code: string): Promise<AuthResponse> =>
     httpClient.postWithCredentials<AuthResponse>("/api/v1/auth/oauth2/exchange", { code }),

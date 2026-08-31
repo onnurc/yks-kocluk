@@ -128,6 +128,32 @@ class SubscriptionRepositoryTest {
     }
 
     @Test
+    void oneCoachRelationshipGuard_blocksLiveRelationshipWithDifferentCoach() {
+        User student = persistStudent();
+        CoachProfile coachA = persistCoach();
+        CoachProfile coachB = persistCoach();
+        Package pkg = persistPackage();
+        subscriptionRepository.saveAndFlush(sub(student, coachA, pkg, SubscriptionStatus.PENDING_PAYMENT));
+
+        assertThatThrownBy(() ->
+                subscriptionRepository.saveAndFlush(sub(student, coachB, pkg, SubscriptionStatus.ACTIVE)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void oneCoachRelationshipGuard_allowsNewCoachAfterTermination() {
+        User student = persistStudent();
+        CoachProfile coachA = persistCoach();
+        CoachProfile coachB = persistCoach();
+        Package pkg = persistPackage();
+        subscriptionRepository.saveAndFlush(sub(student, coachA, pkg, SubscriptionStatus.TERMINATED));
+
+        assertThatCode(() ->
+                subscriptionRepository.saveAndFlush(sub(student, coachB, pkg, SubscriptionStatus.PENDING_PAYMENT)))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     void liveSubscriptionGuard_expiredDoesNotBlock_reSubscribe() {
         User student = persistStudent();
         CoachProfile coach = persistCoach();

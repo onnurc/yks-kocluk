@@ -39,6 +39,12 @@ class SecurityConfigTest {
         mvc.perform(get("/api/v1/admin/probe")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/v1/media/uploads/presign")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/v1/trial-consultations/probe")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/admin/coach-applications/1/approve")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/admin/coach-applications/1/reject")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/admin/refund-requests/1/approve")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/admin/refund-requests/1/reject")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/admin/trial-consultations/1/confirm")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/media/1/download-url")).andExpect(status().isUnauthorized());
     }
 
     @Test @WithMockUser(roles = "STUDENT")
@@ -46,18 +52,25 @@ class SecurityConfigTest {
         mvc.perform(get("/api/v1/admin/probe")).andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/coach/probe")).andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/students/probe")).andExpect(status().isOk());
+        assertSensitiveAdminWritesDenied();
     }
 
     @Test @WithMockUser(roles = "COACH")
     void coachIsDeniedFromAdminAndCanUseCoachSelfRoute() throws Exception {
         mvc.perform(get("/api/v1/admin/probe")).andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/coach/probe")).andExpect(status().isOk());
+        assertSensitiveAdminWritesDenied();
     }
 
     @Test @WithMockUser(roles = "ADMIN")
     void adminCanUseAdminButNotCoachSelfRoute() throws Exception {
         mvc.perform(get("/api/v1/admin/probe")).andExpect(status().isOk());
         mvc.perform(get("/api/v1/coach/probe")).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/admin/coach-applications/1/approve")).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/admin/coach-applications/1/reject")).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/admin/refund-requests/1/approve")).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/admin/refund-requests/1/reject")).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/admin/trial-consultations/1/confirm")).andExpect(status().isOk());
     }
 
     @Test
@@ -95,6 +108,30 @@ class SecurityConfigTest {
                 .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
     }
 
+    @Test
+    void explicitSecurityHeadersArePresentWithoutWeakeningSpringDefaults() throws Exception {
+        mvc.perform(get("/api/v1/public/packages"))
+                .andExpect(header().string("Content-Security-Policy", org.hamcrest.Matchers.containsString("script-src 'self'")))
+                .andExpect(header().string("Content-Security-Policy", org.hamcrest.Matchers.containsString("frame-ancestors 'none'")))
+                .andExpect(header().string("Referrer-Policy", "strict-origin-when-cross-origin"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("X-Frame-Options", "DENY"));
+    }
+
+    @Test
+    void swaggerRoutesAreAbsentByDefault() throws Exception {
+        mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isNotFound());
+        mvc.perform(get("/v3/api-docs")).andExpect(status().isNotFound());
+    }
+
+    private void assertSensitiveAdminWritesDenied() throws Exception {
+        mvc.perform(post("/api/v1/admin/coach-applications/1/approve")).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/admin/coach-applications/1/reject")).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/admin/refund-requests/1/approve")).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/admin/refund-requests/1/reject")).andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/admin/trial-consultations/1/confirm")).andExpect(status().isForbidden());
+    }
+
     private org.springframework.test.web.servlet.ResultActions preflight(String origin) throws Exception {
         return mvc.perform(options("/api/v1/admin/probe")
                 .header(HttpHeaders.ORIGIN, origin)
@@ -115,5 +152,11 @@ class SecurityConfigTest {
         @GetMapping("/api/v1/public/coaches/{id}") String publicCoach() { return "ok"; }
         @PostMapping("/api/v1/media/uploads/presign") String mediaPresign() { return "ok"; }
         @PostMapping("/api/v1/trial-consultations/probe") String trialWrite() { return "ok"; }
+        @PostMapping("/api/v1/admin/coach-applications/{id}/approve") String approveCoachApplication() { return "ok"; }
+        @PostMapping("/api/v1/admin/coach-applications/{id}/reject") String rejectCoachApplication() { return "ok"; }
+        @PostMapping("/api/v1/admin/refund-requests/{id}/approve") String approveRefund() { return "ok"; }
+        @PostMapping("/api/v1/admin/refund-requests/{id}/reject") String rejectRefund() { return "ok"; }
+        @PostMapping("/api/v1/admin/trial-consultations/{id}/confirm") String confirmTrial() { return "ok"; }
+        @GetMapping("/api/v1/media/{id}/download-url") String downloadMedia() { return "ok"; }
     }
 }

@@ -42,14 +42,14 @@ class Phase2IntegrationTest {
     }
 
     private String register(String email) throws Exception {
-        String json = mockMvc.perform(post("/api/v1/auth/register")
+        mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"%s","password":"TestPassword123!","fullName":"Test User","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
                                 """.formatted(email)))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        return JsonPath.read(json, "$.accessToken");
+                .andExpect(status().isAccepted());
+        TestUsers.verifyEmail(userRepository, email);
+        return loginToken(email, "TestPassword123!");
     }
 
     private String loginToken(String email, String password) throws Exception {

@@ -20,6 +20,10 @@ export interface PasswordActionResponse {
   reloginRequired: boolean;
 }
 
+export interface PublicRequestResponse {
+  message: string;
+}
+
 export interface AuthResponse {
   accessToken: string;
 }

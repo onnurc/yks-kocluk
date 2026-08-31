@@ -98,9 +98,9 @@ public class MediaService {
     }
 
     /**
-     * Signs a short-lived URL for a PUBLIC asset without requiring a caller identity — these
-     * objects are already world-readable through the bucket itself. PRIVATE assets are reported
-     * as missing rather than forbidden so this endpoint cannot be used to probe for them.
+     * Signs a short-lived URL for a PUBLIC asset without requiring a caller identity. The bucket
+     * remains private; this opaque-token redirect is the public access boundary. PRIVATE assets
+     * are reported as missing rather than forbidden so this endpoint cannot probe for them.
      */
     @Transactional(readOnly = true)
     public String publicPresignedUrl(String publicToken) {
@@ -120,7 +120,22 @@ public class MediaService {
         if (asset.getStatus() == MediaStatus.DELETED) return;
         detachFromProfiles(asset);
         asset.setStatus(MediaStatus.DELETED);
-        storageDeletion.deleteAfterCommit(asset.getObjectKey());
+        storageDeletion.deleteAfterCommit(asset.getId(), asset.getObjectKey());
+    }
+
+    /** Retires every object owned by a deleting account inside the account-deletion transaction. */
+    @Transactional
+    public int retireAllOwnedBy(Long ownerUserId) {
+        int retired = 0;
+        for (MediaAsset asset : assets.findByOwnerIdAndStorageDeletedAtIsNullOrderByIdAsc(ownerUserId)) {
+            detachFromProfiles(asset);
+            if (asset.getStatus() != MediaStatus.DELETED) {
+                asset.setStatus(MediaStatus.DELETED);
+                retired++;
+            }
+            storageDeletion.deleteAfterCommit(asset.getId(), asset.getObjectKey());
+        }
+        return retired;
     }
 
     private void validatePolicy(User owner, MediaType type, String contentType, long size) {
@@ -209,7 +224,7 @@ public class MediaService {
     private void markReplaced(MediaAsset old) {
         if (old != null && old.getStatus() == MediaStatus.ACTIVE) {
             old.setStatus(MediaStatus.DELETED);
-            storageDeletion.deleteAfterCommit(old.getObjectKey());
+            storageDeletion.deleteAfterCommit(old.getId(), old.getObjectKey());
         }
     }
 

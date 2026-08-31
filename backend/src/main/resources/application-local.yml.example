@@ -61,6 +61,7 @@ RESEND_API_KEY: <RESEND_API_KEY>
 #   every boot, and application.yml's flyway.locations deliberately excludes db/demo-seed for
 #   everything except local dev (there is no dedicated prod Spring profile to gate it on).
 DEMO_SEED_ENABLED: true
+SWAGGER_ENABLED: true
 
 app:
   resend:

@@ -42,6 +42,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return new ResponseEntity<>(pd, headers, ex.getStatus());
     }
 
+    @ExceptionHandler(com.ykskocluk.demo.security.ratelimit.RateLimitStoreUnavailableException.class)
+    public ProblemDetail handleRateLimitStoreUnavailable() {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(
+                HttpStatus.SERVICE_UNAVAILABLE, "İstek güvenlik kontrolü geçici olarak kullanılamıyor");
+        pd.setProperty("errorCode", "RATE_LIMIT_STORE_UNAVAILABLE");
+        pd.setProperty("timestamp", Instant.now());
+        return pd;
+    }
+
     /** Our own thrown exceptions. */
     @ExceptionHandler(ApiException.class)
     public ProblemDetail handleApiException(ApiException ex) {

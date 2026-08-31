@@ -32,14 +32,16 @@ public class AccountDeletionService {
     private final CoachProfileRepository coachProfileRepository;
     private final MarketingPreferenceService marketingPreferenceService;
     private final PrivacyPreferenceService privacyPreferenceService;
+    private final MediaService mediaService;
 
     public AccountDeletionService(AccountDeletionRequestRepository deletionRepository, UserRepository userRepository,
                                   RefreshTokenRepository refreshTokenRepository,
                                   OAuth2LoginCodeRepository oauth2LoginCodeRepository,
                                   StudentProfileRepository studentProfileRepository,
-                                  CoachProfileRepository coachProfileRepository,
-                                  MarketingPreferenceService marketingPreferenceService,
-                                  PrivacyPreferenceService privacyPreferenceService) {
+                                   CoachProfileRepository coachProfileRepository,
+                                   MarketingPreferenceService marketingPreferenceService,
+                                   PrivacyPreferenceService privacyPreferenceService,
+                                   MediaService mediaService) {
         this.deletionRepository = deletionRepository;
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -48,6 +50,7 @@ public class AccountDeletionService {
         this.coachProfileRepository = coachProfileRepository;
         this.marketingPreferenceService = marketingPreferenceService;
         this.privacyPreferenceService = privacyPreferenceService;
+        this.mediaService = mediaService;
     }
 
     @Transactional(readOnly = true)
@@ -95,6 +98,7 @@ public class AccountDeletionService {
             oauth2LoginCodeRepository.consumeAllForUser(userId, now);
             marketingPreferenceService.withdrawAll(user, now);
             privacyPreferenceService.clearForDeletion(user);
+            mediaService.retireAllOwnedBy(userId);
             anonymizeProfiles(userId);
             anonymizeUser(user);
             request.setStatus(AccountDeletionStatus.COMPLETED);

@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.Clock;
 import java.time.Instant;
 
 @Service
@@ -37,6 +38,7 @@ public class UnverifiedRegistrationCleanupService {
     private final MarketingPreferenceRepository marketingPreferences;
     private final PrivacyPreferenceRepository privacyPreferences;
     private final ConsentRecordRepository consentRecords;
+    private Clock clock = Clock.systemUTC();
 
     public UnverifiedRegistrationCleanupService(UserRepository users,
                                                 EmailVerificationCodeRepository verificationCodes,
@@ -61,7 +63,7 @@ public class UnverifiedRegistrationCleanupService {
     @Scheduled(cron = "${app.email-verification.unverified-account-cleanup-cron:0 0 * * * *}", zone = "UTC")
     @Transactional
     public int cleanup() {
-        Instant cutoff = Instant.now().minus(MAX_UNVERIFIED_AGE);
+        Instant cutoff = Instant.now(clock).minus(MAX_UNVERIFIED_AGE);
         int deleted = 0;
         for (Long userId : users.findUnverifiedPublicRegistrationIds(cutoff, PageRequest.of(0, BATCH_SIZE))) {
             User user = users.findByIdForUpdate(userId).orElse(null);

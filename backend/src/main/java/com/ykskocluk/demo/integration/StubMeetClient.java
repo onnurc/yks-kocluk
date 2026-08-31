@@ -21,7 +21,7 @@ public class StubMeetClient implements MeetClient {
     @Override
     public String createMeetLink(Long sessionId, Instant startTime, Instant endTime) {
         String link = "https://meet.stub.local/session/" + sessionId;
-        log.info("[STUB MeetClient] created link {} for session {}", link, sessionId);
+        log.info("[STUB MeetClient] meeting created for session {}", sessionId);
         return link;
     }
 }

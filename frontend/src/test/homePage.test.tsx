@@ -37,7 +37,9 @@ describe("Ana Sayfa", () => {
   it("connects meaningful calls to action to existing routes", () => {
     renderPublicRoute();
 
-    expect(screen.getByRole("link", { name: "Ücretsiz Görüşme Ayarla" })).toHaveAttribute("href", "/register");
+    const primaryCta = screen.getByRole("link", { name: "Ücretsiz Görüşme Ayarla" });
+    expect(primaryCta).toHaveAttribute("href", "/register");
+    expect(primaryCta).toHaveClass("home-button--primary");
     expect(screen.getAllByRole("link", { name: "Bilgi Al" })).toHaveLength(3);
     expect(within(screen.getByRole("navigation", { name: "Ana menü" })).getByRole("link", { name: "Biz Kimiz" })).toHaveAttribute("href", "/biz-kimiz");
   });

@@ -68,14 +68,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     try {
       const response = await authApi.register(request);
-      setAccessToken(response.accessToken);
-      setAccessTokenState(response.accessToken);
-      await refreshCurrentUser();
-    } catch (error) {
-      if (error instanceof ApiError && error.code === "USER_SUSPENDED") {
-        handleSuspendedUser();
-      }
-      throw error;
+      return response.message;
     } finally {
       setIsLoading(false);
     }

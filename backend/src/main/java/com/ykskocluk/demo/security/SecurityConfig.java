@@ -13,6 +13,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -45,6 +46,16 @@ public class SecurityConfig {
                 // API authorization is bearer-header based, not cookie based. The temporary
                 // OAuth2 handshake session does not make application API endpoints cookie-authenticated.
                 .csrf(csrf -> csrf.disable())
+                .headers(headers -> headers
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(
+                                "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
+                                        + "script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                                        + "img-src 'self' data: https:; media-src 'self' https:; "
+                                        + "frame-src https://www.youtube.com https://www.youtube-nocookie.com; "
+                                        + "connect-src 'self' https: wss:; "
+                                        + "form-action 'self' https://*.iyzico.com https://*.iyzipay.com"))
+                        .referrerPolicy(referrer -> referrer.policy(
+                                ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/packages",

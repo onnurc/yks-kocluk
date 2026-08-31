@@ -15,6 +15,7 @@ import com.ykskocluk.demo.dto.ChangePasswordRequest;
 import com.ykskocluk.demo.dto.ForgotPasswordRequest;
 import com.ykskocluk.demo.dto.ResetPasswordRequest;
 import com.ykskocluk.demo.dto.PasswordActionResponse;
+import com.ykskocluk.demo.dto.PublicRequestResponse;
 import com.ykskocluk.demo.service.LegalAcceptanceService;
 import com.ykskocluk.demo.service.EmailVerificationService;
 import com.ykskocluk.demo.dto.EmailVerificationResponse;
@@ -27,6 +28,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -100,9 +102,15 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<PublicRequestResponse> register(@Valid @RequestBody RegisterRequest request) {
         rateLimitService.checkRegister(request.email(), httpServletRequest);
-        return authResponse(authService.register(request), HttpStatus.CREATED);
+        try {
+            authService.register(request);
+        } catch (DataIntegrityViolationException duplicateRace) {
+            // The unique email constraint remains authoritative under concurrent submissions;
+            // its public response is intentionally indistinguishable from a new request.
+        }
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(PublicRequestResponse.registrationAccepted());
     }
 
     @PostMapping("/login")

@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -37,11 +38,28 @@ class PublicCoachApplicationControllerTest {
     }
 
     @Test
-    void validSubdomainAndPlusAddressReachesRealSubmissionFlow() throws Exception {
+    void validSubdomainAndPlusAddressReturnsUniformAcceptedResponse() throws Exception {
         mvc.perform(post("/api/v1/public/coach-applications")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fullName\":\"Aday Koç\",\"email\":\"selin+coach@ogrenci.medipol.edu.tr\"}"))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.message").value(
+                        "Başvuru talebiniz alındı. Başvurunuzun durumuyla ilgili gerekli bilgilendirme "
+                                + "e-posta adresiniz üzerinden yapılacaktır."));
         verify(service).submit(any());
+    }
+
+    @Test
+    void duplicateApplicationRaceReturnsTheSameEnumerationSafeResponse() throws Exception {
+        doThrow(new org.springframework.dao.DataIntegrityViolationException("duplicate"))
+                .when(service).submit(any());
+
+        mvc.perform(post("/api/v1/public/coach-applications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fullName\":\"Aday Koç\",\"email\":\"existing@example.com\"}"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.message").value(
+                        "Başvuru talebiniz alındı. Başvurunuzun durumuyla ilgili gerekli bilgilendirme "
+                                + "e-posta adresiniz üzerinden yapılacaktır."));
     }
 }

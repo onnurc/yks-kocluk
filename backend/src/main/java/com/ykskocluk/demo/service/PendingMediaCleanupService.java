@@ -55,6 +55,7 @@ public class PendingMediaCleanupService {
             return false;
         }
         asset.setStatus(MediaStatus.DELETED);
+        asset.setStorageDeletedAt(Instant.now());
         return true;
     }
 }

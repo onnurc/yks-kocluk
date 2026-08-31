@@ -73,7 +73,7 @@ public class MediaModerationService {
         log.setModeratedAt(clock.instant());
         logs.save(log);
 
-        storageDeletion.deleteAfterCommit(asset.getObjectKey());
+        storageDeletion.deleteAfterCommit(asset.getId(), asset.getObjectKey());
     }
 
     private void detachCurrentProfileImage(MediaAsset asset) {

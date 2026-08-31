@@ -37,7 +37,7 @@
 .coach-profile-trial__disabled { color: #625c5d !important; background: #e4e2e2; }
 .coach-profile-trial > small { margin-top: 15px; display: block; color: #625c5d; text-align: center; }
 .coach-profile-trial .trial-card { margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
-.coach-profile-trial .trial-card__body { padding: 0; }
+.coach-profile-trial .trial-card__body { padding: 4px 0 0; }
 .coach-profile-about { grid-area: about; padding-top: 12px; border-top: 1px solid rgba(126,117,118,.14); }
 .coach-profile-about h2 { margin-top: 0; }
 .coach-profile-about p { margin: 18px 0 0 !important; white-space: pre-line; font-size: 18px; line-height: 1.75; }

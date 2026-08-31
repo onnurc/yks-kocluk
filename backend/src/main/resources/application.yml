@@ -50,6 +50,12 @@ spring:
     web:
       pageable:
         max-page-size: 100
+    redis:
+      # Shared production rate-limit store. Use a TLS redis:// or rediss:// deployment URL;
+      # credentials, when required, remain only in the environment.
+      url: ${REDIS_URL:redis://localhost:6379}
+      repositories:
+        enabled: false
 
   # Google OAuth2 login. Real creds come from application-local.yml / deploy env vars;
   # dummy defaults keep the context bootable when creds are absent (login just won't work).
@@ -66,15 +72,17 @@ spring:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
-    enabled: ${SWAGGER_ENABLED:true}
+    enabled: ${SWAGGER_ENABLED:false}
   api-docs:
     path: /v3/api-docs
-    enabled: ${SWAGGER_ENABLED:true}
+    enabled: ${SWAGGER_ENABLED:false}
 
 # Railway terminates TLS at its proxy. Honor the original scheme/host when Spring builds
 # OAuth2 callback URLs from {baseUrl}; set to none only when running without a trusted proxy.
 server:
-  forward-headers-strategy: ${SERVER_FORWARD_HEADERS_STRATEGY:framework}
+  # Fail closed for direct deployments: forwarded headers are ignored unless the operator has
+  # explicitly placed a sanitizing reverse proxy in front of the service.
+  forward-headers-strategy: ${SERVER_FORWARD_HEADERS_STRATEGY:none}
 
 management:
   endpoints:
@@ -103,14 +111,23 @@ app:
       pending-upload-expiration: ${MEDIA_PENDING_UPLOAD_EXPIRATION:24h}
       batch-size: ${MEDIA_PENDING_CLEANUP_BATCH_SIZE:100}
       cron: ${MEDIA_PENDING_CLEANUP_CRON:0 10 * * * *}
+      retired-cron: ${MEDIA_RETIRED_CLEANUP_CRON:0 */15 * * * *}
   cors:
     # Comma-separated exact origins. Set CORS_ALLOWED_ORIGINS to the deployed frontend
     # origin(s), e.g. https://app.example.com,https://www.example.com. Wildcards are rejected.
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
-    environment: ${APP_ENV:local}
+    environment: ${APP_ENV:production}
+    # Default profile is production-like and therefore uses one atomic Redis counter namespace
+    # across replicas. local/test/stub profiles always select the in-memory implementation.
+    store: ${RATE_LIMIT_STORE:REDIS}
+    # Explicit availability policy: continue with per-instance limits during a Redis outage.
+    # Set FAIL_CLOSED where rejecting protected actions is preferable to degraded protection.
+    failure-policy: ${RATE_LIMIT_FAILURE_POLICY:IN_MEMORY_FALLBACK}
     trust-proxy-headers: ${RATE_LIMIT_TRUST_PROXY_HEADERS:false}
+    # Forwarded IPs are accepted only when the socket peer matches one of these proxy CIDRs.
+    trusted-proxy-cidrs: ${RATE_LIMIT_TRUSTED_PROXY_CIDRS:}
     login:
       ip-limit: ${RATE_LIMIT_LOGIN_IP_LIMIT:20}
       identifier-limit: ${RATE_LIMIT_LOGIN_IDENTIFIER_LIMIT:5}
@@ -165,6 +182,9 @@ app:
     media-complete:
       user-limit: ${RATE_LIMIT_MEDIA_COMPLETE_USER_LIMIT:30}
       window-seconds: ${RATE_LIMIT_MEDIA_COMPLETE_WINDOW_SECONDS:600}
+    checkout-create:
+      user-limit: ${RATE_LIMIT_CHECKOUT_CREATE_USER_LIMIT:5}
+      window-seconds: ${RATE_LIMIT_CHECKOUT_CREATE_WINDOW_SECONDS:3600}
   demo-seed-enabled: ${DEMO_SEED_ENABLED:false}
   jwt:
     # HS256 signing key (>= 32 bytes). Supplied via JWT_SECRET (application-local.yml / env).
@@ -182,6 +202,9 @@ app:
     retention: 7d
     max-attempts: 5
     cleanup-cron: ${EMAIL_VERIFICATION_CLEANUP_CRON:0 30 3 * * *}
+    # Deletes only ACTIVE, unverified PUBLIC_PASSWORD registrations after 24 hours.
+    # Runs at the top of every UTC hour while the backend process is running.
+    unverified-account-cleanup-cron: ${UNVERIFIED_REGISTRATION_CLEANUP_CRON:0 0 * * * *}
   oauth2:
     frontend-redirect-uri: ${OAUTH2_FRONTEND_REDIRECT_URI:http://localhost:5173/oauth/callback}
     login-code-ttl-seconds: ${OAUTH2_LOGIN_CODE_TTL_SECONDS:120}

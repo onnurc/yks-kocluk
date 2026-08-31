@@ -1,6 +1,7 @@
 package com.ykskocluk.demo;
 
 import com.jayway.jsonpath.JsonPath;
+import com.ykskocluk.demo.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -30,6 +31,9 @@ class AuthIntegrationTest {
     @Autowired
     MockMvc mockMvc;
 
+    @Autowired
+    UserRepository userRepository;
+
     private String registerBody(String email) {
         return """
                 {"email":"%s","password":"SecurePassphrase42!","fullName":"Test User","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
@@ -38,10 +42,17 @@ class AuthIntegrationTest {
 
     @Test
     void fullLifecycle_register_me_refresh_rotation_logout() throws Exception {
-        // register -> 201 with tokens
-        var registerResult = mockMvc.perform(post("/api/v1/auth/register")
+        // Public registration is enumeration-safe and never returns authentication material.
+        mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON).content(registerBody("flow@example.com")))
-                .andExpect(status().isCreated())
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.accessToken").doesNotExist());
+        TestUsers.verifyEmail(userRepository, "flow@example.com");
+
+        var registerResult = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"flow@example.com\",\"password\":\"SecurePassphrase42!\"}"))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.refreshToken").doesNotExist())
                 .andExpect(jsonPath("$.user.email").value("flow@example.com"))
@@ -91,21 +102,22 @@ class AuthIntegrationTest {
     }
 
     @Test
-    void register_duplicateEmail_returns409Problem() throws Exception {
+    void register_duplicateEmail_returnsSameAcceptedPublicResponse() throws Exception {
         mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON).content(registerBody("dup@example.com")))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.accessToken").doesNotExist());
         mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON).content(registerBody("dup@example.com")))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.errorCode").value("EMAIL_ALREADY_EXISTS"));
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.accessToken").doesNotExist());
     }
 
     @Test
     void login_wrongPassword_returns401Problem() throws Exception {
         mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON).content(registerBody("login@example.com")))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"login@example.com\",\"password\":\"wrong-password\"}"))

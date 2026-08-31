@@ -30,6 +30,29 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
 
     boolean existsByStudentIdAndCoachProfileIdAndStatus(Long studentId, Long coachProfileId, SubscriptionStatus status);
 
+    boolean existsByStudentIdAndStatusIn(Long studentId, Collection<SubscriptionStatus> statuses);
+
+    @Query("""
+            select s from Subscription s
+             where s.student.id = :studentId
+               and s.status in (com.ykskocluk.demo.enums.SubscriptionStatus.PENDING_PAYMENT,
+                                com.ykskocluk.demo.enums.SubscriptionStatus.ACTIVE,
+                                com.ykskocluk.demo.enums.SubscriptionStatus.PAST_DUE)
+             order by s.createdAt desc
+            """)
+    List<Subscription> findCurrentCoachRelationships(@Param("studentId") Long studentId);
+
+    /** Canonical relationship shown to the student; V38 guarantees at most one matching row. */
+    @EntityGraph(attributePaths = {"coachProfile.user", "pkg"})
+    @Query("""
+            select s from Subscription s
+             where s.student.id = :studentId
+               and s.status in (com.ykskocluk.demo.enums.SubscriptionStatus.PENDING_PAYMENT,
+                                com.ykskocluk.demo.enums.SubscriptionStatus.ACTIVE,
+                                com.ykskocluk.demo.enums.SubscriptionStatus.PAST_DUE)
+            """)
+    Optional<Subscription> findCurrentCoachRelationship(@Param("studentId") Long studentId);
+
     /** The active subscription that authorizes booking. */
     Optional<Subscription> findByStudentIdAndCoachProfileIdAndStatus(
             Long studentId, Long coachProfileId, SubscriptionStatus status);

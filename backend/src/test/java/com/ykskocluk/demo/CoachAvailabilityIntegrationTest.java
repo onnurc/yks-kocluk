@@ -40,14 +40,14 @@ class CoachAvailabilityIntegrationTest {
     PasswordEncoder passwordEncoder;
 
     private String register(String email) throws Exception {
-        String json = mockMvc.perform(post("/api/v1/auth/register")
+        mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"%s","password":"TestPassword123!","fullName":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
                                 """.formatted(email, email.split("@")[0])))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        return JsonPath.read(json, "$.accessToken");
+                .andExpect(status().isAccepted());
+        TestUsers.verifyEmail(userRepository, email);
+        return loginToken(email, "TestPassword123!");
     }
 
     private String adminToken() throws Exception {

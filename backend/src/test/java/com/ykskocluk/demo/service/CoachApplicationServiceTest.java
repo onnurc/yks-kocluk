@@ -18,11 +18,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,20 +57,18 @@ class CoachApplicationServiceTest {
     }
 
     @Test
-    void submit_pendingApplicationExists_rejected() {
+    void submit_pendingApplicationExists_returnsWithoutExposingState() {
         CoachApplicationService service = service();
         String email = "coach@example.com";
         when(coachApplicationRepository.existsByEmailIgnoreCaseAndStatus(email, CoachApplicationStatus.PENDING))
                 .thenReturn(true);
 
-        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.submit(request(email)));
-
-        assertThat(ex.getErrorCode()).isEqualTo("COACH_APPLICATION_ALREADY_PENDING");
+        service.submit(request(email));
         verify(coachApplicationRepository, never()).save(any());
     }
 
     @Test
-    void submit_approvedApplicationExists_rejected() {
+    void submit_approvedApplicationExists_returnsWithoutExposingState() {
         CoachApplicationService service = service();
         String email = "coach@example.com";
         when(coachApplicationRepository.existsByEmailIgnoreCaseAndStatus(email, CoachApplicationStatus.PENDING))
@@ -74,9 +76,7 @@ class CoachApplicationServiceTest {
         when(coachApplicationRepository.existsByEmailIgnoreCaseAndStatus(email, CoachApplicationStatus.APPROVED))
                 .thenReturn(true);
 
-        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.submit(request(email)));
-
-        assertThat(ex.getErrorCode()).isEqualTo("COACH_APPLICATION_ALREADY_APPROVED");
+        service.submit(request(email));
         verify(coachApplicationRepository, never()).save(any());
     }
 
@@ -101,7 +101,7 @@ class CoachApplicationServiceTest {
     // --- submit: already-a-User guard ---
 
     @Test
-    void submit_emailAlreadyBelongsToUser_rejected() {
+    void submit_emailAlreadyBelongsToUser_returnsWithoutExposingState() {
         CoachApplicationService service = service();
         String email = "student@example.com";
         when(coachApplicationRepository.existsByEmailIgnoreCaseAndStatus(eq(email), any()))
@@ -110,9 +110,7 @@ class CoachApplicationServiceTest {
         existing.setRole(Role.STUDENT);
         when(userRepository.findByEmailIgnoreCase(email)).thenReturn(Optional.of(existing));
 
-        ApiException ex = catchThrowableOfType(ApiException.class, () -> service.submit(request(email)));
-
-        assertThat(ex.getErrorCode()).isEqualTo("EMAIL_ALREADY_EXISTS");
+        service.submit(request(email));
         verify(coachApplicationRepository, never()).save(any());
     }
 
@@ -144,6 +142,27 @@ class CoachApplicationServiceTest {
         ArgumentCaptor<CoachApplication> captor = ArgumentCaptor.forClass(CoachApplication.class);
         verify(coachApplicationRepository).save(captor.capture());
         assertThat(captor.getValue().getEmail()).isEqualTo("coach@example.com");
+    }
+
+    @Test
+    void adminListRejectsUnsupportedSortPropertyBeforeRepositoryQuery() {
+        ApiException error = catchThrowableOfType(ApiException.class, () -> service().list(
+                CoachApplicationStatus.PENDING, PageRequest.of(0, 20, Sort.by("linkedUser.passwordHash"))));
+
+        assertThat(error.getErrorCode()).isEqualTo("INVALID_SORT_PROPERTY");
+        verify(coachApplicationRepository, never()).findByStatus(any(), any());
+    }
+
+    @Test
+    void adminListPreservesSupportedSortDirection() {
+        when(coachApplicationRepository.findByStatus(eq(CoachApplicationStatus.PENDING), any()))
+                .thenReturn(Page.empty());
+
+        service().list(CoachApplicationStatus.PENDING,
+                PageRequest.of(0, 20, Sort.by(Sort.Direction.ASC, "createdAt")));
+
+        verify(coachApplicationRepository).findByStatus(eq(CoachApplicationStatus.PENDING),
+                argThat(pageable -> pageable.getSort().getOrderFor("createdAt").isAscending()));
     }
 
     @Test

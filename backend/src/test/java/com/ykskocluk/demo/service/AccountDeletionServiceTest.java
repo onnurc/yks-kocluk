@@ -31,6 +31,7 @@ class AccountDeletionServiceTest {
     @Mock CoachProfileRepository coachProfileRepository;
     @Mock MarketingPreferenceService marketingPreferenceService;
     @Mock PrivacyPreferenceService privacyPreferenceService;
+    @Mock MediaService mediaService;
     AccountDeletionService service;
     User user;
 
@@ -38,7 +39,7 @@ class AccountDeletionServiceTest {
     void setUp() {
         service = new AccountDeletionService(deletionRepository, userRepository, refreshTokenRepository,
                 oauth2LoginCodeRepository, studentProfileRepository, coachProfileRepository,
-                marketingPreferenceService, privacyPreferenceService);
+                marketingPreferenceService, privacyPreferenceService, mediaService);
         user = new User();
         ReflectionTestUtils.setField(user, "id", 7L);
         user.setEmail("person@example.com");
@@ -97,6 +98,7 @@ class AccountDeletionServiceTest {
         verify(oauth2LoginCodeRepository).consumeAllForUser(eq(7L), any());
         verify(marketingPreferenceService).withdrawAll(eq(user), any());
         verify(privacyPreferenceService).clearForDeletion(user);
+        verify(mediaService).retireAllOwnedBy(7L);
         verify(deletionRepository, never()).delete(any());
         verify(userRepository, never()).delete(any());
     }
@@ -115,7 +117,7 @@ class AccountDeletionServiceTest {
         assertThat(response.status()).isEqualTo(AccountDeletionStatus.COMPLETED);
         verifyNoInteractions(userRepository, refreshTokenRepository, oauth2LoginCodeRepository,
                 studentProfileRepository, coachProfileRepository, marketingPreferenceService,
-                privacyPreferenceService);
+                privacyPreferenceService, mediaService);
     }
 
     @Test

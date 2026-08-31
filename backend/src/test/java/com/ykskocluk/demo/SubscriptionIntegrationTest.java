@@ -49,14 +49,18 @@ class SubscriptionIntegrationTest {
     }
 
     private String register(String email) throws Exception {
-        String json = mockMvc.perform(post("/api/v1/auth/register")
+        mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"%s","password":"TestPassword123!","fullName":"%s","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
                                 """.formatted(email, email.split("@")[0])))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
+                .andExpect(status().isAccepted());
         TestUsers.verifyEmail(userRepository, email);
+        String json = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"TestPassword123!\"}".formatted(email)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
         return JsonPath.read(json, "$.accessToken");
     }
 
@@ -120,7 +124,7 @@ class SubscriptionIntegrationTest {
                         .header("Authorization", "Bearer " + student)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.errorCode").value("ALREADY_SUBSCRIBED"));
+                .andExpect(jsonPath("$.errorCode").value("PENDING_COACH_CHECKOUT_EXISTS"));
 
         // listing
         mockMvc.perform(get("/api/v1/subscriptions/me").header("Authorization", "Bearer " + student))

@@ -127,8 +127,6 @@ class MinorConsentServiceTest {
         
         when(userRepository.findByEmailIgnoreCase(req.email())).thenReturn(java.util.Optional.empty());
         when(passwordEncoder.encode(req.password())).thenReturn("hashed");
-        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
-
         authService.register(req);
     }
 

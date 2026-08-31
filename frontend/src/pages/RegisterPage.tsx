@@ -83,7 +83,7 @@ export const RegisterPage: React.FC = () => {
 
     setLoading(true);
     try {
-      await register({
+      const message = await register({
         email,
         password,
         fullName: `${firstName.trim()} ${lastName.trim()}`,
@@ -93,6 +93,7 @@ export const RegisterPage: React.FC = () => {
         marketingEmailOptIn,
         marketingSmsOptIn,
       });
+      navigate("/login", { state: { notice: message } });
     } catch (err) {
       const backendEmailError = emailMessageFromApiError(err);
       if (backendEmailError) {
