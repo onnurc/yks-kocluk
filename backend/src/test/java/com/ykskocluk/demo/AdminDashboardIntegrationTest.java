@@ -60,11 +60,12 @@ class AdminDashboardIntegrationTest {
     }
 
     private String register(String email) throws Exception {
-        String body = mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"%s","password":"TestPassword123!","fullName":"Admin Dashboard Test","dateOfBirth":"2005-01-01","acceptedTermsDocumentId":3,"acceptedExplicitConsentDocumentId":2}
                                 """.formatted(email)))
-                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        return JsonPath.read(body, "$.accessToken");
+                .andExpect(status().isAccepted());
+        TestUsers.verifyEmail(userRepository, email);
+        return login(email, "TestPassword123!");
     }
 }

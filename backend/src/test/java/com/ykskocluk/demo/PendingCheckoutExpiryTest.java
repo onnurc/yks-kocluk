@@ -72,7 +72,7 @@ class PendingCheckoutExpiryTest {
         // While still PENDING_PAYMENT, the student is blocked from re-subscribing to this coach.
         ApiException blocked = catchThrowableOfType(ApiException.class, () ->
                 subscriptionService.checkout(f.studentId, checkoutRequest(f.coachId, f.packageId)));
-        assertThat(blocked.getErrorCode()).isEqualTo("ALREADY_SUBSCRIBED");
+        assertThat(blocked.getErrorCode()).isEqualTo("PENDING_COACH_CHECKOUT_EXISTS");
 
         // Past the timeout the stuck checkout is expired and its PENDING charge failed.
         int expired = billingService.expireStalePendingCheckouts(Instant.now().plus(2, ChronoUnit.HOURS));
