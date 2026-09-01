@@ -5,6 +5,8 @@ import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.UserRepository;
+import com.ykskocluk.demo.security.WebSocketSessionsInvalidatedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,9 +18,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, ApplicationEventPublisher eventPublisher) {
         this.userRepository = userRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -41,6 +45,7 @@ public class UserService {
         user.setStatus(UserStatus.SUSPENDED);
         user.setSuspensionReason(reason);
         userRepository.saveAndFlush(user);
+        eventPublisher.publishEvent(new WebSocketSessionsInvalidatedEvent(userId));
 
         return new SuspendResponse(
                 user.getId(),

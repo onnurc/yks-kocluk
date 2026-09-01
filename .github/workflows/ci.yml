@@ -46,4 +46,6 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
+        env:
+          VITE_API_BASE_URL: https://api.example.com
         run: npm run build

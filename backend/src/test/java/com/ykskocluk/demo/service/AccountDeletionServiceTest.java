@@ -7,12 +7,14 @@ import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.*;
+import com.ykskocluk.demo.security.WebSocketSessionsInvalidatedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 
@@ -32,6 +34,7 @@ class AccountDeletionServiceTest {
     @Mock MarketingPreferenceService marketingPreferenceService;
     @Mock PrivacyPreferenceService privacyPreferenceService;
     @Mock MediaService mediaService;
+    @Mock ApplicationEventPublisher eventPublisher;
     AccountDeletionService service;
     User user;
 
@@ -39,7 +42,7 @@ class AccountDeletionServiceTest {
     void setUp() {
         service = new AccountDeletionService(deletionRepository, userRepository, refreshTokenRepository,
                 oauth2LoginCodeRepository, studentProfileRepository, coachProfileRepository,
-                marketingPreferenceService, privacyPreferenceService, mediaService);
+                marketingPreferenceService, privacyPreferenceService, mediaService, eventPublisher);
         user = new User();
         ReflectionTestUtils.setField(user, "id", 7L);
         user.setEmail("person@example.com");
@@ -101,6 +104,7 @@ class AccountDeletionServiceTest {
         verify(mediaService).retireAllOwnedBy(7L);
         verify(deletionRepository, never()).delete(any());
         verify(userRepository, never()).delete(any());
+        verify(eventPublisher).publishEvent(new WebSocketSessionsInvalidatedEvent(7L));
     }
 
     @Test

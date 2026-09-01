@@ -3,6 +3,7 @@
 import { defineConfig } from 'vitest/config'
 import { loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import { resolveApiBaseUrl } from './src/api/apiBaseUrl.js'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -13,7 +14,8 @@ export default defineConfig(({ mode }) => {
   // modification that conflicts on every pull (see docs/handoff.md "Port 8080 is intercepted
   // by a local proxy" for why anyone needs a non-default port here at all).
   const env = loadEnv(mode, process.cwd(), 'VITE_')
-  const backendOrigin = env.VITE_API_BASE_URL || 'http://localhost:8080'
+  const backendOrigin = resolveApiBaseUrl(env.VITE_API_BASE_URL,
+    mode === 'development' || mode === 'test')
 
   return {
     plugins: [react()],

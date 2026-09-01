@@ -287,10 +287,14 @@ class AuthServiceTest {
     void logout_revokesToken() {
         RefreshToken stored = new RefreshToken();
         stored.setExpiresAt(Instant.now().plus(Duration.ofDays(10)));
+        User user = activeUser("hash");
+        org.springframework.test.util.ReflectionTestUtils.setField(user, "id", 7L);
+        stored.setUser(user);
         when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(stored));
 
         authService.logout(new LogoutRequest("raw-refresh"));
         assertThat(stored.getRevokedAt()).isNotNull();
+        verify(eventPublisher).publishEvent(new com.ykskocluk.demo.security.WebSocketSessionsInvalidatedEvent(7L));
     }
 
     // --- Google account linking ---

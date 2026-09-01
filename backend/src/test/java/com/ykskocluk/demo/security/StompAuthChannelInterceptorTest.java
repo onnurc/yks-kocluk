@@ -13,6 +13,8 @@ import io.jsonwebtoken.impl.DefaultClaims;
 import io.jsonwebtoken.impl.DefaultJws;
 import io.jsonwebtoken.impl.DefaultJwsHeader;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -24,6 +26,8 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.security.core.Authentication;
 
+import java.time.Instant;
+import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
 
@@ -52,12 +56,17 @@ class StompAuthChannelInterceptorTest {
     @Mock
     AdminConversationService adminConversationService;
 
+    @Mock
+    WebSocketSessionRegistry sessionRegistry;
+
     StompAuthChannelInterceptor interceptor;
 
     @BeforeEach
     void setUp() {
         interceptor = new StompAuthChannelInterceptor(jwtService, messageService, userRepository,
-                adminConversationService);
+                adminConversationService, sessionRegistry);
+        lenient().when(sessionRegistry.bindAuthenticatedSession(anyString(), anyLong())).thenReturn(true);
+        lenient().when(sessionRegistry.addSubscription(anyString(), anyString())).thenReturn(true);
     }
 
     @Test
@@ -65,7 +74,7 @@ class StompAuthChannelInterceptorTest {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.CONNECT);
         accessor.setLeaveMutable(true);
         accessor.addNativeHeader("Authorization", "Bearer suspended-token");
-        Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+        Message<byte[]> message = message(accessor);
 
         Claims claims = new DefaultClaims(Map.of("sub", "2", "role", "STUDENT"));
         Jws jws = mock(Jws.class);
@@ -110,10 +119,11 @@ class StompAuthChannelInterceptorTest {
     void preSend_connectActiveUser_setsAuthentication() {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.CONNECT);
         accessor.setLeaveMutable(true);
+        accessor.setSessionId("session-1");
         accessor.addNativeHeader("Authorization", "Bearer active-token");
-        Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+        Message<byte[]> message = message(accessor);
 
-        Claims claims = new DefaultClaims(Map.of("sub", "3", "role", "ADMIN"));
+        Claims claims = validClaims(3L, 0);
         Jws jws = mock(Jws.class);
         when(jws.getPayload()).thenReturn(claims);
         when(jwtService.parse("active-token")).thenReturn(jws);
@@ -144,8 +154,7 @@ class StompAuthChannelInterceptorTest {
         // What Spring resolves "/user/queue/notifications" to internally. Reaching it directly
         // would mean reading a channel addressed to someone else's session.
         accessor.setDestination("/queue/notifications-userabc123");
-        Authentication auth = mock(Authentication.class);
-        accessor.setUser(auth);
+        accessor.setUser(auth(3L, "ROLE_STUDENT"));
         Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
 
         assertThatThrownBy(() -> interceptor.preSend(message, null))
@@ -186,11 +195,16 @@ class StompAuthChannelInterceptorTest {
     private StompHeaderAccessor connect(String token) {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.CONNECT);
         accessor.setLeaveMutable(true);
+        accessor.setSessionId("session-1");
         accessor.addNativeHeader("Authorization", "Bearer " + token);
         return accessor;
     }
 
     private Message<byte[]> message(StompHeaderAccessor accessor) {
+        if (accessor.getSessionId() == null) accessor.setSessionId("session-1");
+        if (accessor.getCommand() == StompCommand.SUBSCRIBE && accessor.getSubscriptionId() == null) {
+            accessor.setSubscriptionId("subscription-1");
+        }
         return MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
     }
 
@@ -199,11 +213,9 @@ class StompAuthChannelInterceptorTest {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
         accessor.setLeaveMutable(true);
         accessor.setDestination("/topic/conversations/50");
-        Authentication auth = mock(Authentication.class);
-        when(auth.getPrincipal()).thenReturn(3L);
-        accessor.setUser(auth);
+        accessor.setUser(auth(3L, "ROLE_STUDENT"));
 
-        Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+        Message<byte[]> message = message(accessor);
 
         when(messageService.isParticipant(3L, 50L)).thenReturn(true);
 
@@ -217,9 +229,7 @@ class StompAuthChannelInterceptorTest {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
         accessor.setLeaveMutable(true);
         accessor.setDestination("/topic/conversations/50/presence");
-        Authentication auth = mock(Authentication.class);
-        when(auth.getPrincipal()).thenReturn(3L);
-        accessor.setUser(auth);
+        accessor.setUser(auth(3L, "ROLE_STUDENT"));
         when(messageService.isParticipant(3L, 50L)).thenReturn(true);
 
         assertThat(interceptor.preSend(message(accessor), null)).isNotNull();
@@ -231,9 +241,7 @@ class StompAuthChannelInterceptorTest {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
         accessor.setLeaveMutable(true);
         accessor.setDestination("/topic/conversations/50/presence");
-        Authentication auth = mock(Authentication.class);
-        when(auth.getPrincipal()).thenReturn(3L);
-        accessor.setUser(auth);
+        accessor.setUser(auth(3L, "ROLE_STUDENT"));
         when(messageService.isParticipant(3L, 50L)).thenReturn(false);
 
         assertThat(catchThrowableOfType(MessagingException.class,
@@ -245,9 +253,7 @@ class StompAuthChannelInterceptorTest {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
         accessor.setLeaveMutable(true);
         accessor.setDestination("/topic/conversations/50");
-        Authentication auth = mock(Authentication.class);
-        when(auth.getPrincipal()).thenReturn(3L);
-        accessor.setUser(auth);
+        accessor.setUser(auth(3L, "ROLE_STUDENT"));
 
         Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
 
@@ -264,8 +270,7 @@ class StompAuthChannelInterceptorTest {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
         accessor.setLeaveMutable(true);
         accessor.setDestination("/topic/conversations/50");
-        accessor.setUser(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
-                9L, null, java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))));
+        accessor.setUser(auth(9L, "ROLE_ADMIN"));
         when(adminConversationService.canObserve(50L)).thenReturn(true);
 
         assertThat(interceptor.preSend(message(accessor), null)).isNotNull();
@@ -278,8 +283,7 @@ class StompAuthChannelInterceptorTest {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
         accessor.setLeaveMutable(true);
         accessor.setDestination("/topic/conversations/404");
-        accessor.setUser(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
-                9L, null, java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))));
+        accessor.setUser(auth(9L, "ROLE_ADMIN"));
         when(adminConversationService.canObserve(404L)).thenReturn(false);
 
         assertThat(catchThrowableOfType(MessagingException.class,
@@ -291,8 +295,7 @@ class StompAuthChannelInterceptorTest {
         StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SEND);
         accessor.setLeaveMutable(true);
         accessor.setDestination("/app/conversations/50/send");
-        accessor.setUser(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
-                9L, null, java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))));
+        accessor.setUser(auth(9L, "ROLE_ADMIN"));
 
         MessagingException error = catchThrowableOfType(MessagingException.class,
                 () -> interceptor.preSend(message(accessor), null));
@@ -348,9 +351,146 @@ class StompAuthChannelInterceptorTest {
         verifyNoInteractions(messageService);
     }
 
+    @Test
+    void preSend_notificationSubscriptionIsAllowed() {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        accessor.setLeaveMutable(true);
+        accessor.setDestination("/user/queue/notifications");
+        accessor.setUser(auth(3L, "ROLE_STUDENT"));
+
+        assertThat(interceptor.preSend(message(accessor), null)).isNotNull();
+        verifyNoInteractions(messageService, adminConversationService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/topic/random", "/user/random", "/queue/random"})
+    void preSend_unknownSubscriptionDestinationsAreDenied(String destination) {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        accessor.setLeaveMutable(true);
+        accessor.setDestination(destination);
+        accessor.setUser(auth(3L, "ROLE_STUDENT"));
+
+        assertThatThrownBy(() -> interceptor.preSend(message(accessor), null))
+                .isInstanceOf(MessagingException.class);
+    }
+
+    @Test
+    void preSend_expiredSessionRejectsSendAndSubscribeAndClosesTransport() {
+        StompSessionAuthentication expired = authentication(3L, Role.STUDENT, 0,
+                Instant.now().minusSeconds(60));
+        activeUser(3L, Role.STUDENT, 0);
+
+        StompHeaderAccessor send = frame(StompCommand.SEND, "/app/conversations/50/send", expired);
+        StompHeaderAccessor subscribe = frame(StompCommand.SUBSCRIBE, "/topic/conversations/50", expired);
+
+        assertThatThrownBy(() -> interceptor.preSend(message(send), null)).isInstanceOf(MessagingException.class);
+        assertThatThrownBy(() -> interceptor.preSend(message(subscribe), null)).isInstanceOf(MessagingException.class);
+        verify(sessionRegistry, times(2)).closeSession("session-1", "Oturum artık geçerli değil");
+    }
+
+    @Test
+    void preSend_passwordVersionChangeRejectsEstablishedSession() {
+        StompHeaderAccessor send = frame(StompCommand.SEND, "/app/conversations/50/send",
+                authentication(3L, Role.STUDENT, 0, Instant.now().plusSeconds(60)));
+        activeUser(3L, Role.STUDENT, 1);
+
+        assertThatThrownBy(() -> interceptor.preSend(message(send), null)).isInstanceOf(MessagingException.class);
+        verify(sessionRegistry).closeSession(eq("session-1"), anyString());
+    }
+
+    @Test
+    void preSend_passwordChangeTimestampRejectsEstablishedSession() {
+        StompHeaderAccessor send = frame(StompCommand.SEND, "/app/conversations/50/send",
+                authentication(3L, Role.STUDENT, 0, Instant.now().plusSeconds(60)));
+        User user = activeUser(3L, Role.STUDENT, 0);
+        user.setPasswordChangedAt(Instant.now());
+
+        assertThatThrownBy(() -> interceptor.preSend(message(send), null)).isInstanceOf(MessagingException.class);
+        verify(sessionRegistry).closeSession(eq("session-1"), anyString());
+    }
+
+    @Test
+    void preSend_roleChangeRejectsEstablishedSession() {
+        StompHeaderAccessor send = frame(StompCommand.SEND, "/app/conversations/50/send",
+                authentication(3L, Role.STUDENT, 0, Instant.now().plusSeconds(60)));
+        activeUser(3L, Role.COACH, 0);
+
+        assertThatThrownBy(() -> interceptor.preSend(message(send), null)).isInstanceOf(MessagingException.class);
+        verify(sessionRegistry).closeSession(eq("session-1"), anyString());
+    }
+
+    @Test
+    void preSend_suspensionRejectsEstablishedSession() {
+        StompHeaderAccessor send = frame(StompCommand.SEND, "/app/conversations/50/send",
+                authentication(3L, Role.STUDENT, 0, Instant.now().plusSeconds(60)));
+        User user = activeUser(3L, Role.STUDENT, 0);
+        user.setStatus(UserStatus.SUSPENDED);
+
+        assertThatThrownBy(() -> interceptor.preSend(message(send), null)).isInstanceOf(MessagingException.class);
+        verify(sessionRegistry).closeSession(eq("session-1"), anyString());
+    }
+
+    @Test
+    void preSend_connectionLimitRejectsAndClosesNewSession() {
+        StompHeaderAccessor accessor = connect("active-token");
+        Jws<Claims> jws = mock(Jws.class);
+        when(jws.getPayload()).thenReturn(validClaims(3L, 0));
+        when(jwtService.parse("active-token")).thenReturn(jws);
+        activeUser(3L, Role.STUDENT, 0);
+        when(sessionRegistry.bindAuthenticatedSession("session-1", 3L)).thenReturn(false);
+
+        assertThatThrownBy(() -> interceptor.preSend(message(accessor), null)).isInstanceOf(MessagingException.class);
+        verify(sessionRegistry).closeSession("session-1", "Connection limit exceeded");
+    }
+
+    @Test
+    void preSend_subscriptionLimitRejectsAdditionalSubscription() {
+        StompHeaderAccessor accessor = frame(StompCommand.SUBSCRIBE, "/user/queue/notifications",
+                authentication(3L, Role.STUDENT, 0, Instant.now().plusSeconds(60)));
+        activeUser(3L, Role.STUDENT, 0);
+        when(sessionRegistry.addSubscription("session-1", "subscription-1")).thenReturn(false);
+
+        assertThatThrownBy(() -> interceptor.preSend(message(accessor), null))
+                .isInstanceOf(MessagingException.class)
+                .hasMessageContaining("abonelik sınırı");
+    }
+
+    private StompHeaderAccessor frame(StompCommand command, String destination, Authentication authentication) {
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(command);
+        accessor.setLeaveMutable(true);
+        accessor.setSessionId("session-1");
+        accessor.setDestination(destination);
+        accessor.setUser(authentication);
+        return accessor;
+    }
+
     private Authentication auth(Long userId, String authority) {
-        return new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
-                userId, null, java.util.List.of(
-                new org.springframework.security.core.authority.SimpleGrantedAuthority(authority)));
+        Role role = Role.valueOf(authority.substring("ROLE_".length()));
+        activeUser(userId, role, 0);
+        return authentication(userId, role, 0, Instant.now().plusSeconds(300));
+    }
+
+    private StompSessionAuthentication authentication(Long userId, Role role, int passwordVersion,
+                                                       Instant expiresAt) {
+        return new StompSessionAuthentication(userId, Instant.now().minusSeconds(30), expiresAt,
+                passwordVersion, role);
+    }
+
+    private User activeUser(Long userId, Role role, int passwordVersion) {
+        User user = new User();
+        user.setStatus(UserStatus.ACTIVE);
+        user.setRole(role);
+        user.setPasswordVersion(passwordVersion);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        return user;
+    }
+
+    private Claims validClaims(Long userId, int passwordVersion) {
+        return new DefaultClaims(Map.of(
+                "sub", userId.toString(),
+                "role", "STUDENT",
+                "passwordVersion", passwordVersion,
+                "iat", Date.from(Instant.now().minusSeconds(30)),
+                "exp", Date.from(Instant.now().plusSeconds(300))));
     }
 }

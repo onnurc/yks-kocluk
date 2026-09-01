@@ -12,6 +12,7 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.*;
 import java.util.Optional;
@@ -31,7 +32,7 @@ class PasswordSecurityServiceTest {
         service = new PasswordSecurityService(users, resetTokens, refreshTokens, encoder,
                 new PasswordSecurityProperties("https://app.example.com", Duration.ofMinutes(30), Duration.ofDays(7)), events);
     }
-    private User user() { User u=new User(); u.setEmail("user@example.com"); u.setPasswordHash("old-hash"); u.setStatus(UserStatus.ACTIVE); u.setRole(Role.STUDENT); u.setFullName("User"); return u; }
+    private User user() { User u=new User(); ReflectionTestUtils.setField(u,"id",1L); u.setEmail("user@example.com"); u.setPasswordHash("old-hash"); u.setStatus(UserStatus.ACTIVE); u.setRole(Role.STUDENT); u.setFullName("User"); return u; }
 
     @Test void changePassword_succeedsAndRevokesSessionsAndResets() {
         User u=user(); when(users.findById(1L)).thenReturn(Optional.of(u)); when(encoder.matches("old-password","old-hash")).thenReturn(true); when(encoder.matches("new-password","old-hash")).thenReturn(false); when(encoder.encode("new-password")).thenReturn("new-hash");
@@ -39,6 +40,7 @@ class PasswordSecurityServiceTest {
         assertThat(u.getPasswordHash()).isEqualTo("new-hash"); assertThat(u.getPasswordChangedAt()).isNotNull();
         assertThat(u.getPasswordVersion()).isEqualTo(1);
         verify(refreshTokens).revokeAllForUser(eq(1L),any()); verify(resetTokens).invalidateAllForUser(eq(1L),any());
+        verify(events).publishEvent(new com.ykskocluk.demo.security.WebSocketSessionsInvalidatedEvent(1L));
     }
     @Test void changePassword_rejectsIncorrectCurrent() { User u=user(); when(users.findById(1L)).thenReturn(Optional.of(u)); when(encoder.matches("bad-password","old-hash")).thenReturn(false); assertThatThrownBy(() -> service.changePassword(1L,new ChangePasswordRequest("bad-password","new-password"))).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getErrorCode()).isEqualTo("CURRENT_PASSWORD_INVALID")); }
     @Test void changePassword_rejectsReuse() { User u=user(); when(users.findById(1L)).thenReturn(Optional.of(u)); when(encoder.matches(anyString(),eq("old-hash"))).thenReturn(true); assertThatThrownBy(() -> service.changePassword(1L,new ChangePasswordRequest("old-password","old-password"))).isInstanceOfSatisfying(ApiException.class,e->assertThat(e.getErrorCode()).isEqualTo("PASSWORD_REUSE_NOT_ALLOWED")); }
@@ -59,7 +61,7 @@ class PasswordSecurityServiceTest {
 
     @Test void resetPassword_validTokenBypassesCooldownAndIsSingleUse() {
         User u=user(); u.setPasswordChangedAt(Instant.now()); PasswordResetToken token=new PasswordResetToken(); token.setUser(u); token.setExpiresAt(Instant.now().plusSeconds(600)); when(resetTokens.findByTokenHashForUpdate(anyString())).thenReturn(Optional.of(token)); when(encoder.matches("new-password","old-hash")).thenReturn(false); when(encoder.encode("new-password")).thenReturn("new-hash");
-        service.resetPassword(new ResetPasswordRequest("raw-token","new-password")); assertThat(token.getUsedAt()).isNotNull(); assertThat(u.getPasswordHash()).isEqualTo("new-hash"); verify(refreshTokens).revokeAllForUser(eq(u.getId()),any());
+        service.resetPassword(new ResetPasswordRequest("raw-token","new-password")); assertThat(token.getUsedAt()).isNotNull(); assertThat(u.getPasswordHash()).isEqualTo("new-hash"); verify(refreshTokens).revokeAllForUser(eq(u.getId()),any()); verify(events).publishEvent(new com.ykskocluk.demo.security.WebSocketSessionsInvalidatedEvent(1L));
     }
     @Test void resetPassword_sameCurrentPasswordIsRejectedWithoutConsumingTokenAndCanBeRetried() {
         User u=user(); PasswordResetToken token=new PasswordResetToken(); token.setUser(u); token.setExpiresAt(Instant.now().plusSeconds(600));

@@ -191,6 +191,11 @@ app:
     secret: ${JWT_SECRET}
     access-ttl: 15m
     refresh-ttl: 30d
+  websocket-security:
+    max-connections-per-user: ${WEBSOCKET_MAX_CONNECTIONS_PER_USER:10}
+    max-subscriptions-per-session: ${WEBSOCKET_MAX_SUBSCRIPTIONS_PER_SESSION:20}
+    server-heartbeat-millis: ${WEBSOCKET_SERVER_HEARTBEAT_MILLIS:10000}
+    client-heartbeat-millis: ${WEBSOCKET_CLIENT_HEARTBEAT_MILLIS:10000}
   password-security:
     frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
     reset-token-ttl: 30m
