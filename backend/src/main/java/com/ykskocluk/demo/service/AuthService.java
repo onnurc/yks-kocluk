@@ -20,6 +20,7 @@ import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.repository.AccountDeletionRequestRepository;
 import com.ykskocluk.demo.security.JwtService;
 import com.ykskocluk.demo.security.PasswordPolicy;
+import com.ykskocluk.demo.security.WebSocketSessionsInvalidatedEvent;
 import com.ykskocluk.demo.validation.EmailAddresses;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
@@ -153,7 +154,10 @@ public class AuthService {
     public void logout(LogoutRequest request) {
         // Idempotent: revoke if present, no-op otherwise.
         refreshTokenRepository.findByTokenHash(sha256Hex(request.refreshToken()))
-                .ifPresent(token -> token.setRevokedAt(Instant.now()));
+                .ifPresent(token -> {
+                    token.setRevokedAt(Instant.now());
+                    eventPublisher.publishEvent(new WebSocketSessionsInvalidatedEvent(token.getUser().getId()));
+                });
     }
 
     @Transactional(readOnly = true)

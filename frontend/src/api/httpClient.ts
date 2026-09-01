@@ -2,9 +2,10 @@ import { getAccessToken, setAccessToken, clearAllTokens } from "../auth/tokenSto
 import { authApi } from "../auth/authApi";
 import { ApiError } from "./ApiError";
 import type { FieldError } from "./ApiError";
+import { resolveApiBaseUrl } from "./apiBaseUrl";
 
 export const getApiBaseUrl = (): string => {
-  return (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080").replace(/\/$/, "");
+  return resolveApiBaseUrl(import.meta.env.VITE_API_BASE_URL, import.meta.env.DEV);
 };
 
 // Central 401 handling: a single in-flight refresh is shared by every caller (REST requests

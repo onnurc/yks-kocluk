@@ -1,11 +1,18 @@
 package com.ykskocluk.demo.config;
 
 import com.ykskocluk.demo.security.StompAuthChannelInterceptor;
+import com.ykskocluk.demo.security.WebSocketSessionRegistry;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.web.socket.WebSocketHandler;
+import org.springframework.web.socket.handler.WebSocketHandlerDecorator;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
+import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
 /**
@@ -16,15 +23,25 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
  */
 @Configuration
 @EnableWebSocketMessageBroker
+@EnableConfigurationProperties(WebSocketSecurityProperties.class)
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final StompAuthChannelInterceptor authChannelInterceptor;
     private final CorsProperties corsProperties;
+    private final WebSocketSessionRegistry sessionRegistry;
+    private final WebSocketSecurityProperties securityProperties;
+    private final TaskScheduler heartbeatScheduler;
 
     public WebSocketConfig(StompAuthChannelInterceptor authChannelInterceptor,
-                           CorsProperties corsProperties) {
+                           CorsProperties corsProperties,
+                           WebSocketSessionRegistry sessionRegistry,
+                           WebSocketSecurityProperties securityProperties,
+                           @Qualifier("webSocketHeartbeatScheduler") TaskScheduler heartbeatScheduler) {
         this.authChannelInterceptor = authChannelInterceptor;
         this.corsProperties = corsProperties;
+        this.sessionRegistry = sessionRegistry;
+        this.securityProperties = securityProperties;
+        this.heartbeatScheduler = heartbeatScheduler;
     }
 
     // Same allowlist as SecurityConfig's REST CORS — keep the two in sync.
@@ -46,12 +63,47 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      */
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/topic", "/queue");
+        registry.enableSimpleBroker("/topic", "/queue")
+                .setTaskScheduler(heartbeatScheduler)
+                .setHeartbeatValue(new long[]{securityProperties.serverHeartbeatMillis(),
+                        securityProperties.clientHeartbeatMillis()});
         registry.setApplicationDestinationPrefixes("/app");
     }
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.interceptors(authChannelInterceptor);
+    }
+
+    @Override
+    public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
+        registration.addDecoratorFactory(this::trackTransportSession);
+    }
+
+    private WebSocketHandler trackTransportSession(WebSocketHandler delegate) {
+        return new WebSocketHandlerDecorator(delegate) {
+            @Override
+            public void afterConnectionEstablished(org.springframework.web.socket.WebSocketSession session)
+                    throws Exception {
+                sessionRegistry.registerTransport(session);
+                try {
+                    super.afterConnectionEstablished(session);
+                } catch (Exception exception) {
+                    sessionRegistry.releaseSession(session.getId());
+                    throw exception;
+                }
+            }
+
+            @Override
+            public void afterConnectionClosed(org.springframework.web.socket.WebSocketSession session,
+                                              org.springframework.web.socket.CloseStatus closeStatus)
+                    throws Exception {
+                try {
+                    super.afterConnectionClosed(session, closeStatus);
+                } finally {
+                    sessionRegistry.releaseSession(session.getId());
+                }
+            }
+        };
     }
 }

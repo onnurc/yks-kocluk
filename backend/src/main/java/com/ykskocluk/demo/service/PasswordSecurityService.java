@@ -10,6 +10,7 @@ import com.ykskocluk.demo.repository.PasswordResetTokenRepository;
 import com.ykskocluk.demo.repository.RefreshTokenRepository;
 import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.security.PasswordPolicy;
+import com.ykskocluk.demo.security.WebSocketSessionsInvalidatedEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -55,6 +56,7 @@ public class PasswordSecurityService {
         Instant now = now();
         updatePassword(user, request.newPassword(), now);
         invalidateSessionsAndResets(userId, now);
+        events.publishEvent(new WebSocketSessionsInvalidatedEvent(userId));
         return new PasswordActionResponse("Şifreniz değiştirildi. Tüm oturumlar kapatıldı; yeniden giriş yapın.", true);
     }
 
@@ -90,6 +92,7 @@ public class PasswordSecurityService {
         token.setUsedAt(now);
         resetTokens.invalidateAllForUser(user.getId(), now);
         refreshTokens.revokeAllForUser(user.getId(), now);
+        events.publishEvent(new WebSocketSessionsInvalidatedEvent(user.getId()));
         return new PasswordActionResponse("Şifreniz başarıyla yenilendi. Yeni şifrenizle giriş yapabilirsiniz.", true);
     }
 

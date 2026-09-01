@@ -5,12 +5,14 @@ import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.UserRepository;
+import com.ykskocluk.demo.security.WebSocketSessionsInvalidatedEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 
@@ -27,6 +29,9 @@ class UserServiceTest {
 
     @Mock
     UserRepository userRepository;
+
+    @Mock
+    ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     UserService userService;
@@ -52,6 +57,7 @@ class UserServiceTest {
                 u.getSuspensionReason().equals("Suspicious activity") &&
                 "suspended@example.com".equals(u.getEmail())
         ));
+        verify(eventPublisher).publishEvent(new WebSocketSessionsInvalidatedEvent(2L));
     }
 
     @Test

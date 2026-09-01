@@ -9,6 +9,8 @@ import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.repository.*;
+import com.ykskocluk.demo.security.WebSocketSessionsInvalidatedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +35,7 @@ public class AccountDeletionService {
     private final MarketingPreferenceService marketingPreferenceService;
     private final PrivacyPreferenceService privacyPreferenceService;
     private final MediaService mediaService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public AccountDeletionService(AccountDeletionRequestRepository deletionRepository, UserRepository userRepository,
                                   RefreshTokenRepository refreshTokenRepository,
@@ -41,7 +44,8 @@ public class AccountDeletionService {
                                    CoachProfileRepository coachProfileRepository,
                                    MarketingPreferenceService marketingPreferenceService,
                                    PrivacyPreferenceService privacyPreferenceService,
-                                   MediaService mediaService) {
+                                   MediaService mediaService,
+                                   ApplicationEventPublisher eventPublisher) {
         this.deletionRepository = deletionRepository;
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -51,6 +55,7 @@ public class AccountDeletionService {
         this.marketingPreferenceService = marketingPreferenceService;
         this.privacyPreferenceService = privacyPreferenceService;
         this.mediaService = mediaService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional(readOnly = true)
@@ -112,6 +117,7 @@ public class AccountDeletionService {
             request.setStatus(AccountDeletionStatus.FAILED);
             request.setFailureReason("Deletion processing requires manual remediation");
         }
+        eventPublisher.publishEvent(new WebSocketSessionsInvalidatedEvent(userId));
         return response(request);
     }
 
