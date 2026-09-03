@@ -52,6 +52,7 @@ function PackageCard({ coachingPackage, featured }: { coachingPackage: PublicPac
         <li>Ayda {coachingPackage.totalMeetingsPerMonth} görüşme</li>
         <li>{coachingPackage.evaluationMeetingsPerMonth} değerlendirme + {coachingPackage.weeklyMeetingsPerMonth} haftalık görüşme</li>
         <li>Kişiselleştirilmiş çalışma planı</li>
+        <li>{coachingPackage.packageType === "ONE_MONTH" ? "İade kapsamı dışında" : coachingPackage.packageType === "THREE_MONTHS" ? "İptalde mevcut hizmet ayı sonuna kadar erişim ve kalan tutar için iade hesabı" : "İptal ve iade koşulları mevcut hizmet dönemi hesabına göre belirlenir"}</li>
       </ul>
       {coachingPackage.purchasable ? <Link to="/register">{featured ? "Hemen Başla" : "Planı Seç"}</Link> : <span className="coaching-package__unavailable" aria-disabled="true">Satışa Kapalı</span>}
     </article>

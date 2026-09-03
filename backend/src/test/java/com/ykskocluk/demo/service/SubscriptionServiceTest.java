@@ -87,6 +87,7 @@ class SubscriptionServiceTest {
     @Mock AccountReadinessService accountReadinessService;
     @Mock LegalAcceptanceService legalAcceptanceService;
     @Mock PackagePricingService packagePricingService;
+    @Mock CancellationCalculationService cancellationCalculationService;
     @Mock org.springframework.transaction.PlatformTransactionManager transactionManager;
     @Mock org.springframework.context.ApplicationEventPublisher events;
 
@@ -105,7 +106,8 @@ class SubscriptionServiceTest {
             sessionRepository, paymentProperties,
             iyzicoClient, subscriptionMapper, entityManager,
             new com.ykskocluk.demo.config.IyzicoProperties(false, "sandbox", "dummy", "dummy", "dummy", "dummy"),
-            accountReadinessService, legalAcceptanceService, packagePricingService, transactionManager, events);
+            accountReadinessService, legalAcceptanceService, packagePricingService,
+            cancellationCalculationService, transactionManager, events);
 
         Package pkg = new Package();
         ReflectionTestUtils.setField(pkg, "id", PKG_ID);
@@ -694,6 +696,57 @@ class SubscriptionServiceTest {
         assertThat(request.getStatus()).isEqualTo(RefundRequestStatus.REJECTED);
         verify(subscriptionRepository, never()).saveAndFlush(any());
         verifyNoInteractions(sessionRepository);
+    }
+
+    @Test
+    void packagePolicyRefund_keepsAccessUntilCalculatedServiceMonthEnd() {
+        User student = new User(); student.setEmail("student@example.com"); student.setFullName("Student");
+        User coachUser = new User(); coachUser.setEmail("coach@example.com"); coachUser.setFullName("Coach");
+        CoachProfile coach = new CoachProfile(); coach.setUser(coachUser);
+        Subscription sub = new Subscription(); ReflectionTestUtils.setField(sub, "id", 9L);
+        sub.setStudent(student); sub.setCoachProfile(coach); sub.setStatus(SubscriptionStatus.ACTIVE);
+        sub.setAutoRenew(true); sub.setPackageTypeSnapshot(PackageType.THREE_MONTHS);
+        Payment original = refundableCharge(sub);
+        RefundRequest request = new RefundRequest(); ReflectionTestUtils.setField(request, "id", 11L);
+        request.setStudent(student); request.setSubscription(sub); request.setOriginalPayment(original);
+        request.setRefundWindow(RefundWindow.UNCONDITIONAL); request.setStatus(RefundRequestStatus.PENDING);
+        Instant accessEndsAt = Instant.now().plus(30, ChronoUnit.DAYS);
+        Session withinAccess = new Session(); withinAccess.setStatus(SessionStatus.PLANNED);
+        withinAccess.setStartTime(Instant.now().plus(2, ChronoUnit.DAYS));
+        Session afterAccess = new Session(); afterAccess.setStatus(SessionStatus.PLANNED);
+        afterAccess.setStartTime(accessEndsAt.plus(1, ChronoUnit.DAYS));
+        afterAccess.setStudent(student); afterAccess.setCoachProfile(coach);
+
+        when(refundRequestRepository.findByIdForUpdate(11L)).thenReturn(Optional.of(request));
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(original));
+        when(paymentRepository.findBySourcePaymentIdAndStatusIn(100L, List.of(PaymentStatus.PENDING, PaymentStatus.SUCCESS))).thenReturn(List.of());
+        when(subscriptionRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(sub));
+        when(sessionRepository.findBySubscriptionIdOrderByStartTimeAsc(9L)).thenReturn(List.of(withinAccess, afterAccess));
+        when(iyzicoClient.refund(eq("prov-ref-123"), eq(new BigDecimal("100.00")), any()))
+                .thenReturn(new RefundResult(true, "refund-ref", null, null));
+
+        service.refundEligibleStudent(100L, 11L, new BigDecimal("100.00"), accessEndsAt);
+
+        assertThat(sub.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(sub.isAutoRenew()).isFalse();
+        assertThat(sub.getEndAt()).isEqualTo(accessEndsAt);
+        assertThat(withinAccess.getStatus()).isEqualTo(SessionStatus.PLANNED);
+        assertThat(afterAccess.getStatus()).isEqualTo(SessionStatus.CANCELLED);
+        verify(coachProfileRepository, never()).decrementActiveStudentCount(any());
+    }
+
+    @Test
+    void oneMonthRefundIsRejectedBeforeProviderCall() {
+        Subscription sub = new Subscription();
+        sub.setPackageTypeSnapshot(PackageType.ONE_MONTH);
+        Payment original = refundableCharge(sub);
+        when(paymentRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(original));
+
+        ApiException error = catchThrowableOfType(ApiException.class,
+                () -> service.refund(100L, new BigDecimal("10.00"), "not allowed"));
+
+        assertThat(error.getErrorCode()).isEqualTo("PACKAGE_NON_REFUNDABLE");
+        verifyNoInteractions(iyzicoClient);
     }
 
     @Test

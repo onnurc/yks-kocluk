@@ -93,6 +93,7 @@ public class SubscriptionService {
     private final TransactionTemplate tx;
     private final ApplicationEventPublisher events;
     private final PackagePricingService packagePricingService;
+    private final CancellationCalculationService cancellationCalculationService;
 
     public SubscriptionService(SubscriptionRepository subscriptionRepository,
                                PackageRepository packageRepository,
@@ -109,6 +110,7 @@ public class SubscriptionService {
                                AccountReadinessService accountReadinessService,
                                LegalAcceptanceService legalAcceptanceService,
                                PackagePricingService packagePricingService,
+                               CancellationCalculationService cancellationCalculationService,
                                PlatformTransactionManager transactionManager,
                                ApplicationEventPublisher events) {
         this.subscriptionRepository = subscriptionRepository;
@@ -126,6 +128,7 @@ public class SubscriptionService {
         this.accountReadinessService = accountReadinessService;
         this.legalAcceptanceService = legalAcceptanceService;
         this.packagePricingService = packagePricingService;
+        this.cancellationCalculationService = cancellationCalculationService;
         this.tx = new TransactionTemplate(transactionManager);
         this.events = events;
     }
@@ -462,7 +465,7 @@ public class SubscriptionService {
     /** Carries the reserve decision out of tx1 into the external call and tx2. */
     private record RefundReserve(Long originalPaymentId, Payment refundPayment, String providerReference,
                                  String idempotencyKey, BigDecimal remainingAfter,
-                                 Long refundRequestId, boolean terminatePaidAccess) {
+                                 Long refundRequestId, boolean terminatePaidAccess, Instant accessEndsAt) {
     }
 
     /** Result of tx2 — success carries the response; failure carries the provider error message. */
@@ -481,7 +484,7 @@ public class SubscriptionService {
         if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_REFUND_AMOUNT", "İade tutarı sıfırdan büyük olmalıdır");
         }
-        return executeRefund(paymentId, refundAmount, null, false, reason);
+        return executeRefund(paymentId, refundAmount, null, false, reason, null);
     }
 
     /**
@@ -492,14 +495,20 @@ public class SubscriptionService {
      */
     public RefundResponse refundEligibleStudent(Long paymentId, Long refundRequestId) {
         return executeRefund(paymentId, null, refundRequestId, true,
-                "Automatic eligible student refund request #" + refundRequestId);
+                "Automatic eligible student refund request #" + refundRequestId, null);
+    }
+
+    public RefundResponse refundEligibleStudent(Long paymentId, Long refundRequestId,
+                                                BigDecimal refundAmount, Instant accessEndsAt) {
+        return executeRefund(paymentId, refundAmount, refundRequestId, true,
+                "Package-policy student refund request #" + refundRequestId, accessEndsAt);
     }
 
     private RefundResponse executeRefund(Long paymentId, BigDecimal requestedAmount,
                                          Long refundRequestId, boolean terminatePaidAccess,
-                                         String reason) {
+                                         String reason, Instant accessEndsAt) {
         RefundReserve reserve = tx.execute(status -> reserveRefund(
-                paymentId, requestedAmount, refundRequestId, terminatePaidAccess));
+                paymentId, requestedAmount, refundRequestId, terminatePaidAccess, accessEndsAt));
 
         RefundResult refundResult = iyzicoClient.refund(reserve.providerReference(),
                 reserve.refundPayment().getAmount(), reserve.idempotencyKey());
@@ -518,7 +527,7 @@ public class SubscriptionService {
     // --- tx1: lock + validate + reserve ---
 
     private RefundReserve reserveRefund(Long paymentId, BigDecimal requestedAmount,
-                                        Long refundRequestId, boolean terminatePaidAccess) {
+                                        Long refundRequestId, boolean terminatePaidAccess, Instant accessEndsAt) {
         RefundRequest auditRequest = null;
         if (refundRequestId != null) {
             auditRequest = refundRequestRepository.findByIdForUpdate(refundRequestId)
@@ -532,6 +541,10 @@ public class SubscriptionService {
                 throw new ApiException(HttpStatus.CONFLICT, "REFUND_REQUEST_NOT_PENDING",
                         "İade talebi beklemede değil");
             }
+            if (auditRequest.getOriginalPayment().getSubscription().getPackageTypeSnapshot() == PackageType.ONE_MONTH) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "PACKAGE_NON_REFUNDABLE",
+                        "Bir aylık paketler iade kapsamı dışındadır.");
+            }
 
             Payment priorAttempt = auditRequest.getRefundPayment();
             if (priorAttempt != null && priorAttempt.getStatus() == PaymentStatus.PENDING) {
@@ -542,7 +555,7 @@ public class SubscriptionService {
                         auditRequest.getOriginalPayment().getProviderReference(), priorAttempt.getIdempotencyKey(),
                         auditRequest.getOriginalPayment().getAmount()
                                 .subtract(successfulAmount).subtract(priorAttempt.getAmount()),
-                        refundRequestId, terminatePaidAccess);
+                        refundRequestId, terminatePaidAccess, accessEndsAt);
             }
         }
 
@@ -551,6 +564,10 @@ public class SubscriptionService {
 
         if (originalPayment.getType() != PaymentType.CHARGE || originalPayment.getStatus() != PaymentStatus.SUCCESS) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PAYMENT_STATUS", "Sadece başarılı ödemeler iade edilebilir");
+        }
+        if (originalPayment.getSubscription().getPackageTypeSnapshot() == PackageType.ONE_MONTH) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PACKAGE_NON_REFUNDABLE",
+                    "Bir aylık paketler iade kapsamı dışındadır.");
         }
 
         // Already-spoken-for amount = SUCCESS refunds + still-in-flight PENDING reservations.
@@ -566,20 +583,27 @@ public class SubscriptionService {
 
         BigDecimal remainingRefundable = originalPayment.getAmount().subtract(totalRefunded);
 
-        RefundPolicy.Decision policy = RefundPolicy.evaluate(originalPayment.getSucceededAt(), Instant.now(), remainingRefundable);
-        if (!policy.eligible()) {
+        PackageType packageType = originalPayment.getSubscription().getPackageTypeSnapshot();
+        RefundPolicy.Decision policy = packageType == null
+                ? RefundPolicy.evaluate(originalPayment.getSucceededAt(), Instant.now(), remainingRefundable)
+                : null;
+        if (refundRequestId == null && policy != null && !policy.eligible()) {
             String code = remainingRefundable.signum() <= 0 ? "PAYMENT_ALREADY_REFUNDED"
                     : originalPayment.getSucceededAt() == null ? "PURCHASE_TIMESTAMP_UNAVAILABLE" : "REFUND_WINDOW_EXPIRED";
             throw new ApiException(HttpStatus.BAD_REQUEST, code, policy.ineligibleReason());
         }
+        BigDecimal policyMaximum = refundRequestId == null && packageType != null
+                ? cancellationCalculationService.calculate(originalPayment.getSubscription(), Instant.now())
+                    .refundableAmount().min(remainingRefundable).max(BigDecimal.ZERO)
+                : remainingRefundable;
 
         BigDecimal refundAmount = requestedAmount == null ? remainingRefundable : requestedAmount;
         if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_REFUND_AMOUNT", "İade tutarı sıfırdan büyük olmalıdır");
         }
-        if (refundAmount.compareTo(remainingRefundable) > 0) {
+        if (refundAmount.compareTo(policyMaximum) > 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "EXCEEDS_REFUNDABLE_AMOUNT",
-                    String.format("İade tutarı kalan iade edilebilir tutarı (%s TRY) aşamaz", remainingRefundable));
+                    String.format("İade tutarı kalan iade edilebilir tutarı (%s TRY) aşamaz", policyMaximum));
         }
 
         // Deterministic idempotency key to prevent duplicate refunds
@@ -615,7 +639,7 @@ public class SubscriptionService {
 
         return new RefundReserve(paymentId, refundPayment, originalPayment.getProviderReference(),
                 refundKey, remainingRefundable.subtract(refundAmount),
-                refundRequestId, terminatePaidAccess);
+                refundRequestId, terminatePaidAccess, accessEndsAt);
     }
 
     // --- tx2: finalize ---
@@ -665,9 +689,23 @@ public class SubscriptionService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "REFUND_REQUEST_NOT_FOUND",
                         "İade talebi bulunamadı"));
 
+        Instant now = Instant.now();
+        if (reserve.accessEndsAt() != null) {
+            subscription.setAutoRenew(false);
+            subscription.setCancelledAt(now);
+            subscription.setEndAt(reserve.accessEndsAt());
+            subscription.setTerminationReason("Package-policy refund #" + auditRequest.getId());
+            subscriptionRepository.saveAndFlush(subscription);
+
+            cancelFutureSessionsAfter(subscription, reserve.accessEndsAt());
+            auditRequest.setRefundPayment(refundPayment);
+            auditRequest.setStatus(RefundRequestStatus.REFUNDED);
+            refundRequestRepository.saveAndFlush(auditRequest);
+            return;
+        }
+
         boolean consumedCapacity = subscription.getStatus() == SubscriptionStatus.ACTIVE
                 || subscription.getStatus() == SubscriptionStatus.PAST_DUE;
-        Instant now = Instant.now();
         subscription.setStatus(SubscriptionStatus.TERMINATED);
         subscription.setAutoRenew(false);
         subscription.setCancelledAt(now);
@@ -697,6 +735,24 @@ public class SubscriptionService {
         auditRequest.setRefundPayment(refundPayment);
         auditRequest.setStatus(RefundRequestStatus.REFUNDED);
         refundRequestRepository.saveAndFlush(auditRequest);
+    }
+
+    private void cancelFutureSessionsAfter(Subscription subscription, Instant accessEndsAt) {
+        for (Session session : sessionRepository.findBySubscriptionIdOrderByStartTimeAsc(subscription.getId())) {
+            if (session.getStatus() != SessionStatus.PLANNED || !session.getStartTime().isAfter(accessEndsAt)) {
+                continue;
+            }
+            session.setStatus(SessionStatus.CANCELLED);
+            session.setMeetLink(null);
+            if (session.getAvailability() != null) {
+                session.getAvailability().setBooked(false);
+                session.setAvailability(null);
+            }
+            events.publishEvent(new SessionCancelledEvent(
+                    session.getId(), session.getStudent().getEmail(), session.getStudent().getFullName(),
+                    session.getCoachProfile().getUser().getEmail(),
+                    session.getCoachProfile().getUser().getFullName(), session.getStartTime(), false));
+        }
     }
 
     @Transactional
@@ -787,10 +843,22 @@ public class SubscriptionService {
             BigDecimal remainingRefundable = payment.getType() == PaymentType.CHARGE
                     ? payment.getAmount().subtract(totalRefunded)
                     : BigDecimal.ZERO;
-            RefundPolicy.Decision policy = payment.getType() == PaymentType.CHARGE
-                    && payment.getStatus() == PaymentStatus.SUCCESS
-                    ? RefundPolicy.evaluate(payment.getSucceededAt(), Instant.now(), remainingRefundable)
-                    : new RefundPolicy.Decision(false, null, "Yalnızca başarılı tahsilatlar iade edilebilir.");
+            PackageType packageType = payment.getSubscription().getPackageTypeSnapshot();
+            RefundPolicy.Decision policy;
+            if (packageType == PackageType.ONE_MONTH) {
+                remainingRefundable = BigDecimal.ZERO.setScale(2);
+                policy = new RefundPolicy.Decision(false, null, "Bir aylık paketler iade kapsamı dışındadır.");
+            } else if (packageType != null && payment.getType() == PaymentType.CHARGE
+                    && payment.getStatus() == PaymentStatus.SUCCESS) {
+                remainingRefundable = cancellationCalculationService.calculate(payment.getSubscription(), Instant.now())
+                        .refundableAmount().min(remainingRefundable).max(BigDecimal.ZERO);
+                policy = new RefundPolicy.Decision(remainingRefundable.signum() > 0, null,
+                        remainingRefundable.signum() > 0 ? null : "İade edilebilir tutar kalmadı.");
+            } else {
+                policy = payment.getType() == PaymentType.CHARGE && payment.getStatus() == PaymentStatus.SUCCESS
+                        ? RefundPolicy.evaluate(payment.getSucceededAt(), Instant.now(), remainingRefundable)
+                        : new RefundPolicy.Decision(false, null, "Yalnızca başarılı tahsilatlar iade edilebilir.");
+            }
 
             return new AdminPaymentResponse(
                     payment.getId(),

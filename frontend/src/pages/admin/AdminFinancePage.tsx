@@ -49,7 +49,7 @@ export const AdminFinancePage = () => {
     if (!refund || busy) return;
     setBusy(true);
     try {
-      await financeApi.refund(refund.id, refund.remainingRefundableAmount, "Admin paneli - 7 günlük cayma hakkı");
+      await financeApi.refund(refund.id, refund.remainingRefundableAmount, "Admin paneli - uygun iade işlemi");
       setNotice("İade işlemi ödeme sağlayıcısında başarıyla tamamlandı.");
       setRefund(null);
       refresh();
@@ -111,7 +111,7 @@ export const AdminFinancePage = () => {
       </section>
 
       <section className="admin-panel admin-section">
-        <div className="admin-panel__heading"><h2>Öğrenci İade Geçmişi</h2><p>7 günlük dönemde öğrenciler tarafından otomatik sonuçlandırılan iadeler salt okunur olarak gösterilir.</p></div>
+        <div className="admin-panel__heading"><h2>Öğrenci İade Geçmişi</h2><p>Öğrenciler tarafından paket politikasına göre sonuçlandırılan iadeler salt okunur olarak gösterilir.</p></div>
         {loading ? <div className="admin-loading">İade geçmişi yükleniyor…</div> : refundAudit.length === 0 ? <div className="admin-empty">İade kaydı bulunmuyor.</div> :
           <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Öğrenci / Koç</th><th>Paket</th><th>Tutar</th><th>Durum</th><th>Ödeme / Abonelik</th><th>Tarih</th></tr></thead><tbody>{refundAudit.map((item) => <tr key={item.id}>
             <td><strong>{item.studentName}</strong><small>{item.coachName}</small></td><td>{item.packageName}</td><td>{money.format(item.refundedAmount || item.amount)}</td><td><span className="admin-badge">{item.status}</span></td><td><small>Ödeme #{item.originalPaymentId}{item.refundPaymentId ? ` → #${item.refundPaymentId}` : ""}</small><small>Abonelik #{item.subscriptionId}</small></td><td>{new Date(item.requestedAt).toLocaleDateString("tr-TR")}</td>

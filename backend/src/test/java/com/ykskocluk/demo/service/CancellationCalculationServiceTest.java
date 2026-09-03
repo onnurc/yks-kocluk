@@ -27,7 +27,8 @@ class CancellationCalculationServiceTest {
     @Test void threeMonthsCancellationDuringMonthOneUsesOneRawMonth() {
         var result = service.calculate(subscription(PackageType.THREE_MONTHS, "8000", "3000", 3),
                 START.plusSeconds(10 * 86400));
-        assertThat(result.usedMonths()).isEqualTo(1);
+        assertThat(result.usedMonthCount()).isEqualTo(1);
+        assertThat(result.currentServicePeriodEnd()).isEqualTo(result.accessEndsAt());
         assertThat(result.refundableAmount()).isEqualByComparingTo("5000.00");
         assertThat(result.consumedAmount()).isEqualByComparingTo("3000.00");
         assertThat(result.accessEndsAt()).isEqualTo(START.atZone(java.time.ZoneId.of("Europe/Istanbul")).plusMonths(1).toInstant());
@@ -36,7 +37,7 @@ class CancellationCalculationServiceTest {
     @Test void threeMonthsCancellationDuringMonthTwoUsesTwoRawMonths() {
         var result = service.calculate(subscription(PackageType.THREE_MONTHS, "8000", "3000", 3),
                 START.atZone(java.time.ZoneId.of("Europe/Istanbul")).plusMonths(1).plusDays(2).toInstant());
-        assertThat(result.usedMonths()).isEqualTo(2);
+        assertThat(result.usedMonthCount()).isEqualTo(2);
         assertThat(result.refundableAmount()).isEqualByComparingTo("2000.00");
     }
 
@@ -55,6 +56,15 @@ class CancellationCalculationServiceTest {
         subscription.setPkg(current);
         var result = service.calculate(subscription, START.plusSeconds(86400));
         assertThat(result.refundableAmount()).isEqualByComparingTo("5000.00");
+    }
+
+    @Test void untilExamUsesItsOwnDistinguishableFoundationPolicy() {
+        var result = service.calculate(subscription(PackageType.UNTIL_EXAM, "12000", "3000", 6),
+                START.atZone(java.time.ZoneId.of("Europe/Istanbul")).plusMonths(1).plusDays(1).toInstant());
+        assertThat(result.usedMonthCount()).isEqualTo(2);
+        assertThat(result.refundableAmount()).isEqualByComparingTo("6000.00");
+        assertThat(result.policy()).isEqualTo(CancellationCalculationService.UNTIL_EXAM_POLICY);
+        assertThat(result.policy()).isNotEqualTo(CancellationCalculationService.THREE_MONTH_POLICY);
     }
 
     private Subscription subscription(PackageType type, String paid, String rawMonth, int months) {

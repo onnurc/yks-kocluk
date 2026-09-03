@@ -34,12 +34,13 @@ class RefundRequestServiceTest {
     @Mock RefundRequestRepository requests; @Mock SubscriptionRepository subscriptions;
     @Mock PaymentRepository payments; @Mock SessionRepository sessions; @Mock UserRepository users;
     @Mock SubscriptionService subscriptionService; @Mock PlatformTransactionManager transactionManager;
+    @Mock CancellationCalculationService cancellationCalculationService;
     RefundRequestService service; User student; Subscription subscription; Payment payment;
     AtomicReference<RefundRequest> savedRequest;
 
     @BeforeEach void setup() {
         service = new RefundRequestService(requests, subscriptions, payments, sessions, users,
-                subscriptionService, transactionManager, Clock.fixed(NOW, ZoneOffset.UTC));
+                subscriptionService, transactionManager, Clock.fixed(NOW, ZoneOffset.UTC), cancellationCalculationService);
         student = new User(); ReflectionTestUtils.setField(student, "id", 1L); student.setRole(Role.STUDENT); student.setFullName("Student");
         User coachUser = new User(); coachUser.setFullName("Coach");
         CoachProfile coach = new CoachProfile(); ReflectionTestUtils.setField(coach, "id", 2L); coach.setUser(coachUser);
@@ -49,10 +50,15 @@ class RefundRequestServiceTest {
         lenient().when(users.findById(1L)).thenReturn(Optional.of(student)); lenient().when(subscriptions.findById(4L)).thenReturn(Optional.of(subscription));
         lenient().when(payments.findFirstBySubscriptionIdAndTypeAndStatusOrderBySucceededAtAsc(4L, PaymentType.CHARGE, PaymentStatus.SUCCESS)).thenReturn(Optional.of(payment));
         lenient().when(payments.findBySourcePaymentIdAndStatus(5L, PaymentStatus.SUCCESS)).thenReturn(List.of());
+        lenient().when(cancellationCalculationService.calculate(eq(subscription), any())).thenAnswer(invocation -> {
+            Instant requestedAt = invocation.getArgument(1);
+            return new com.ykskocluk.demo.dto.CancellationCalculationResponse(requestedAt, 0, null, null,
+                    new BigDecimal("1500.00"), BigDecimal.ZERO, CancellationCalculationService.LEGACY_POLICY, null);
+        });
         savedRequest = new AtomicReference<>();
         lenient().when(requests.saveAndFlush(any())).thenAnswer(inv -> { RefundRequest r=inv.getArgument(0); ReflectionTestUtils.setField(r,"id",6L); savedRequest.set(r); return r; });
         lenient().when(requests.findDetailedById(6L)).thenAnswer(inv -> Optional.ofNullable(savedRequest.get()));
-        lenient().when(subscriptionService.refundEligibleStudent(5L, 6L))
+        lenient().when(subscriptionService.refundEligibleStudent(eq(5L), eq(6L), any(), any()))
                 .thenReturn(new com.ykskocluk.demo.dto.RefundResponse(5L, 7L, "SUCCESS", new BigDecimal("1500.00"), BigDecimal.ZERO, "ok"));
     }
 
@@ -110,20 +116,21 @@ class RefundRequestServiceTest {
         assertThat(eligibility.status()).isEqualTo(RefundEligibilityStatus.ACTIVE_REQUEST_EXISTS);
         assertThat(eligibility.activeRequestStatus()).isEqualTo(RefundRequestStatus.PENDING);
         service.create(1L, new RefundRequestCreateRequest(4L));
-        verify(subscriptionService).refundEligibleStudent(5L, 6L);
+        verify(subscriptionService).refundEligibleStudent(5L, 6L, new BigDecimal("1500.00"), null);
     }
 
     @Test void reservedProviderOperationRemainsRetryableAfterWindowWithSameAuditRequest() {
         payment.setSucceededAt(NOW.minus(RefundPolicy.WINDOW).minusSeconds(1));
         RefundRequest active = savedAuditRequest(); active.setStatus(RefundRequestStatus.PENDING);
         Payment pendingRefund = new Payment(); pendingRefund.setStatus(PaymentStatus.PENDING);
+        pendingRefund.setAmount(new BigDecimal("1500.00"));
         active.setRefundPayment(pendingRefund);
         when(requests.findFirstByOriginalPaymentIdAndStatusIn(eq(5L), any())).thenReturn(Optional.of(active));
         when(requests.findDetailedById(6L)).thenReturn(Optional.of(active));
 
         assertThat(service.eligibility(1L, 4L).status()).isEqualTo(RefundEligibilityStatus.ELIGIBLE);
         service.create(1L, new RefundRequestCreateRequest(4L));
-        verify(subscriptionService).refundEligibleStudent(5L, 6L);
+        verify(subscriptionService).refundEligibleStudent(5L, 6L, new BigDecimal("1500.00"), null);
     }
 
     @Test void anotherStudentsSubscription_isForbidden() {
@@ -148,6 +155,34 @@ class RefundRequestServiceTest {
         var response = service.eligibility(1L, 4L);
         assertThat(response.status()).isEqualTo(RefundEligibilityStatus.PAYMENT_NOT_ELIGIBLE);
         assertThat(response.eligible()).isFalse();
+    }
+
+    @Test void oneMonthIsReportedNonRefundableWithZeroAmount() {
+        when(cancellationCalculationService.calculate(eq(subscription), any())).thenReturn(
+                calculation(PackageType.ONE_MONTH, CancellationCalculationService.ONE_MONTH_POLICY, "0.00", 1));
+        var response = service.eligibility(1L, 4L);
+        assertThat(response.status()).isEqualTo(RefundEligibilityStatus.NON_REFUNDABLE);
+        assertThat(response.eligible()).isFalse();
+        assertThat(response.refundableAmount()).isEqualByComparingTo("0.00");
+    }
+
+    @Test void managedThreeMonthRefundUsesCalculationWithoutSevenDayWindow() {
+        payment.setSucceededAt(NOW.minusSeconds(40 * 86400));
+        payment.setAmount(new BigDecimal("8000.00"));
+        when(cancellationCalculationService.calculate(eq(subscription), any())).thenReturn(
+                calculation(PackageType.THREE_MONTHS, CancellationCalculationService.THREE_MONTH_POLICY, "5000.00", 1));
+        var response = service.eligibility(1L, 4L);
+        assertThat(response.status()).isEqualTo(RefundEligibilityStatus.ELIGIBLE);
+        assertThat(response.refundableAmount()).isEqualByComparingTo("5000.00");
+        assertThat(response.deadline()).isNull();
+    }
+
+    private com.ykskocluk.demo.dto.CancellationCalculationResponse calculation(
+            PackageType type, String policy, String refundable, int usedMonths) {
+        Instant end = NOW.plusSeconds(86400);
+        return new com.ykskocluk.demo.dto.CancellationCalculationResponse(NOW, usedMonths, end, end,
+                new BigDecimal(refundable), payment.getAmount().subtract(new BigDecimal(refundable)).max(BigDecimal.ZERO),
+                policy, type);
     }
 
     private Session session(SessionStatus status, Instant startsAt) {
