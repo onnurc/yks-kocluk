@@ -1,3 +1,10 @@
+@import url("https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&family=Oswald:wght@400&display=swap");
+
+.public-site:has(.home-page) {
+  --public-font-display: "Oswald", system-ui, sans-serif;
+  --public-font-body: "Open Sans", system-ui, sans-serif;
+}
+
 .home-page { width: 100%; color: var(--public-color-text); background: var(--public-color-surface); }
 .home-page h1, .home-page h2, .home-page h3, .home-page p { margin: 0; }
 .home-container { width: min(100% - (2 * var(--public-gutter)), var(--public-container)); margin-inline: auto; }
