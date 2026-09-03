@@ -1,5 +1,5 @@
 import { httpClient } from "../api/httpClient";
-import type { AdminCoach, AdminCoachCreateRequest, AdminCoachCreateResponse, AdminDashboardSummary, AdminSession, AdminUser, AdminUserDetail, CoachFilter, CoachStudent, PageResponse, SuspendResponse, UserStatus } from "./adminTypes";
+import type { AdminCampaignRequest, AdminCoach, AdminCoachCreateRequest, AdminCoachCreateResponse, AdminDashboardSummary, AdminExamSettingsRequest, AdminPackage, AdminPackageCatalog, AdminSession, AdminUser, AdminUserDetail, CoachFilter, CoachStudent, PackageType, PageResponse, SuspendResponse, UserStatus } from "./adminTypes";
 import type { TrialConsultationResponse } from "../trial/trialConsultationTypes";
 
 const query = (values: Record<string, string | number | undefined | null>) => {
@@ -23,4 +23,12 @@ export const adminApi = {
   sessions: (filters: { type?:string; status?:string; coachId?:number; studentId?:number; from?:string; to?:string; page?:number; size?:number } = {}) => httpClient.get<PageResponse<AdminSession>>(`/api/v1/admin/sessions?${query({ type: filters.type ?? "ALL", status: filters.status, coachId: filters.coachId, studentId: filters.studentId, from: filters.from, to: filters.to, page: filters.page ?? 0, size: filters.size ?? 20, sort: "createdAt,desc" })}`),
   removeProfileImage: (assetId:number, reason:string) => httpClient.post<void>(`/api/v1/admin/media/${assetId}/remove-profile-image`, { reason }),
   confirmTrial: (id:number, meetingUrl:string) => httpClient.post<TrialConsultationResponse>(`/api/v1/admin/trial-consultations/${id}/confirm`, { meetingUrl }),
+  packages: () => httpClient.get<AdminPackageCatalog>("/api/v1/admin/packages"),
+  updatePackage: (type:PackageType, price:number, active:boolean) => httpClient.put<AdminPackage>(`/api/v1/admin/packages/${type}`, { price, active }),
+  setPackageActive: (type:PackageType, active:boolean) => httpClient.patch<AdminPackage>(`/api/v1/admin/packages/${type}/activation`, { active }),
+  upsertPackageTier: (monthsRemaining:number, price:number) => httpClient.put<AdminPackage>(`/api/v1/admin/packages/UNTIL_EXAM/tiers/${monthsRemaining}`, { price }),
+  deletePackageTier: (monthsRemaining:number) => httpClient.delete<AdminPackage>(`/api/v1/admin/packages/UNTIL_EXAM/tiers/${monthsRemaining}`),
+  upsertCampaign: (type:PackageType, request:AdminCampaignRequest) => httpClient.put<AdminPackage>(`/api/v1/admin/packages/${type}/campaign`, request),
+  setCampaignEnabled: (type:PackageType, enabled:boolean) => httpClient.patch<AdminPackage>(`/api/v1/admin/packages/${type}/campaign/enabled`, { enabled }),
+  setExamSettings: (request:AdminExamSettingsRequest) => httpClient.put<AdminPackageCatalog>("/api/v1/admin/packages/exam-settings", request),
 };

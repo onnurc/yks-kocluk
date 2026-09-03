@@ -27,7 +27,10 @@ class AdminDashboardIntegrationTest {
 
     @Test
     void adminReadModelsLoadAgainstPostgresAndNonAdminsAreDenied() throws Exception {
-        String admin = login("admin@yks.local", "admin1234");
+        String adminEmail = "admin-dashboard-auth-admin-" + System.nanoTime() + "@example.com";
+        TestUsers.createWithPassword(userRepository, passwordEncoder, Role.ADMIN,
+                adminEmail, "TestPassword123!");
+        String admin = login(adminEmail, "TestPassword123!");
         String student = register("admin-dashboard-auth-student@example.com");
         // Coaches no longer self-register (see AuthService.register) — build the fixture
         // directly and log it in for a real token, same as every other case here.

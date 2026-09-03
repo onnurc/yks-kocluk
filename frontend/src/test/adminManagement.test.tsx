@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   createCoach: vi.fn(), approveCoachProfile: vi.fn(), rejectCoachProfile: vi.fn(),
   suspendUser: vi.fn(), activateUser: vi.fn(), sessions: vi.fn(),
   removeProfileImage: vi.fn(), confirmTrial: vi.fn(),
+  packages: vi.fn(), updatePackage: vi.fn(), setPackageActive: vi.fn(), upsertPackageTier: vi.fn(), deletePackageTier: vi.fn(), upsertCampaign: vi.fn(), setCampaignEnabled: vi.fn(), setExamSettings: vi.fn(),
   financeSummary: vi.fn(), payments: vi.fn(), subscriptions: vi.fn(), refundAudit: vi.fn(), refund: vi.fn(), terminate: vi.fn(),
   reports: vi.fn(), updateReport: vi.fn(), applications: vi.fn(), approve: vi.fn(), reject: vi.fn(),
 }));
@@ -24,6 +25,9 @@ vi.mock("../admin/adminApi", () => ({ adminApi: {
   createCoach: mocks.createCoach, approveCoachProfile: mocks.approveCoachProfile, rejectCoachProfile: mocks.rejectCoachProfile,
   coachStudents: mocks.coachStudents, suspendUser: mocks.suspendUser, activateUser: mocks.activateUser,
   sessions: mocks.sessions, removeProfileImage: mocks.removeProfileImage, confirmTrial: mocks.confirmTrial,
+  packages: mocks.packages, updatePackage: mocks.updatePackage, setPackageActive: mocks.setPackageActive,
+  upsertPackageTier: mocks.upsertPackageTier, deletePackageTier: mocks.deletePackageTier,
+  upsertCampaign: mocks.upsertCampaign, setCampaignEnabled: mocks.setCampaignEnabled, setExamSettings: mocks.setExamSettings,
 } }));
 vi.mock("../safety/financeApi", () => ({ financeApi: {
   summary: mocks.financeSummary, listPayments: mocks.payments, listSubscriptions: mocks.subscriptions,
@@ -47,6 +51,11 @@ beforeEach(() => {
   mocks.sessions.mockResolvedValue(page([])); mocks.users.mockResolvedValue(page([])); mocks.coaches.mockResolvedValue(page([]));
   mocks.financeSummary.mockResolvedValue({ from: null, to: null, grossRevenue: 12000, successfulPaymentCount: 6, failedPaymentCount: 0, pendingPaymentCount: 0, refundTotal: 1500, netCollectedAmount: 10500 });
   mocks.payments.mockResolvedValue(page([])); mocks.subscriptions.mockResolvedValue(page([])); mocks.refundAudit.mockResolvedValue(page([])); mocks.reports.mockResolvedValue(page([])); mocks.applications.mockResolvedValue(page([]));
+  mocks.packages.mockResolvedValue({ yksExamYear: 2027, yksExamDate: "2027-06-20", yksExamActive: true, applicableMonthsRemaining: 10, packages: [
+    { id:1,packageType:"ONE_MONTH",name:"1 Aylık",basePrice:3000,effectivePrice:3000,active:true,durationMonths:1,applicableMonthsRemaining:null,evaluationMeetingsPerMonth:1,weeklyMeetingsPerMonth:4,totalMeetingsPerMonth:5,campaign:null,priceTiers:[] },
+    { id:2,packageType:"THREE_MONTHS",name:"3 Aylık",basePrice:8000,effectivePrice:7000,active:true,durationMonths:3,applicableMonthsRemaining:null,evaluationMeetingsPerMonth:1,weeklyMeetingsPerMonth:4,totalMeetingsPerMonth:5,campaign:{enabled:true,currentlyActive:true,title:"Erken Kayıt",description:null,startsAt:"2026-09-01T00:00:00Z",endsAt:"2026-10-01T00:00:00Z",discountType:"FIXED_AMOUNT",discountValue:1000},priceTiers:[] },
+    { id:3,packageType:"UNTIL_EXAM",name:"Sınava Kadar",basePrice:9000,effectivePrice:9000,active:false,durationMonths:null,applicableMonthsRemaining:10,evaluationMeetingsPerMonth:1,weeklyMeetingsPerMonth:4,totalMeetingsPerMonth:5,campaign:null,priceTiers:[{monthsRemaining:10,price:9000}] },
+  ] });
 });
 afterEach(cleanup);
 
@@ -58,6 +67,32 @@ describe("admin management experience", () => {
     expect(screen.getByText(/10\.500/)).toBeInTheDocument();
     expect(screen.getByText("Yaklaşan seans veya deneme görüşmesi yok.")).toBeInTheDocument();
     expect(mocks.summary).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders package management, campaign state, and validates price edits", async () => {
+    render(<MemoryRouter><AdminDashboardPage /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Paket Yönetimi" })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Erken Kayıt")).toBeInTheDocument();
+    const input = screen.getByLabelText("1 Aylık temel fiyatı");
+    fireEvent.change(input, { target: { value: "-1" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Fiyatı Kaydet" })[0]);
+    expect(screen.getByText("Fiyat sıfırdan büyük olmalıdır.")).toBeInTheDocument();
+    expect(mocks.updatePackage).not.toHaveBeenCalled();
+  });
+
+  it("renders and updates the YKS exam settings beside the flexible tier table", async () => {
+    mocks.setExamSettings.mockResolvedValue(undefined);
+    render(<MemoryRouter><AdminDashboardPage /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "YKS Sınav Ayarları" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sınava Kadar Fiyatlandırma" })).toBeInTheDocument();
+    expect(screen.getByText("10 ay kala")).toBeInTheDocument();
+    expect(screen.getByLabelText("Aktif YKS yılı")).toHaveValue(2027);
+    expect(screen.getByLabelText("Sınav tarihi")).toHaveValue("2027-06-20");
+    expect(screen.getByLabelText("Aktif YKS sınavı")).toBeChecked();
+    fireEvent.change(screen.getByLabelText("Aktif YKS yılı"), { target: { value: "2028" } });
+    fireEvent.change(screen.getByLabelText("Sınav tarihi"), { target: { value: "2028-06-18" } });
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet/Güncelle" }));
+    await waitFor(() => expect(mocks.setExamSettings).toHaveBeenCalledWith({ examYear: 2028, examDate: "2028-06-18", active: true }));
   });
 
   it("keeps Kullanıcılar limited to the real student directory", async () => {

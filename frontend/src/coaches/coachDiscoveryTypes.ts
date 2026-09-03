@@ -39,10 +39,20 @@ export interface CoachDetailResponse {
 
 export type PublicCoachDetailResponse = Omit<CoachDetailResponse, "userId">;
 
-export interface PackageResponse {
+export interface PackageOfferResponse {
   id: number;
+  packageType: "ONE_MONTH" | "THREE_MONTHS" | "UNTIL_EXAM";
   name: string;
-  weeklySessions: number;
-  durationDays: number;
-  price: number;
+  active: boolean;
+  purchasable: boolean;
+  durationMonths: number | null;
+  untilExamMonthsRemaining: number | null;
+  listPrice: number | null;
+  effectivePrice: number | null;
+  campaignActive: boolean;
+  campaignTitle: string | null;
+  campaignDescription: string | null;
+  evaluationMeetingsPerMonth: number;
+  weeklyMeetingsPerMonth: number;
+  totalMeetingsPerMonth: number;
 }

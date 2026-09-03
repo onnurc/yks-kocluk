@@ -59,6 +59,7 @@ public class SubscriptionBillingService {
     private final PaymentProperties paymentProperties;
     private final SubscriptionMapper subscriptionMapper;
     private final TransactionTemplate tx;
+    private final CancellationCalculationService cancellationCalculationService;
 
     public SubscriptionBillingService(SubscriptionRepository subscriptionRepository,
                                       PaymentRepository paymentRepository,
@@ -66,6 +67,7 @@ public class SubscriptionBillingService {
                                       IyzicoClient iyzicoClient,
                                       PaymentProperties paymentProperties,
                                       SubscriptionMapper subscriptionMapper,
+                                      CancellationCalculationService cancellationCalculationService,
                                       PlatformTransactionManager transactionManager) {
         this.subscriptionRepository = subscriptionRepository;
         this.paymentRepository = paymentRepository;
@@ -73,6 +75,7 @@ public class SubscriptionBillingService {
         this.iyzicoClient = iyzicoClient;
         this.paymentProperties = paymentProperties;
         this.subscriptionMapper = subscriptionMapper;
+        this.cancellationCalculationService = cancellationCalculationService;
         this.tx = new TransactionTemplate(transactionManager);
     }
 
@@ -290,10 +293,15 @@ public class SubscriptionBillingService {
                 throw new ApiException(HttpStatus.CONFLICT, "SUBSCRIPTION_NOT_CANCELLABLE",
                         "Yalnızca aktif abonelikler iptal edilebilir");
             }
-            boolean newlyCancelled = sub.isAutoRenew();   // was on → this call turns it off
+            boolean managedPackage = sub.getPackageTypeSnapshot() != null;
+            boolean newlyCancelled = managedPackage ? sub.getCancelledAt() == null : sub.isAutoRenew();
             if (newlyCancelled) {
                 sub.setAutoRenew(false);
-                sub.setCancelledAt(Instant.now());
+                Instant requestedAt = Instant.now();
+                sub.setCancelledAt(requestedAt);
+                if (managedPackage) {
+                    sub.setEndAt(cancellationCalculationService.calculate(sub, requestedAt).accessEndsAt());
+                }
                 log.info("Subscription {} cancelled by student {} — live until {}",
                         subscriptionId, studentUserId, sub.getEndAt());
             }

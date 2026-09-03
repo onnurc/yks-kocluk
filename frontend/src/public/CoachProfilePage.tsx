@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError } from "../api/ApiError";
 import { coachDiscoveryApi } from "../coaches/coachDiscoveryApi";
-import type { CoachSummaryResponse, PackageResponse, PublicCoachDetailResponse } from "../coaches/coachDiscoveryTypes";
+import type { CoachSummaryResponse, PackageOfferResponse, PublicCoachDetailResponse } from "../coaches/coachDiscoveryTypes";
 import { useAuth } from "../auth/AuthProvider";
 import { studentDashboardApi, SUBSCRIPTION_STATE_CHANGED_EVENT } from "../studentDashboard/studentDashboardApi";
 import type { StudentDashboardResponse } from "../studentDashboard/studentDashboardTypes";
@@ -62,8 +62,8 @@ export function CoachProfilePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [dashboardResult, setDashboardResult] = useState<{ userId: number; state: LoadState; data: StudentDashboardResponse | null } | null>(null);
-  const [packageResult, setPackageResult] = useState<{ userId: number; state: LoadState; data: PackageResponse[] } | null>(null);
-  const [packageSelection, setPackageSelection] = useState<{ coachId: number; value: PackageResponse } | null>(null);
+  const [packageResult, setPackageResult] = useState<{ userId: number; state: LoadState; data: PackageOfferResponse[] } | null>(null);
+  const [packageSelection, setPackageSelection] = useState<{ coachId: number; value: PackageOfferResponse } | null>(null);
   const [reportTarget, setReportTarget] = useState<{ coachId: number; viewerId: number; targetUserId: number } | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [msgLoading, setMsgLoading] = useState(false);
@@ -85,7 +85,7 @@ export function CoachProfilePage() {
     loadDashboard();
     window.addEventListener(SUBSCRIPTION_STATE_CHANGED_EVENT, loadDashboard);
     coachDiscoveryApi
-      .listPackages()
+      .listCoachPackages(coachId)
       .then((items) => {
         if (!active) return;
         setPackageResult({ userId, state: "ready", data: items ?? [] });
@@ -321,14 +321,20 @@ export function CoachProfilePage() {
               <div className="coach-profile-packages">
                 {packages.map((pkg) => {
                   const selected = selectedPackage?.id === pkg.id;
-                  const unavailable = dashboardState !== "ready" || !coach.acceptingNewStudents || hasBlockingCheckoutRelationship;
+                  const unavailable = !pkg.purchasable || dashboardState !== "ready" || !coach.acceptingNewStudents || hasBlockingCheckoutRelationship;
                   return (
-                    <article className={`coach-profile-package${selected ? " coach-profile-package--selected" : ""}`} key={pkg.id}>
+                    <article className={`coach-profile-package${selected ? " coach-profile-package--selected" : ""}${!pkg.purchasable ? " coach-profile-package--inactive" : ""}`} key={pkg.id}>
                       <h3>{pkg.name}</h3>
-                      <strong>{pkg.price.toLocaleString("tr-TR")} TRY</strong>
-                      <p>{pkg.durationDays} gün · Haftada {pkg.weeklySessions} görüşme</p>
+                      {pkg.effectivePrice != null ? <>
+                        <strong>{pkg.effectivePrice.toLocaleString("tr-TR")} TRY</strong>
+                        {pkg.campaignActive && pkg.listPrice != null && <del>{pkg.listPrice.toLocaleString("tr-TR")} TRY</del>}
+                      </> : <strong>Fiyat yakında</strong>}
+                      {pkg.campaignActive && <span className="coach-profile-package__campaign">{pkg.campaignTitle || "Kampanyalı"}</span>}
+                      <p>{pkg.packageType === "UNTIL_EXAM"
+                        ? (pkg.untilExamMonthsRemaining ? `Sınava kadar · ${pkg.untilExamMonthsRemaining} ay` : "Sınav tarihi/fiyatı yapılandırılmayı bekliyor")
+                        : `${pkg.durationMonths} ay`}<br />Ayda {pkg.totalMeetingsPerMonth} görüşme<br />{pkg.evaluationMeetingsPerMonth} değerlendirme + {pkg.weeklyMeetingsPerMonth} haftalık görüşme</p>
                       <button type="button" disabled={unavailable} onClick={() => setPackageSelection({ coachId, value: pkg })}>
-                        {selected ? "Seçildi" : "Paketi Seç"}
+                        {!pkg.purchasable ? "Satışa Kapalı" : selected ? "Seçildi" : "Paketi Seç"}
                       </button>
                     </article>
                   );
@@ -347,7 +353,7 @@ export function CoachProfilePage() {
                   coachName={coach.fullName}
                   packageId={selectedPackage.id}
                   packageName={selectedPackage.name}
-                  price={selectedPackage.price}
+                  price={selectedPackage.effectivePrice!}
                   dashboardData={dashboardData}
                 />
               </div>

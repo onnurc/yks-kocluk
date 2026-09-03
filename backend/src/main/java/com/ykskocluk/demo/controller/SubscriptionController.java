@@ -4,10 +4,12 @@ import com.ykskocluk.demo.dto.SubscriptionCreateRequest;
 import com.ykskocluk.demo.dto.SubscriptionCheckoutResponse;
 import com.ykskocluk.demo.dto.SubscriptionCheckoutRequest;
 import com.ykskocluk.demo.dto.SubscriptionResponse;
+import com.ykskocluk.demo.dto.CancellationCalculationResponse;
 import com.ykskocluk.demo.integration.MailClient;
 import com.ykskocluk.demo.service.CancelResult;
 import com.ykskocluk.demo.service.SubscriptionBillingService;
 import com.ykskocluk.demo.service.SubscriptionService;
+import com.ykskocluk.demo.service.CancellationCalculationService;
 import com.ykskocluk.demo.security.ratelimit.AuthenticatedActionRateLimitService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.time.Instant;
 
 @RestController
 @RequestMapping("/api/v1/subscriptions")
@@ -36,15 +39,18 @@ public class SubscriptionController {
     private final SubscriptionBillingService billingService;
     private final MailClient mailClient;
     private final AuthenticatedActionRateLimitService actionRateLimit;
+    private final CancellationCalculationService cancellationCalculationService;
 
     public SubscriptionController(SubscriptionService subscriptionService,
                                   SubscriptionBillingService billingService,
                                   MailClient mailClient,
-                                  AuthenticatedActionRateLimitService actionRateLimit) {
+                                  AuthenticatedActionRateLimitService actionRateLimit,
+                                  CancellationCalculationService cancellationCalculationService) {
         this.subscriptionService = subscriptionService;
         this.billingService = billingService;
         this.mailClient = mailClient;
         this.actionRateLimit = actionRateLimit;
+        this.cancellationCalculationService = cancellationCalculationService;
     }
 
     @PostMapping
@@ -83,5 +89,11 @@ public class SubscriptionController {
             }
         }
         return result.subscription();
+    }
+
+    @GetMapping("/{id}/cancellation-calculation")
+    public CancellationCalculationResponse cancellationCalculation(@AuthenticationPrincipal Long studentUserId,
+                                                                    @PathVariable Long id) {
+        return cancellationCalculationService.calculateForStudent(id, studentUserId, Instant.now());
     }
 }

@@ -1,6 +1,8 @@
 package com.ykskocluk.demo.entity;
 
 import com.ykskocluk.demo.enums.SubscriptionStatus;
+import com.ykskocluk.demo.enums.DiscountType;
+import com.ykskocluk.demo.enums.PackageType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -14,6 +16,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.math.BigDecimal;
 
 /**
  * A student's subscription to a coach under a {@link Package}. Source of the weekly
@@ -74,4 +78,39 @@ public class Subscription extends BaseEntity {
 
     @Column(name = "termination_reason", length = 2000)
     private String terminationReason;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "package_type_snapshot", length = 30)
+    private PackageType packageTypeSnapshot;
+
+    @Column(name = "list_price_snapshot", precision = 12, scale = 2)
+    private BigDecimal listPriceSnapshot;
+
+    @Column(name = "effective_price_snapshot", precision = 12, scale = 2)
+    private BigDecimal effectivePriceSnapshot;
+
+    @Column(name = "campaign_title_snapshot", length = 120)
+    private String campaignTitleSnapshot;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "discount_type_snapshot", length = 20)
+    private DiscountType discountTypeSnapshot;
+
+    @Column(name = "discount_value_snapshot", precision = 12, scale = 2)
+    private BigDecimal discountValueSnapshot;
+
+    @Column(name = "one_month_base_price_snapshot", precision = 12, scale = 2)
+    private BigDecimal oneMonthBasePriceSnapshot;
+
+    @Column(name = "purchased_at")
+    private Instant purchasedAt;
+
+    @Column(name = "until_exam_months_remaining_snapshot")
+    private Integer untilExamMonthsRemainingSnapshot;
+
+    @Column(name = "yks_exam_year_snapshot")
+    private Integer yksExamYearSnapshot;
+
+    @Column(name = "yks_exam_date_snapshot")
+    private LocalDate yksExamDateSnapshot;
 }

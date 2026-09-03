@@ -19,6 +19,7 @@ import com.ykskocluk.demo.entity.User;
 import com.ykskocluk.demo.enums.CoachProfileStatus;
 import com.ykskocluk.demo.enums.PaymentStatus;
 import com.ykskocluk.demo.enums.PaymentType;
+import com.ykskocluk.demo.enums.PackageType;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.enums.RefundRequestStatus;
 import com.ykskocluk.demo.enums.RefundWindow;
@@ -50,6 +51,7 @@ import org.springframework.http.HttpStatus;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
@@ -84,6 +86,7 @@ class SubscriptionServiceTest {
     @Mock EntityManager entityManager;
     @Mock AccountReadinessService accountReadinessService;
     @Mock LegalAcceptanceService legalAcceptanceService;
+    @Mock PackagePricingService packagePricingService;
     @Mock org.springframework.transaction.PlatformTransactionManager transactionManager;
     @Mock org.springframework.context.ApplicationEventPublisher events;
 
@@ -102,7 +105,7 @@ class SubscriptionServiceTest {
             sessionRepository, paymentProperties,
             iyzicoClient, subscriptionMapper, entityManager,
             new com.ykskocluk.demo.config.IyzicoProperties(false, "sandbox", "dummy", "dummy", "dummy", "dummy"),
-            accountReadinessService, legalAcceptanceService, transactionManager, events);
+            accountReadinessService, legalAcceptanceService, packagePricingService, transactionManager, events);
 
         Package pkg = new Package();
         ReflectionTestUtils.setField(pkg, "id", PKG_ID);
@@ -234,6 +237,44 @@ class SubscriptionServiceTest {
         verify(legalAcceptanceService).validateCheckout(checkoutRequest());
         verify(legalAcceptanceService).recordCheckoutAcceptances(any(User.class), any(Subscription.class),
                 any(Payment.class), any());
+    }
+
+    @Test
+    void checkout_untilExamSnapshotsTheExactExamAndResolvedTier() {
+        Package untilExam = new Package();
+        ReflectionTestUtils.setField(untilExam, "id", PKG_ID);
+        untilExam.setActive(true);
+        untilExam.setPackageType(PackageType.UNTIL_EXAM);
+        untilExam.setDurationDays(0);
+        untilExam.setWeeklySessions(1);
+        when(packageRepository.findById(PKG_ID)).thenReturn(Optional.of(untilExam));
+
+        Package oneMonth = new Package();
+        oneMonth.setPrice(new BigDecimal("3000.00"));
+        when(packageRepository.findByPackageType(PackageType.ONE_MONTH)).thenReturn(Optional.of(oneMonth));
+        LocalDate examDate = LocalDate.of(2027, 6, 20);
+        when(packagePricingService.resolve(eq(untilExam), any())).thenReturn(
+                new PackagePricingService.PriceResolution(new BigDecimal("9000.00"),
+                        new BigDecimal("8500.00"), 3, 2027, examDate, false, null));
+        final Subscription[] captured = new Subscription[1];
+        when(subscriptionRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            captured[0] = invocation.getArgument(0);
+            ReflectionTestUtils.setField(captured[0], "id", 11L);
+            return captured[0];
+        });
+        when(paymentRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            Payment payment = invocation.getArgument(0);
+            ReflectionTestUtils.setField(payment, "id", 22L);
+            return payment;
+        });
+
+        service.checkout(STUDENT_ID, checkoutRequest());
+
+        assertThat(captured[0].getYksExamYearSnapshot()).isEqualTo(2027);
+        assertThat(captured[0].getYksExamDateSnapshot()).isEqualTo(examDate);
+        assertThat(captured[0].getUntilExamMonthsRemainingSnapshot()).isEqualTo(3);
+        assertThat(captured[0].getListPriceSnapshot()).isEqualByComparingTo("9000.00");
+        assertThat(captured[0].getEffectivePriceSnapshot()).isEqualByComparingTo("8500.00");
     }
 
     @Test
