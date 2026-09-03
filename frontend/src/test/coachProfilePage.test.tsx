@@ -14,7 +14,7 @@ import type { AuthContextType } from "../auth/AuthContext";
 import type { StudentDashboardResponse } from "../studentDashboard/studentDashboardTypes";
 
 vi.mock("../coaches/coachDiscoveryApi", () => ({
-  coachDiscoveryApi: { getPublicCoachDetail: vi.fn(), getCoachDetail: vi.fn(), listCoaches: vi.fn(), listPackages: vi.fn() },
+  coachDiscoveryApi: { getPublicCoachDetail: vi.fn(), getCoachDetail: vi.fn(), listCoaches: vi.fn(), listCoachPackages: vi.fn() },
 }));
 
 vi.mock("../studentDashboard/studentDashboardApi", () => ({
@@ -83,8 +83,9 @@ const similar = {
 const page = { content: [detail, similar], page: 0, size: 4, totalElements: 2, totalPages: 1, last: true };
 
 const packages = [
-  { id: 5, name: "Başlangıç Paketi", weeklySessions: 1, durationDays: 30, price: 1250 },
-  { id: 6, name: "Yoğun Program", weeklySessions: 2, durationDays: 60, price: 2200 },
+  { id: 5, packageType: "ONE_MONTH" as const, name: "1 Aylık", active: true, purchasable: true, durationMonths: 1, untilExamMonthsRemaining: null, listPrice: 1250, effectivePrice: 1250, campaignActive: false, campaignTitle: null, campaignDescription: null, evaluationMeetingsPerMonth: 1, weeklyMeetingsPerMonth: 4, totalMeetingsPerMonth: 5 },
+  { id: 6, packageType: "THREE_MONTHS" as const, name: "3 Aylık", active: true, purchasable: true, durationMonths: 3, untilExamMonthsRemaining: null, listPrice: 2400, effectivePrice: 2200, campaignActive: true, campaignTitle: "Dönem Kampanyası", campaignDescription: null, evaluationMeetingsPerMonth: 1, weeklyMeetingsPerMonth: 4, totalMeetingsPerMonth: 5 },
+  { id: 7, packageType: "UNTIL_EXAM" as const, name: "Sınava Kadar", active: false, purchasable: false, durationMonths: null, untilExamMonthsRemaining: 8, listPrice: 9000, effectivePrice: 9000, campaignActive: false, campaignTitle: null, campaignDescription: null, evaluationMeetingsPerMonth: 1, weeklyMeetingsPerMonth: 4, totalMeetingsPerMonth: 5 },
 ];
 
 const student = {
@@ -110,7 +111,7 @@ beforeEach(() => {
   vi.mocked(coachDiscoveryApi.getPublicCoachDetail).mockResolvedValue(detail);
   vi.mocked(coachDiscoveryApi.getCoachDetail).mockResolvedValue({ ...detail, userId: 99 });
   vi.mocked(coachDiscoveryApi.listCoaches).mockResolvedValue({ ...page, content: [] });
-  vi.mocked(coachDiscoveryApi.listPackages).mockResolvedValue(packages);
+  vi.mocked(coachDiscoveryApi.listCoachPackages).mockResolvedValue(packages);
   vi.mocked(studentDashboardApi.getDashboardData).mockResolvedValue(dashboard(null));
   vi.mocked(trialConsultationApi.myTrials).mockResolvedValue([]);
   vi.mocked(trialConsultationApi.listCoachTrialAvailability).mockResolvedValue([]);
@@ -216,13 +217,17 @@ describe("Public koç profili", () => {
     renderRoute("/coaches/42", { user: student, isAuthenticated: true });
 
     expect(await screen.findByRole("heading", { name: "Abonelik Paketleri" })).toBeInTheDocument();
-    expect(screen.getByText("Başlangıç Paketi")).toBeInTheDocument();
-    expect(screen.getByText("Yoğun Program")).toBeInTheDocument();
+    expect(screen.getByText("1 Aylık")).toBeInTheDocument();
+    expect(screen.getByText("3 Aylık")).toBeInTheDocument();
+    expect(screen.getByText("Sınava Kadar")).toBeInTheDocument();
+    expect(screen.getByText("Dönem Kampanyası")).toBeInTheDocument();
+    expect(screen.getByText("2.400 TRY")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Satışa Kapalı" })).toBeDisabled();
     fireEvent.click(screen.getAllByRole("button", { name: "Paketi Seç" })[0]);
 
-    expect(await screen.findByText("Seçilen checkout: 42 Ayşe Yılmaz 5 Başlangıç Paketi 1250")).toBeInTheDocument();
+    expect(await screen.findByText("Seçilen checkout: 42 Ayşe Yılmaz 5 1 Aylık 1250")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ödemeye Geç" })).toBeEnabled();
-    expect(coachDiscoveryApi.listPackages).toHaveBeenCalledTimes(1);
+    expect(coachDiscoveryApi.listCoachPackages).toHaveBeenCalledWith(42);
   });
 
   it.each(["ACTIVE", "PAST_DUE", "PENDING_PAYMENT"] as const)(

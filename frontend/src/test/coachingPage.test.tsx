@@ -13,9 +13,9 @@ vi.mock("../public/publicPackagesApi", () => ({
 }));
 
 const packageFixtures = [
-  { id: 1, name: "Aylık", weeklySessions: 1, durationDays: 30, price: 2990 },
-  { id: 2, name: "3 Aylık", weeklySessions: 1, durationDays: 90, price: 7990 },
-  { id: 3, name: "Yıllık", weeklySessions: 1, durationDays: 365, price: 24990 },
+  { id: 1, packageType: "ONE_MONTH" as const, name: "1 Aylık", purchasable: true, durationMonths: 1, untilExamMonthsRemaining: null, listPrice: 2990, effectivePrice: 2990, campaignActive: false, campaignTitle: null, campaignDescription: null, evaluationMeetingsPerMonth: 1, weeklyMeetingsPerMonth: 4, totalMeetingsPerMonth: 5 },
+  { id: 2, packageType: "THREE_MONTHS" as const, name: "3 Aylık", purchasable: true, durationMonths: 3, untilExamMonthsRemaining: null, listPrice: 7990, effectivePrice: 7990, campaignActive: false, campaignTitle: null, campaignDescription: null, evaluationMeetingsPerMonth: 1, weeklyMeetingsPerMonth: 4, totalMeetingsPerMonth: 5 },
+  { id: 3, packageType: "UNTIL_EXAM" as const, name: "Sınava Kadar", purchasable: true, durationMonths: null, untilExamMonthsRemaining: 9, listPrice: 24990, effectivePrice: 24990, campaignActive: false, campaignTitle: null, campaignDescription: null, evaluationMeetingsPerMonth: 1, weeklyMeetingsPerMonth: 4, totalMeetingsPerMonth: 5 },
 ];
 
 afterEach(() => {
@@ -78,7 +78,7 @@ describe("Koçluk sayfası", () => {
     vi.mocked(publicPackagesApi.list).mockResolvedValue(packageFixtures);
     renderPublicRoute();
 
-    expect(await screen.findByText("365 günlük, haftada 1 görüşme içeren mentörlük planı.")).toBeInTheDocument();
+    expect(await screen.findByText("Sınava kalan 9 aylık mentörlük planı.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ücretsiz Görüşme Başlat" })).toHaveAttribute("href", "/register");
     expect(screen.getByRole("link", { name: "Hemen Başla" })).toHaveAttribute("href", "/register");
     expect(screen.getByRole("link", { name: "Paketleri İncele" })).toHaveAttribute("href", "#kocluk-paketleri");

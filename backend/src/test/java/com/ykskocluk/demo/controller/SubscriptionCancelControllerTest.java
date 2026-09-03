@@ -56,6 +56,7 @@ class SubscriptionCancelControllerTest {
     @MockitoBean SubscriptionBillingService billingService;
     @MockitoBean MailClient mailClient;
     @MockitoBean com.ykskocluk.demo.security.ratelimit.AuthenticatedActionRateLimitService actionRateLimit;
+    @MockitoBean com.ykskocluk.demo.service.CancellationCalculationService cancellationCalculationService;
     @MockitoBean JwtService jwtService; // JwtAuthenticationFilter dep; auth comes from @WithMockUser
     @MockitoBean UserRepository userRepository; // JwtAuthenticationFilter dep (construction-time)
 

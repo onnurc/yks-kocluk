@@ -59,7 +59,7 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/packages",
-                                "/api/v1/public/coaches", "/api/v1/public/coaches/*",
+                                "/api/v1/public/coaches", "/api/v1/public/coaches/**",
                                 // Redirects to a signed URL for PUBLIC assets only; browsers cannot
                                 // attach a bearer token when loading <img>/<video> sources.
                                 "/api/v1/public/media/*").permitAll()

@@ -42,16 +42,18 @@ function PackageCard({ coachingPackage, featured }: { coachingPackage: PublicPac
     <article className={featured ? "coaching-package coaching-package--featured" : "coaching-package"}>
       {featured && <span className="coaching-package__badge">En Popüler</span>}
       <h3>{coachingPackage.name}</h3>
-      <p className="coaching-package__price">{currencyFormatter.format(coachingPackage.price)}<small> / paket</small></p>
+      <p className="coaching-package__price">{coachingPackage.effectivePrice == null ? "Şu anda kullanılamıyor" : currencyFormatter.format(coachingPackage.effectivePrice)}{coachingPackage.effectivePrice != null && <small> / paket</small>}</p>
       <p className="coaching-package__description">
-        {coachingPackage.durationDays} günlük, haftada {coachingPackage.weeklySessions} görüşme içeren mentörlük planı.
+        {coachingPackage.packageType === "UNTIL_EXAM"
+          ? `Sınava kalan ${coachingPackage.untilExamMonthsRemaining} aylık mentörlük planı.`
+          : `${coachingPackage.durationMonths} aylık mentörlük planı.`}
       </p>
       <ul>
-        <li>Haftada {coachingPackage.weeklySessions} birebir görüşme</li>
-        <li>{coachingPackage.durationDays} günlük program süresi</li>
+        <li>Ayda {coachingPackage.totalMeetingsPerMonth} görüşme</li>
+        <li>{coachingPackage.evaluationMeetingsPerMonth} değerlendirme + {coachingPackage.weeklyMeetingsPerMonth} haftalık görüşme</li>
         <li>Kişiselleştirilmiş çalışma planı</li>
       </ul>
-      <Link to="/register">{featured ? "Hemen Başla" : "Planı Seç"}</Link>
+      {coachingPackage.purchasable ? <Link to="/register">{featured ? "Hemen Başla" : "Planı Seç"}</Link> : <span className="coaching-package__unavailable" aria-disabled="true">Satışa Kapalı</span>}
     </article>
   );
 }
@@ -105,7 +107,7 @@ export function CoachingPage() {
   }, []);
 
   const featuredPackageId = useMemo(
-    () => packages.find((item) => item.durationDays >= 60 && item.durationDays <= 120)?.id ?? packages[1]?.id,
+    () => packages.find((item) => item.packageType === "THREE_MONTHS")?.id ?? packages[1]?.id,
     [packages],
   );
 

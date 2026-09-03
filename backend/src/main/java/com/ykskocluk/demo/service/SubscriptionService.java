@@ -29,6 +29,7 @@ import com.ykskocluk.demo.enums.PaymentType;
 import com.ykskocluk.demo.enums.RefundRequestStatus;
 import com.ykskocluk.demo.enums.SessionStatus;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
+import com.ykskocluk.demo.enums.PackageType;
 import com.ykskocluk.demo.exception.ApiException;
 import com.ykskocluk.demo.exception.PaymentProviderException;
 import com.ykskocluk.demo.mapper.SubscriptionMapper;
@@ -57,6 +58,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
@@ -90,6 +92,7 @@ public class SubscriptionService {
     private final LegalAcceptanceService legalAcceptanceService;
     private final TransactionTemplate tx;
     private final ApplicationEventPublisher events;
+    private final PackagePricingService packagePricingService;
 
     public SubscriptionService(SubscriptionRepository subscriptionRepository,
                                PackageRepository packageRepository,
@@ -105,6 +108,7 @@ public class SubscriptionService {
                                com.ykskocluk.demo.config.IyzicoProperties iyzicoProperties,
                                AccountReadinessService accountReadinessService,
                                LegalAcceptanceService legalAcceptanceService,
+                               PackagePricingService packagePricingService,
                                PlatformTransactionManager transactionManager,
                                ApplicationEventPublisher events) {
         this.subscriptionRepository = subscriptionRepository;
@@ -121,6 +125,7 @@ public class SubscriptionService {
         this.iyzicoProperties = iyzicoProperties;
         this.accountReadinessService = accountReadinessService;
         this.legalAcceptanceService = legalAcceptanceService;
+        this.packagePricingService = packagePricingService;
         this.tx = new TransactionTemplate(transactionManager);
         this.events = events;
     }
@@ -203,8 +208,9 @@ public class SubscriptionService {
         subscription.setPkg(pkg);
         subscription.setStatus(SubscriptionStatus.PENDING_PAYMENT);
         subscription.setStartAt(now);
-        subscription.setEndAt(now.plus(pkg.getDurationDays(), ChronoUnit.DAYS));
-        subscription.setAutoRenew(true);
+        snapshotPurchasePricing(subscription, pkg, now);
+        subscription.setEndAt(initialEndAt(pkg, subscription, now));
+        subscription.setAutoRenew(pkg.getPackageType() == null);
         subscription.setSavedCardToken("stub-card-token-" + UUID.randomUUID());
 
         return subscription;
@@ -220,7 +226,8 @@ public class SubscriptionService {
     }
 
     private Payment createPendingPayment(Subscription subscription) {
-        BigDecimal amount = subscription.getPkg().getPrice();
+        BigDecimal amount = subscription.getEffectivePriceSnapshot() != null
+                ? subscription.getEffectivePriceSnapshot() : subscription.getPkg().getPrice();
         BigDecimal rate = paymentProperties.commissionRate();
         BigDecimal commission = amount.multiply(rate).setScale(2, RoundingMode.HALF_UP);
 
@@ -282,13 +289,63 @@ public class SubscriptionService {
 
         subscription.setStatus(SubscriptionStatus.ACTIVE);
         subscription.setStartAt(now);
-        subscription.setEndAt(now.plus(subscription.getPkg().getDurationDays(), ChronoUnit.DAYS));
+        subscription.setPurchasedAt(now);
+        subscription.setEndAt(initialEndAt(subscription.getPkg(), subscription, now));
         subscriptionRepository.saveAndFlush(subscription);
         events.publishEvent(new PurchaseConfirmedEvent(payment.getId(),
                 subscription.getStudent().getEmail(), subscription.getStudent().getFullName(),
                 subscription.getPkg().getName(), subscription.getCoachProfile().getUser().getEmail(),
                 subscription.getCoachProfile().getUser().getFullName(),
                 payment.getAmount(), "TRY", now, subscription.getEndAt()));
+    }
+
+    private void snapshotPurchasePricing(Subscription subscription, Package pkg, Instant now) {
+        if (pkg.getPackageType() == null) {
+            subscription.setListPriceSnapshot(pkg.getPrice());
+            subscription.setEffectivePriceSnapshot(pkg.getPrice());
+            subscription.setOneMonthBasePriceSnapshot(pkg.getPrice());
+            return;
+        }
+        PackagePricingService.PriceResolution price = packagePricingService.resolve(pkg, now);
+        if (price.effectivePrice() == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "PACKAGE_PRICE_NOT_CONFIGURED",
+                    "Bu paket için geçerli bir fiyat tanımlanmamış");
+        }
+        BigDecimal rawOneMonth = packageRepository.findByPackageType(PackageType.ONE_MONTH)
+                .map(Package::getPrice).orElse(null);
+        if (rawOneMonth == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "ONE_MONTH_PRICE_NOT_CONFIGURED",
+                    "İade hesaplaması için 1 aylık ham fiyat tanımlanmamış");
+        }
+        subscription.setPackageTypeSnapshot(pkg.getPackageType());
+        subscription.setListPriceSnapshot(price.listPrice());
+        subscription.setEffectivePriceSnapshot(price.effectivePrice());
+        subscription.setOneMonthBasePriceSnapshot(rawOneMonth);
+        subscription.setUntilExamMonthsRemainingSnapshot(price.untilExamMonthsRemaining());
+        if (pkg.getPackageType() == PackageType.UNTIL_EXAM) {
+            subscription.setYksExamYearSnapshot(price.yksExamYear());
+            subscription.setYksExamDateSnapshot(price.yksExamDate());
+        }
+        if (price.campaignActive() && price.campaign() != null) {
+            subscription.setCampaignTitleSnapshot(price.campaign().title());
+            subscription.setDiscountTypeSnapshot(price.campaign().discountType());
+            subscription.setDiscountValueSnapshot(price.campaign().discountValue());
+        }
+    }
+
+    private Instant initialEndAt(Package pkg, Subscription subscription, Instant start) {
+        if (pkg.getPackageType() == PackageType.UNTIL_EXAM) {
+            java.time.LocalDate examDate = subscription.getYksExamDateSnapshot();
+            if (examDate == null) {
+                throw new ApiException(HttpStatus.CONFLICT, "YKS_EXAM_DATE_NOT_CONFIGURED",
+                        "YKS sınav tarihi yapılandırılmamış");
+            }
+            return examDate.plusDays(1).atStartOfDay(ZoneId.of("Europe/Istanbul")).toInstant();
+        }
+        if (pkg.getPackageType() != null && pkg.getDurationMonths() != null) {
+            return start.atZone(ZoneId.of("Europe/Istanbul")).plusMonths(pkg.getDurationMonths()).toInstant();
+        }
+        return start.plus(pkg.getDurationDays(), ChronoUnit.DAYS);
     }
 
     /**

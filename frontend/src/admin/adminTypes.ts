@@ -18,3 +18,12 @@ export interface AdminSession { id:number; type:"PAID"|"TRIAL"; coachProfileId:n
 export interface SuspendResponse { userId:number; status:UserStatus; reason:string|null; }
 export interface AdminCoachCreateRequest { fullName:string; email:string; }
 export interface AdminCoachCreateResponse { userId:number; coachProfileId:number; fullName:string; email:string; accountStatus:UserStatus; profileStatus:string; }
+
+export type PackageType = "ONE_MONTH" | "THREE_MONTHS" | "UNTIL_EXAM";
+export type DiscountType = "PERCENTAGE" | "FIXED_AMOUNT";
+export interface AdminPackageCampaign { enabled:boolean; currentlyActive:boolean; title:string; description:string|null; startsAt:string; endsAt:string; discountType:DiscountType; discountValue:number; }
+export interface AdminPackageTier { monthsRemaining:number; price:number; }
+export interface AdminPackage { id:number; packageType:PackageType; name:string; basePrice:number|null; effectivePrice:number|null; active:boolean; durationMonths:number|null; applicableMonthsRemaining:number|null; evaluationMeetingsPerMonth:number; weeklyMeetingsPerMonth:number; totalMeetingsPerMonth:number; campaign:AdminPackageCampaign|null; priceTiers:AdminPackageTier[]; }
+export interface AdminPackageCatalog { yksExamYear:number|null; yksExamDate:string|null; yksExamActive:boolean; applicableMonthsRemaining:number|null; packages:AdminPackage[]; }
+export interface AdminCampaignRequest { enabled:boolean; title:string; description:string|null; startsAt:string; endsAt:string; discountType:DiscountType; discountValue:number; }
+export interface AdminExamSettingsRequest { examYear:number; examDate:string; active:boolean; }

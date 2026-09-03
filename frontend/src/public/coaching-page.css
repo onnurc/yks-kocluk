@@ -40,6 +40,7 @@
 .coaching-package li { position: relative; padding-left: 28px; font-size: 15px; line-height: 1.4; }
 .coaching-package li::before { content: "◎"; position: absolute; left: 0; color: var(--public-color-gold); }
 .coaching-package > a { min-height: 54px; margin-top: auto; display: grid; place-items: center; border-radius: 999px; color: #000; background: #efeded; text-decoration: none; font-weight: 700; }
+.coaching-package__unavailable { min-height: 54px; margin-top: auto; display: grid; place-items: center; border-radius: 999px; color: #6f6b6b; background: #efeded; font-weight: 700; }
 .coaching-package--featured > a { background: var(--public-color-gold); }
 .coaching-package--loading { overflow: hidden; }
 .coaching-package--loading span { display: block; height: 24px; margin-bottom: 24px; border-radius: 10px; background: linear-gradient(90deg,#efeded,#f8f6f6,#efeded); background-size: 200% 100%; animation: coaching-shimmer 1.2s infinite; }

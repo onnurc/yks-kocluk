@@ -1,6 +1,7 @@
 package com.ykskocluk.demo.controller;
 
 import com.ykskocluk.demo.dto.PublicPackageResponse;
+import com.ykskocluk.demo.enums.PackageType;
 import com.ykskocluk.demo.security.JwtAuthenticationFilter;
 import com.ykskocluk.demo.service.PackageService;
 import org.junit.jupiter.api.Test;
@@ -29,16 +30,20 @@ class PublicPackageControllerTest {
     @Test
     void exposesOnlyThePublicMarketingProjection() throws Exception {
         given(packageService.listPublicActive()).willReturn(List.of(
-                new PublicPackageResponse(7L, "3 Aylık", 1, 90, new BigDecimal("7990.00"))));
+                new PublicPackageResponse(7L, PackageType.THREE_MONTHS, "3 Aylık", true, 3, null,
+                        new BigDecimal("8990.00"), new BigDecimal("7990.00"), true,
+                        "Dönem Kampanyası", null, 1, 4, 5)));
 
         mockMvc.perform(get("/api/v1/public/packages"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(7))
                 .andExpect(jsonPath("$[0].name").value("3 Aylık"))
-                .andExpect(jsonPath("$[0].weeklySessions").value(1))
-                .andExpect(jsonPath("$[0].durationDays").value(90))
-                .andExpect(jsonPath("$[0].price").value(7990.00))
+                .andExpect(jsonPath("$[0].weeklyMeetingsPerMonth").value(4))
+                .andExpect(jsonPath("$[0].durationMonths").value(3))
+                .andExpect(jsonPath("$[0].effectivePrice").value(7990.00))
                 .andExpect(jsonPath("$[0].active").doesNotExist())
+                .andExpect(jsonPath("$[0].version").doesNotExist())
+                .andExpect(jsonPath("$[0].discountValue").doesNotExist())
                 .andExpect(jsonPath("$[0].providerProductId").doesNotExist());
     }
 }

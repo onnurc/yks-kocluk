@@ -6,6 +6,7 @@ import com.ykskocluk.demo.dto.PageResponse;
 import com.ykskocluk.demo.enums.Track;
 import com.ykskocluk.demo.security.JwtAuthenticationFilter;
 import com.ykskocluk.demo.service.CoachSearchService;
+import com.ykskocluk.demo.service.PackageService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -29,6 +30,7 @@ class PublicCoachControllerTest {
 
     @Autowired MockMvc mockMvc;
     @MockitoBean CoachSearchService coachSearchService;
+    @MockitoBean PackageService packageService;
     @MockitoBean JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Test

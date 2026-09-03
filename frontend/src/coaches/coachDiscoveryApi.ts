@@ -1,5 +1,5 @@
 import { httpClient } from "../api/httpClient";
-import type { CoachSummaryResponse, CoachDetailResponse, PackageResponse, PublicCoachDetailResponse } from "./coachDiscoveryTypes";
+import type { CoachSummaryResponse, CoachDetailResponse, PackageOfferResponse, PublicCoachDetailResponse } from "./coachDiscoveryTypes";
 
 export interface PageWrapper<T> {
   content: T[];
@@ -45,7 +45,7 @@ export const coachDiscoveryApi = {
   getPublicCoachDetail: async (id: number): Promise<PublicCoachDetailResponse> => {
     return httpClient.get<PublicCoachDetailResponse>(`/api/v1/public/coaches/${id}`);
   },
-  listPackages: async (): Promise<PackageResponse[]> => {
-    return httpClient.get<PackageResponse[]>("/api/v1/packages");
+  listCoachPackages: async (coachId: number): Promise<PackageOfferResponse[]> => {
+    return httpClient.get<PackageOfferResponse[]>(`/api/v1/public/coaches/${coachId}/packages`);
   },
 };

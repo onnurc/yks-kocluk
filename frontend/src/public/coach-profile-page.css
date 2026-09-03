@@ -56,6 +56,9 @@
 .coach-profile-package--selected { border-color: #b78a36; transform: translateY(-2px); box-shadow: 0 14px 32px rgba(120,89,27,.1); }
 .coach-profile-package h3 { margin: 0; color: #000; font: 400 25px/1.2 var(--public-font-display); }
 .coach-profile-package > strong { margin-top: 18px; display: block; color: #78591b; font-size: 24px; }
+.coach-profile-package > del { display: block; margin-top: 4px; color: #7e7576; font-size: 14px; }
+.coach-profile-package__campaign { display: inline-flex; margin-top: 10px; padding: 5px 9px; border-radius: 999px; color: #705315; background: #fff1d2; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.coach-profile-package--inactive { background: #f5f3f3; opacity: .78; }
 .coach-profile-package p { min-height: 48px; margin: 8px 0 20px !important; color: #625c5d; line-height: 1.5; }
 .coach-profile-package button { width: 100%; min-height: 48px; border: 0; border-radius: 13px; color: #fff; background: #000; font: 700 14px var(--public-font-body); cursor: pointer; }
 .coach-profile-package button:disabled { color: #7a7474; background: #e4e2e2; cursor: not-allowed; }
