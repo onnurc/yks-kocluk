@@ -47,11 +47,11 @@ describe("trial, subscription and moderation workflow completion",()=>{
   });
 
   it("uses backend eligibility and completes the student refund without admin approval",async()=>{
-    mocks.eligibility.mockResolvedValue({subscriptionId:41,eligible:true,status:"ELIGIBLE",refundableAmount:2450,currency:"TRY",deadline:"2026-09-02T10:00:00Z",explanation:"7 gün içinde iade talebi oluşturabilirsiniz.",activeRequestStatus:null});
+    mocks.eligibility.mockResolvedValue({subscriptionId:41,eligible:true,status:"ELIGIBLE",refundableAmount:2450,currency:"TRY",deadline:null,explanation:"İptal ve iade hesabı hazır.",activeRequestStatus:null,packageType:"THREE_MONTHS",policy:"THREE_MONTHS_RAW_ONE_MONTH",cancellationRequestedAt:"2026-08-29T10:00:00Z",usedMonthCount:1,currentServicePeriodEnd:"2026-09-10T10:00:00Z",accessEndsAt:"2026-09-10T10:00:00Z",consumedAmount:3000});
     mocks.createRefund.mockResolvedValue({id:3,status:"REFUNDED"}); const refresh=vi.fn(); render(<RefundRequestAction subscriptionId={41} onSuccess={refresh}/>);
-    fireEvent.click(await screen.findByRole("button",{name:"İade Al"})); const dialog=screen.getByRole("dialog",{name:"İadeyi doğrula"}); expect(dialog).toHaveTextContent(/2\.450/); expect(dialog).toHaveTextContent(/erişiminiz hemen sona erecek/);
-    fireEvent.click(within(dialog).getByRole("button",{name:"İadeyi Onayla"}));
-    await waitFor(()=>expect(mocks.createRefund).toHaveBeenCalledWith(41)); expect(refresh).toHaveBeenCalled(); expect(await screen.findByText("İadeniz tamamlandı ve ücretli koçluk erişiminiz sona erdi.")).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button",{name:"İptal ve İade Talebi"})); const dialog=screen.getByRole("dialog",{name:"İptal ve iadeyi doğrula"}); expect(dialog).toHaveTextContent(/2\.450/); expect(dialog).toHaveTextContent(/hizmet ayının sonuna kadar devam eder/);
+    fireEvent.click(within(dialog).getByRole("button",{name:"İptal ve İadeyi Onayla"}));
+    await waitFor(()=>expect(mocks.createRefund).toHaveBeenCalledWith(41)); expect(refresh).toHaveBeenCalled(); expect(await screen.findByText(/Erişiminiz 10 Eylül 2026 tarihine kadar devam eder/)).toBeInTheDocument();
   });
 
   it("renders the report flow with product classes and keeps the existing API contract",async()=>{

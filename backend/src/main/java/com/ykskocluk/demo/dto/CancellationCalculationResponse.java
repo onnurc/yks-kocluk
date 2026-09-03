@@ -7,7 +7,8 @@ import java.time.Instant;
 
 public record CancellationCalculationResponse(
         Instant cancellationRequestedAt,
-        int usedMonths,
+        int usedMonthCount,
+        Instant currentServicePeriodEnd,
         Instant accessEndsAt,
         BigDecimal refundableAmount,
         BigDecimal consumedAmount,

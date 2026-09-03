@@ -200,7 +200,7 @@ describe("admin management experience", () => {
     expect(refundButtons[0]).toBeDisabled();
     const refundButton = refundButtons[1];
     fireEvent.click(refundButton); fireEvent.click(screen.getByRole("button", { name: "İadeyi Gerçekleştir" }));
-    await waitFor(() => expect(mocks.refund).toHaveBeenCalledWith(2, 800, "Admin paneli - 7 günlük cayma hakkı"));
+    await waitFor(() => expect(mocks.refund).toHaveBeenCalledWith(2, 800, "Admin paneli - uygun iade işlemi"));
   });
 
   it("shows automatic student refunds as audit history without approval actions", async () => {

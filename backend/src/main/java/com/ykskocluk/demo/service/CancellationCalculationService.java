@@ -45,11 +45,11 @@ public class CancellationCalculationService {
         PackageType type = subscription.getPackageTypeSnapshot();
         BigDecimal paid = zeroIfNull(subscription.getEffectivePriceSnapshot());
         if (type == null) {
-            return new CancellationCalculationResponse(requestedAt, 0, subscription.getEndAt(),
+            return new CancellationCalculationResponse(requestedAt, 0, subscription.getEndAt(), subscription.getEndAt(),
                     BigDecimal.ZERO.setScale(2), paid, LEGACY_POLICY, null);
         }
         if (type == PackageType.ONE_MONTH) {
-            return new CancellationCalculationResponse(requestedAt, 1, subscription.getEndAt(),
+            return new CancellationCalculationResponse(requestedAt, 1, subscription.getEndAt(), subscription.getEndAt(),
                     BigDecimal.ZERO.setScale(2), paid, ONE_MONTH_POLICY, type);
         }
 
@@ -63,7 +63,7 @@ public class CancellationCalculationService {
         BigDecimal nominalConsumed = rawMonthly.multiply(BigDecimal.valueOf(usedMonths));
         BigDecimal refundable = paid.subtract(nominalConsumed).max(BigDecimal.ZERO).setScale(2);
         BigDecimal consumed = paid.subtract(refundable).max(BigDecimal.ZERO).setScale(2);
-        return new CancellationCalculationResponse(requestedAt, usedMonths, accessEndsAt, refundable, consumed,
+        return new CancellationCalculationResponse(requestedAt, usedMonths, accessEndsAt, accessEndsAt, refundable, consumed,
                 type == PackageType.THREE_MONTHS ? THREE_MONTH_POLICY : UNTIL_EXAM_POLICY, type);
     }
 

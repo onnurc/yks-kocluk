@@ -332,7 +332,7 @@ export function CoachProfilePage() {
                       {pkg.campaignActive && <span className="coach-profile-package__campaign">{pkg.campaignTitle || "Kampanyalı"}</span>}
                       <p>{pkg.packageType === "UNTIL_EXAM"
                         ? (pkg.untilExamMonthsRemaining ? `Sınava kadar · ${pkg.untilExamMonthsRemaining} ay` : "Sınav tarihi/fiyatı yapılandırılmayı bekliyor")
-                        : `${pkg.durationMonths} ay`}<br />Ayda {pkg.totalMeetingsPerMonth} görüşme<br />{pkg.evaluationMeetingsPerMonth} değerlendirme + {pkg.weeklyMeetingsPerMonth} haftalık görüşme</p>
+                        : `${pkg.durationMonths} ay`}<br />Ayda {pkg.totalMeetingsPerMonth} görüşme<br />{pkg.evaluationMeetingsPerMonth} değerlendirme + {pkg.weeklyMeetingsPerMonth} haftalık görüşme<br />{pkg.packageType === "ONE_MONTH" ? "İade kapsamı dışında" : pkg.packageType === "THREE_MONTHS" ? "İptalde erişim mevcut hizmet ayı sonunda biter; kalan tutar paket politikasına göre hesaplanır" : "İptal ve iade koşulları mevcut hizmet dönemi hesabına göre belirlenir"}</p>
                       <button type="button" disabled={unavailable} onClick={() => setPackageSelection({ coachId, value: pkg })}>
                         {!pkg.purchasable ? "Satışa Kapalı" : selected ? "Seçildi" : "Paketi Seç"}
                       </button>

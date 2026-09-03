@@ -34,26 +34,29 @@ public class RefundRequestService {
     private final SessionRepository sessions;
     private final UserRepository users;
     private final SubscriptionService subscriptionService;
+    private final CancellationCalculationService cancellationCalculationService;
     private final TransactionTemplate tx;
     private final Clock clock;
 
     public RefundRequestService(RefundRequestRepository requests, SubscriptionRepository subscriptions,
                                 PaymentRepository payments, SessionRepository sessions, UserRepository users,
                                 SubscriptionService subscriptionService, PlatformTransactionManager transactionManager,
-                                Clock clock) {
+                                Clock clock, CancellationCalculationService cancellationCalculationService) {
         this.requests = requests;
         this.subscriptions = subscriptions;
         this.payments = payments;
         this.sessions = sessions;
         this.users = users;
         this.subscriptionService = subscriptionService;
+        this.cancellationCalculationService = cancellationCalculationService;
         this.tx = new TransactionTemplate(transactionManager);
         this.clock = clock;
     }
 
     public RefundRequestResponse create(Long studentId, RefundRequestCreateRequest input) {
         AutomaticRefund automaticRefund = tx.execute(ignored -> prepareAutomaticRefund(studentId, input));
-        subscriptionService.refundEligibleStudent(automaticRefund.paymentId(), automaticRefund.requestId());
+        subscriptionService.refundEligibleStudent(automaticRefund.paymentId(), automaticRefund.requestId(),
+                automaticRefund.refundAmount(), automaticRefund.accessEndsAt());
         return adminDetail(automaticRefund.requestId());
     }
 
@@ -74,27 +77,45 @@ public class RefundRequestService {
                     "Satın alma zamanı doğrulanamadı");
         }
         Instant now = clock.instant();
+        CancellationCalculationResponse calculation = cancellationCalculationService.calculate(subscription, now);
+        if (calculation.packageType() == PackageType.ONE_MONTH) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PACKAGE_NON_REFUNDABLE",
+                    "Bir aylık paketler iade kapsamı dışındadır.");
+        }
         BigDecimal refunded = refundedAmount(original.getId());
         BigDecimal remaining = original.getAmount().subtract(refunded);
         if (remaining.signum() <= 0) {
             throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_ALREADY_REFUNDED", "Ödeme zaten tamamen iade edildi");
         }
+        BigDecimal policyRefund = calculation.packageType() == null
+                ? remaining : calculation.refundableAmount().min(remaining).max(BigDecimal.ZERO);
         RefundRequest active = requests.findFirstByOriginalPaymentIdAndStatusIn(original.getId(), ACTIVE_STATUSES)
                 .orElse(null);
         if (active != null && active.getStatus() == RefundRequestStatus.PENDING
                 && active.getStudent().getId().equals(studentId)) {
-            return new AutomaticRefund(active.getId(), original.getId());
+            CancellationCalculationResponse originalCalculation = cancellationCalculationService.calculate(
+                    subscription, active.getRequestedAt());
+            BigDecimal originalPolicyRefund = active.getRefundPayment() == null
+                    ? originalCalculation.refundableAmount().min(remaining).max(BigDecimal.ZERO)
+                    : active.getRefundPayment().getAmount();
+            return new AutomaticRefund(active.getId(), original.getId(), originalPolicyRefund,
+                    originalCalculation.accessEndsAt());
         }
         if (active != null) {
             throw new ApiException(HttpStatus.CONFLICT, "ACTIVE_REFUND_REQUEST_EXISTS",
                     "Bu satın alma için aktif bir iade talebi zaten var");
         }
-        RefundPolicy.Decision policy = RefundPolicy.evaluate(purchaseAt, now, remaining);
-        if (!policy.eligible()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "REFUND_WINDOW_EXPIRED",
-                    policy.ineligibleReason());
+        if (calculation.packageType() == null) {
+            RefundPolicy.Decision legacyPolicy = RefundPolicy.evaluate(purchaseAt, now, remaining);
+            if (!legacyPolicy.eligible()) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "REFUND_WINDOW_EXPIRED",
+                        legacyPolicy.ineligibleReason());
+            }
+        } else if (policyRefund.signum() <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "NO_REFUNDABLE_BALANCE",
+                    "Kullanılmış hizmet ayları düşüldükten sonra iade edilebilir tutar kalmadı.");
         }
-        // Session evidence is operational audit data only. It never changes the seven-day decision above.
+        // Session evidence is operational audit data only; attendance never changes package-policy refunds.
         Evidence evidence = evidence(subscription.getId(), now);
         RefundWindow window = RefundWindow.UNCONDITIONAL;
 
@@ -113,7 +134,7 @@ public class RefundRequestService {
         request.setLatestRelevantSessionStatus(evidence.latestStatus);
         try {
             RefundRequest saved = requests.saveAndFlush(request);
-            return new AutomaticRefund(saved.getId(), original.getId());
+            return new AutomaticRefund(saved.getId(), original.getId(), policyRefund, calculation.accessEndsAt());
         } catch (DataIntegrityViolationException ex) {
             throw new ApiException(HttpStatus.CONFLICT, "ACTIVE_REFUND_REQUEST_EXISTS",
                     "Bu satın alma için aktif bir iade talebi zaten var");
@@ -138,13 +159,22 @@ public class RefundRequestService {
         Payment original = payments.findFirstBySubscriptionIdAndTypeAndStatusOrderBySucceededAtAsc(
                         subscriptionId, PaymentType.CHARGE, PaymentStatus.SUCCESS)
                 .orElse(null);
+        Instant now = clock.instant();
+        CancellationCalculationResponse calculation = cancellationCalculationService.calculate(subscription, now);
         if (original == null || original.getSucceededAt() == null) {
             return new RefundEligibilityResponse(subscriptionId, false, RefundEligibilityStatus.PAYMENT_NOT_ELIGIBLE,
                     BigDecimal.ZERO, "TRY", null,
-                    "İade edilebilir başarılı bir ödeme bulunamadı.", null);
+                    "İade edilebilir başarılı bir ödeme bulunamadı.", null,
+                    calculation.packageType(), calculation.policy(), calculation.cancellationRequestedAt(),
+                    calculation.usedMonthCount(), calculation.currentServicePeriodEnd(), calculation.accessEndsAt(),
+                    calculation.consumedAmount());
         }
         BigDecimal remaining = original.getAmount().subtract(refundedAmount(original.getId()));
-        RefundPolicy.Decision policy = RefundPolicy.evaluate(original.getSucceededAt(), clock.instant(), remaining);
+        RefundPolicy.Decision legacyPolicy = calculation.packageType() == null
+                ? RefundPolicy.evaluate(original.getSucceededAt(), now, remaining) : null;
+        BigDecimal refundable = calculation.packageType() == null
+                ? remaining.max(BigDecimal.ZERO)
+                : calculation.refundableAmount().min(remaining).max(BigDecimal.ZERO);
         RefundRequest activeRequest = requests
                 .findFirstByOriginalPaymentIdAndStatusIn(original.getId(), ACTIVE_STATUSES).orElse(null);
         RefundRequestStatus activeStatus = activeRequest == null ? null : activeRequest.getStatus();
@@ -154,24 +184,33 @@ public class RefundRequestService {
                 && activeRequest.getRefundPayment().getStatus() == PaymentStatus.PENDING;
         RefundEligibilityStatus status;
         String explanation;
-        if (remaining.signum() <= 0) {
+        if (calculation.packageType() == PackageType.ONE_MONTH) {
+            status = RefundEligibilityStatus.NON_REFUNDABLE;
+            explanation = "Bir aylık paketler iade kapsamı dışındadır.";
+            refundable = BigDecimal.ZERO.setScale(2);
+        } else if (remaining.signum() <= 0 || refundable.signum() <= 0) {
             status = RefundEligibilityStatus.NO_REFUNDABLE_BALANCE;
-            explanation = "Bu ödeme için iade edilebilir bakiye kalmadı.";
+            explanation = "Kullanılmış hizmet ayları düşüldükten sonra iade edilebilir tutar kalmadı.";
         } else if (retryableProviderOperation) {
             status = RefundEligibilityStatus.ELIGIBLE;
             explanation = "Başlatılmış iade işlemini güvenli biçimde yeniden deneyebilirsiniz.";
         } else if (activeStatus != null && !retryableProviderOperation) {
             status = RefundEligibilityStatus.ACTIVE_REQUEST_EXISTS;
             explanation = "Bu ödeme için işleme alınmış bir iade talebiniz var.";
-        } else if (!policy.eligible()) {
+        } else if (legacyPolicy != null && !legacyPolicy.eligible()) {
             status = RefundEligibilityStatus.WINDOW_EXPIRED;
-            explanation = policy.ineligibleReason();
+            explanation = legacyPolicy.ineligibleReason();
         } else {
             status = RefundEligibilityStatus.ELIGIBLE;
-            explanation = "Ödeme tarihinden itibaren ilk 7 gün içinde koşulsuz ve otomatik iade alabilirsiniz.";
+            explanation = calculation.packageType() == null
+                    ? "Mevcut iade koşullarına göre iade talebi oluşturabilirsiniz."
+                    : "İptal talebinizde içinde bulunduğunuz hizmet ayı tam kullanılmış sayılır; erişiminiz dönem sonuna kadar sürer.";
         }
         return new RefundEligibilityResponse(subscriptionId, status == RefundEligibilityStatus.ELIGIBLE, status,
-                remaining.max(BigDecimal.ZERO), "TRY", policy.deadline(), explanation, activeStatus);
+                refundable, "TRY", legacyPolicy == null ? null : legacyPolicy.deadline(), explanation, activeStatus,
+                calculation.packageType(), calculation.policy(), calculation.cancellationRequestedAt(),
+                calculation.usedMonthCount(), calculation.currentServicePeriodEnd(), calculation.accessEndsAt(),
+                calculation.consumedAmount());
     }
 
     @Transactional(readOnly = true)
@@ -322,5 +361,5 @@ public class RefundRequestService {
     private ApiException notFound(String code, String detail) { return new ApiException(HttpStatus.NOT_FOUND, code, detail); }
     private record Evidence(boolean serviceStarted, int paidCount, int completedCount, Instant earliest, String latestStatus) {}
     private record Approval(Long paymentId, BigDecimal amount) {}
-    private record AutomaticRefund(Long requestId, Long paymentId) {}
+    private record AutomaticRefund(Long requestId, Long paymentId, BigDecimal refundAmount, Instant accessEndsAt) {}
 }

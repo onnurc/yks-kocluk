@@ -79,6 +79,9 @@ describe("Koçluk sayfası", () => {
     renderPublicRoute();
 
     expect(await screen.findByText("Sınava kalan 9 aylık mentörlük planı.")).toBeInTheDocument();
+    expect(screen.getByText("İade kapsamı dışında")).toBeInTheDocument();
+    expect(screen.queryByText(/7 gün|koşulsuz iade/i)).not.toBeInTheDocument();
+    expect(screen.getByText("İptal ve iade koşulları mevcut hizmet dönemi hesabına göre belirlenir")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ücretsiz Görüşme Başlat" })).toHaveAttribute("href", "/register");
     expect(screen.getByRole("link", { name: "Hemen Başla" })).toHaveAttribute("href", "/register");
     expect(screen.getByRole("link", { name: "Paketleri İncele" })).toHaveAttribute("href", "#kocluk-paketleri");
