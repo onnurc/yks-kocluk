@@ -35,6 +35,7 @@ import { CoachProfilePage } from "./public/CoachProfilePage";
 import { CoachTrialAvailabilityPage } from "./pages/CoachTrialAvailabilityPage";
 import { StubPaymentPage } from "./subscriptionCheckout/StubPaymentPage";
 import { CoachApplicationPage } from "./public/CoachApplicationPage";
+import { CommunityPage } from "./public/CommunityPage";
 import { PublicLayout } from "./public/PublicLayout";
 import { AppErrorBoundary } from "./errors/AppErrorBoundary";
 import "./App.css";
@@ -47,6 +48,7 @@ export const AppRoutes: React.FC = () => {
         <Route index element={<HomePage />} />
         <Route path="biz-kimiz" element={<AboutPage />} />
         <Route path="kocluk" element={<CoachingPage />} />
+        <Route path="community" element={<CommunityPage />} />
         <Route path="coaches" element={<CoachesPage />} />
         <Route path="coaches/:id" element={<CoachProfilePage />} />
         <Route path="koc-basvuru" element={<CoachApplicationPage />} />
