@@ -111,7 +111,7 @@ public class ResendMailClient implements MailClient {
                   <p>Öğrenciniz <strong>%s</strong> ile görüşmeniz <strong>%s</strong> tarihinde planlandı.</p>
                   %s
                 </div>
-                """.formatted(html(coachName), html(studentName), html(when), html(meetLink)));
+                """.formatted(html(coachName), html(studentName), html(when), coachJoinBlock(meetLink)));
     }
 
     @Override

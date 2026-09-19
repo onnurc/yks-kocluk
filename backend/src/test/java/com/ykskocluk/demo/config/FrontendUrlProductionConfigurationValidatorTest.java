@@ -70,6 +70,20 @@ class FrontendUrlProductionConfigurationValidatorTest {
         }
     }
 
+    @Test
+    void localhostPassesWhenNonProductionProfileIsOnlyADefault() {
+        assertThatCode(() -> validator("http://localhost:5173", "http://localhost:5173/oauth/callback",
+                profiles(new String[]{}, new String[]{"local"})).validate())
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void activeProductionProfileIgnoresANonProductionDefault() {
+        assertThatThrownBy(() -> validator("http://localhost:5173", "http://localhost:5173/oauth/callback",
+                profiles(new String[]{"prod"}, new String[]{"local"})).validate())
+                .isInstanceOf(IllegalStateException.class);
+    }
+
     private FrontendUrlProductionConfigurationValidator validator(String frontendBase, String oauthRedirect,
                                                                   Environment environment) {
         return new FrontendUrlProductionConfigurationValidator(
@@ -78,9 +92,20 @@ class FrontendUrlProductionConfigurationValidatorTest {
                 oauthRedirect, environment);
     }
 
+    /** No active profile and nothing non-production among the defaults — i.e. treated as production. */
     private Environment profiles(String... activeProfiles) {
+        return profiles(activeProfiles, new String[]{"default"});
+    }
+
+    /**
+     * A real {@link Environment} never returns null from either accessor — with no profile set,
+     * getDefaultProfiles() is {@code {"default"}}. Both are stubbed so the mock keeps that contract:
+     * the validator consults the defaults whenever no profile is active.
+     */
+    private Environment profiles(String[] activeProfiles, String[] defaultProfiles) {
         Environment environment = mock(Environment.class);
         when(environment.getActiveProfiles()).thenReturn(activeProfiles);
+        when(environment.getDefaultProfiles()).thenReturn(defaultProfiles);
         return environment;
     }
 }
