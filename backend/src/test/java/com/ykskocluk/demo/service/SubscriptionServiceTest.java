@@ -90,6 +90,7 @@ class SubscriptionServiceTest {
     @Mock CancellationCalculationService cancellationCalculationService;
     @Mock org.springframework.transaction.PlatformTransactionManager transactionManager;
     @Mock org.springframework.context.ApplicationEventPublisher events;
+    @Mock MessageService messageService;
 
     PaymentProperties paymentProperties;
     SubscriptionService service;
@@ -107,7 +108,7 @@ class SubscriptionServiceTest {
             iyzicoClient, subscriptionMapper, entityManager,
             new com.ykskocluk.demo.config.IyzicoProperties(false, "sandbox", "dummy", "dummy", "dummy", "dummy"),
             accountReadinessService, legalAcceptanceService, packagePricingService,
-            cancellationCalculationService, transactionManager, events);
+            cancellationCalculationService, transactionManager, events, messageService);
 
         Package pkg = new Package();
         ReflectionTestUtils.setField(pkg, "id", PKG_ID);
@@ -380,6 +381,8 @@ class SubscriptionServiceTest {
         verify(paymentRepository).saveAndFlush(payment);
         verify(subscriptionRepository).saveAndFlush(sub);
         verify(events).publishEvent(any(PurchaseConfirmedEvent.class));
+        // So the coach can reach this student without waiting for a "Mesaj Gönder" click.
+        verify(messageService).ensureConversationForActiveSubscription(student, coach);
     }
 
     @Test
@@ -405,6 +408,7 @@ class SubscriptionServiceTest {
         verify(events, never()).publishEvent(any(PurchaseConfirmedEvent.class));
         verify(paymentRepository, never()).saveAndFlush(any());
         verify(subscriptionRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(messageService);
     }
 
     @Test
@@ -494,6 +498,7 @@ class SubscriptionServiceTest {
         verify(coachProfileRepository).incrementActiveStudentCountIfRoom(COACH_ID);
         verify(paymentRepository, never()).saveAndFlush(any());
         verify(subscriptionRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(messageService);
     }
 
     @Test
@@ -533,6 +538,7 @@ class SubscriptionServiceTest {
         verify(coachProfileRepository).incrementActiveStudentCountIfRoom(COACH_ID);
         verify(paymentRepository).saveAndFlush(payment);
         verify(subscriptionRepository).saveAndFlush(sub);
+        verify(messageService).ensureConversationForActiveSubscription(student, coach);
     }
 
     @Test
@@ -555,6 +561,7 @@ class SubscriptionServiceTest {
         verify(coachProfileRepository, never()).incrementActiveStudentCountIfRoom(any());
         verify(paymentRepository, never()).saveAndFlush(any());
         verify(subscriptionRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(messageService);
     }
 
     @Test

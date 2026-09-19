@@ -94,6 +94,7 @@ public class SubscriptionService {
     private final ApplicationEventPublisher events;
     private final PackagePricingService packagePricingService;
     private final CancellationCalculationService cancellationCalculationService;
+    private final MessageService messageService;
 
     public SubscriptionService(SubscriptionRepository subscriptionRepository,
                                PackageRepository packageRepository,
@@ -112,7 +113,8 @@ public class SubscriptionService {
                                PackagePricingService packagePricingService,
                                CancellationCalculationService cancellationCalculationService,
                                PlatformTransactionManager transactionManager,
-                               ApplicationEventPublisher events) {
+                               ApplicationEventPublisher events,
+                               MessageService messageService) {
         this.subscriptionRepository = subscriptionRepository;
         this.packageRepository = packageRepository;
         this.coachProfileRepository = coachProfileRepository;
@@ -131,6 +133,7 @@ public class SubscriptionService {
         this.cancellationCalculationService = cancellationCalculationService;
         this.tx = new TransactionTemplate(transactionManager);
         this.events = events;
+        this.messageService = messageService;
     }
 
     @Transactional
@@ -295,6 +298,11 @@ public class SubscriptionService {
         subscription.setPurchasedAt(now);
         subscription.setEndAt(initialEndAt(subscription.getPkg(), subscription, now));
         subscriptionRepository.saveAndFlush(subscription);
+        // So the coach can reach this student without waiting for them to click "Mesaj Gönder"
+        // (see docs/handoff.md — a paying student with no conversation had no way to receive a
+        // Meet link once automatic link generation was turned off). Idempotent DB write, not an
+        // external call, so it belongs inside this transaction, not after-commit.
+        messageService.ensureConversationForActiveSubscription(subscription.getStudent(), subscription.getCoachProfile());
         events.publishEvent(new PurchaseConfirmedEvent(payment.getId(),
                 subscription.getStudent().getEmail(), subscription.getStudent().getFullName(),
                 subscription.getPkg().getName(), subscription.getCoachProfile().getUser().getEmail(),

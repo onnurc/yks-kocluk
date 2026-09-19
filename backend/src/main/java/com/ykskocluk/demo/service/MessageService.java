@@ -17,6 +17,7 @@ import com.ykskocluk.demo.repository.SubscriptionRepository;
 import com.ykskocluk.demo.repository.UserRepository;
 import com.ykskocluk.demo.security.ratelimit.AuthenticatedActionRateLimitService;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -95,17 +96,61 @@ public class MessageService {
                     "Yalnızca abone olduğunuz koçlarla mesajlaşabilirsiniz");
         }
 
-        Conversation conversation = conversationRepository
-                .findByStudentIdAndCoachProfileId(studentUserId, coachProfileId)
+        Conversation conversation = findOrCreateConversation(student, coach);
+        return toResponse(conversation, studentUserId,
+                messageRepository.findFirstByConversationIdOrderByCreatedAtDesc(conversation.getId()).orElse(null));
+    }
+
+    /**
+     * Ensures a (student, coach) conversation exists — called once a subscription first becomes
+     * ACTIVE ({@code SubscriptionService.completePaymentSuccess}), from inside that same
+     * transaction. A plain DB insert, not an external call, so no AFTER_COMMIT seam is needed
+     * (CLAUDE.md's transaction-boundary rule restricts external calls, not DB writes — same
+     * reasoning {@code SessionService.book} already applies when it inserts the {@code Session}
+     * row directly inside the booking transaction).
+     *
+     * <p>Deliberately skips {@link AccountReadinessService#requireReady} and the
+     * {@code existsHistoryAccessSubscription} gate that {@link #openConversation} enforces: this
+     * is a system-triggered side effect of an already-authorized state transition (checkout
+     * already required a ready account), not a user action, and it must never be able to fail
+     * the surrounding payment-activation transaction over an unrelated readiness concern — doing
+     * so would roll back a successful payment because of, say, an unverified email.
+     *
+     * <p>{@code Propagation.MANDATORY}: this must only ever run inside the caller's existing
+     * transaction, never open its own. A future call site that forgets {@code @Transactional}
+     * fails loudly here instead of silently committing a conversation whose subscription
+     * activation later rolls back.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void ensureConversationForActiveSubscription(User student, CoachProfile coach) {
+        findOrCreateConversation(student, coach);
+    }
+
+    /**
+     * Idempotent find-or-create for the (student, coach) conversation, shared by the
+     * student-initiated REST path and automatic creation on subscription activation. The DB
+     * {@code UNIQUE(student_user_id, coach_profile_id)} constraint ({@code uq_conversation_pair},
+     * V9) is the actual guard against a duplicate row — the read-then-write below can race (e.g.
+     * a student clicks "Mesaj Gönder" at the same moment their payment webhook activates the
+     * subscription). A losing insert is caught and treated as "already exists": it must never
+     * surface as a failure to whichever caller lost the race, and when the caller is
+     * {@link #ensureConversationForActiveSubscription} that failure would otherwise roll back an
+     * already-successful payment.
+     */
+    private Conversation findOrCreateConversation(User student, CoachProfile coach) {
+        return conversationRepository.findByStudentIdAndCoachProfileId(student.getId(), coach.getId())
                 .orElseGet(() -> {
                     Conversation c = new Conversation();
                     c.setStudent(student);
                     c.setCoachProfile(coach);
                     c.setLastMessageAt(Instant.now());
-                    return conversationRepository.save(c);
+                    try {
+                        return conversationRepository.saveAndFlush(c);
+                    } catch (DataIntegrityViolationException e) {
+                        return conversationRepository.findByStudentIdAndCoachProfileId(student.getId(), coach.getId())
+                                .orElseThrow(() -> e);
+                    }
                 });
-        return toResponse(conversation, studentUserId,
-                messageRepository.findFirstByConversationIdOrderByCreatedAtDesc(conversation.getId()).orElse(null));
     }
 
     /** Sends a message. Sender must be a participant. Bumps last_message_at in the same tx. */

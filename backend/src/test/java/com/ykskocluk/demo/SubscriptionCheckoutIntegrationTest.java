@@ -12,6 +12,7 @@ import com.ykskocluk.demo.enums.Role;
 import com.ykskocluk.demo.enums.SubscriptionStatus;
 import com.ykskocluk.demo.enums.UserStatus;
 import com.ykskocluk.demo.repository.CoachProfileRepository;
+import com.ykskocluk.demo.repository.ConversationRepository;
 import com.ykskocluk.demo.repository.PackageRepository;
 import com.ykskocluk.demo.repository.PaymentRepository;
 import com.ykskocluk.demo.repository.LegalAcceptanceRepository;
@@ -52,6 +53,7 @@ class SubscriptionCheckoutIntegrationTest {
     @Autowired PackageRepository packageRepository;
     @Autowired SubscriptionRepository subscriptionRepository;
     @Autowired PaymentRepository paymentRepository;
+    @Autowired ConversationRepository conversationRepository;
     @Autowired LegalAcceptanceRepository legalAcceptanceRepository;
     @Autowired PasswordEncoder passwordEncoder;
 
@@ -77,6 +79,16 @@ class SubscriptionCheckoutIntegrationTest {
         String json = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"%s\",\"password\":\"TestPassword123!\"}".formatted(email)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(json, "$.accessToken");
+    }
+
+    /** Logs in an already-registered user and returns their access token. */
+    private String login(String email, String password) throws Exception {
+        String json = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"%s\"}".formatted(email, password)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return JsonPath.read(json, "$.accessToken");
@@ -242,6 +254,52 @@ class SubscriptionCheckoutIntegrationTest {
 
         // Capacity should not be double incremented
         assertThat(coachProfileRepository.findById((long) coachId).orElseThrow().getActiveStudentCount()).isEqualTo(1);
+    }
+
+    /**
+     * The auto-open fix: a coach must be able to reach a newly-activated student without that
+     * student ever having clicked "Mesaj Gönder" — otherwise the coach has no channel to send the
+     * Google Meet link now that automatic link generation is off (see docs/handoff.md).
+     */
+    @Test
+    void succeedPayment_e2e_conversationAutoCreated_coachCanMessageFirst() throws Exception {
+        String admin = adminToken();
+        String coachEmail = "coach-autoconv@example.com";
+        int coachId = approvedCoachProfileId(coachEmail, admin);
+        String coach = login(coachEmail, "TestPassword123!");
+        String studentEmail = "student-autoconv@example.com";
+        String student = register(studentEmail);
+        long packageId = firstPackageId(student);
+
+        String checkoutRes = mockMvc.perform(post("/api/v1/subscriptions/checkout")
+                        .header("Authorization", "Bearer " + student)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(checkoutBody(coachId, packageId)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long paymentId = ((Number) JsonPath.read(checkoutRes, "$.paymentId")).longValue();
+
+        long studentId = userRepository.findByEmail(studentEmail).orElseThrow().getId();
+
+        // Before activation: checkout alone must not create a conversation.
+        assertThat(conversationRepository.findByStudentIdAndCoachProfileId(studentId, (long) coachId)).isEmpty();
+
+        mockMvc.perform(post("/api/v1/payments/" + paymentId + "/stub/succeed")
+                        .header("Authorization", "Bearer " + student))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+        // Activation alone created the conversation — the student never called POST /conversations.
+        var conversation = conversationRepository.findByStudentIdAndCoachProfileId(studentId, (long) coachId)
+                .orElseThrow(() -> new AssertionError("conversation was not auto-created on activation"));
+
+        // The coach can send the first message — no prior student-initiated open needed.
+        mockMvc.perform(post("/api/v1/conversations/" + conversation.getId() + "/messages")
+                        .header("Authorization", "Bearer " + coach)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"Merhaba, hoş geldin!\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.content").value("Merhaba, hoş geldin!"));
     }
 
     @Test

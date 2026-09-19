@@ -21,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -32,7 +33,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -127,7 +130,7 @@ class MessageServiceTest {
                 () -> service.openConversation(STUDENT_ID, COACH_PROFILE_ID));
         assertThat(ex.getErrorCode()).isEqualTo("MESSAGING_NOT_ALLOWED");
         assertThat(ex.getStatus().value()).isEqualTo(403);
-        verify(conversationRepository, never()).save(any());
+        verify(conversationRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -139,7 +142,7 @@ class MessageServiceTest {
         ApiException ex = catchThrowableOfType(ApiException.class,
                 () -> service.openConversation(STUDENT_ID, COACH_PROFILE_ID));
         assertThat(ex.getErrorCode()).isEqualTo("MESSAGING_NOT_ALLOWED");
-        verify(conversationRepository, never()).save(any());
+        verify(conversationRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -152,11 +155,11 @@ class MessageServiceTest {
         User student = new User();
         ReflectionTestUtils.setField(student, "id", STUDENT_ID);
         when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
-        when(conversationRepository.save(any(Conversation.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(conversationRepository.saveAndFlush(any(Conversation.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.openConversation(STUDENT_ID, COACH_PROFILE_ID);
 
-        verify(conversationRepository).save(any(Conversation.class));
+        verify(conversationRepository).saveAndFlush(any(Conversation.class));
     }
 
     @Test
@@ -168,7 +171,7 @@ class MessageServiceTest {
         ApiException ex = catchThrowableOfType(ApiException.class,
                 () -> service.openConversation(STUDENT_ID, COACH_PROFILE_ID));
         assertThat(ex.getErrorCode()).isEqualTo("MESSAGING_NOT_ALLOWED");
-        verify(conversationRepository, never()).save(any());
+        verify(conversationRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -182,11 +185,11 @@ class MessageServiceTest {
         ReflectionTestUtils.setField(student, "id", STUDENT_ID);
         student.setDateOfBirth(java.time.LocalDate.now().minusYears(16));
         when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
-        when(conversationRepository.save(any(Conversation.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(conversationRepository.saveAndFlush(any(Conversation.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.openConversation(STUDENT_ID, COACH_PROFILE_ID);
 
-        verify(conversationRepository).save(any(Conversation.class));
+        verify(conversationRepository).saveAndFlush(any(Conversation.class));
         verify(accountReadinessService).requireReady(student);
     }
 
@@ -200,11 +203,11 @@ class MessageServiceTest {
         User student = new User();
         ReflectionTestUtils.setField(student, "id", STUDENT_ID);
         when(userRepository.findById(STUDENT_ID)).thenReturn(Optional.of(student));
-        when(conversationRepository.save(any(Conversation.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(conversationRepository.saveAndFlush(any(Conversation.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.openConversation(STUDENT_ID, COACH_PROFILE_ID);
 
-        verify(conversationRepository).save(any(Conversation.class));
+        verify(conversationRepository).saveAndFlush(any(Conversation.class));
     }
 
     // --- membership re-check on send AND read (checkpoint 3) ---
@@ -519,5 +522,64 @@ class MessageServiceTest {
 
         boolean isPart = service.isParticipant(STUDENT_ID, CONVERSATION_ID);
         assertThat(isPart).isFalse();
+    }
+
+    // --- ensureConversationForActiveSubscription: auto-open on subscription activation ---
+
+    @Test
+    void ensureConversationForActiveSubscription_noExistingConversation_createsOne_skippingReadinessAndGate() {
+        User student = new User();
+        ReflectionTestUtils.setField(student, "id", STUDENT_ID);
+        when(conversationRepository.findByStudentIdAndCoachProfileId(STUDENT_ID, COACH_PROFILE_ID))
+                .thenReturn(Optional.empty());
+        when(conversationRepository.saveAndFlush(any(Conversation.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.ensureConversationForActiveSubscription(student, coach);
+
+        org.mockito.ArgumentCaptor<Conversation> captor = org.mockito.ArgumentCaptor.forClass(Conversation.class);
+        verify(conversationRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getStudent()).isEqualTo(student);
+        assertThat(captor.getValue().getCoachProfile()).isEqualTo(coach);
+        assertThat(captor.getValue().getLastMessageAt()).isNotNull();
+
+        // This is a system-triggered side effect of an already-authorized state transition, not
+        // a user action — it must never re-check readiness or subscription-history access (both
+        // would be redundant, and a throw here would roll back the payment that triggered it).
+        verifyNoInteractions(accountReadinessService);
+        verifyNoInteractions(subscriptionRepository);
+    }
+
+    @Test
+    void ensureConversationForActiveSubscription_conversationAlreadyExists_isNoOp() {
+        User student = new User();
+        ReflectionTestUtils.setField(student, "id", STUDENT_ID);
+        when(conversationRepository.findByStudentIdAndCoachProfileId(STUDENT_ID, COACH_PROFILE_ID))
+                .thenReturn(Optional.of(conversation));
+
+        service.ensureConversationForActiveSubscription(student, coach);
+
+        verify(conversationRepository, never()).saveAndFlush(any());
+    }
+
+    /**
+     * Guards the race window between a student clicking "Mesaj Gönder" and their payment webhook
+     * activating the subscription at the same moment: the DB UNIQUE(student, coach) constraint
+     * (uq_conversation_pair, V9) lets exactly one insert win, and the loser must fall back to the
+     * now-existing row instead of propagating the constraint violation — which here would roll
+     * back an already-successful payment.
+     */
+    @Test
+    void ensureConversationForActiveSubscription_concurrentInsertWinsRace_fallsBackToExistingRow() {
+        User student = new User();
+        ReflectionTestUtils.setField(student, "id", STUDENT_ID);
+        when(conversationRepository.findByStudentIdAndCoachProfileId(STUDENT_ID, COACH_PROFILE_ID))
+                .thenReturn(Optional.empty(), Optional.of(conversation)); // 1st: nothing yet, 2nd: the winner's row
+        when(conversationRepository.saveAndFlush(any(Conversation.class)))
+                .thenThrow(new DataIntegrityViolationException("uq_conversation_pair"));
+
+        org.assertj.core.api.Assertions.assertThatCode(
+                () -> service.ensureConversationForActiveSubscription(student, coach)).doesNotThrowAnyException();
+
+        verify(conversationRepository, times(2)).findByStudentIdAndCoachProfileId(STUDENT_ID, COACH_PROFILE_ID);
     }
 }
