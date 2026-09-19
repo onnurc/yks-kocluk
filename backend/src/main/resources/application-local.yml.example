@@ -85,6 +85,12 @@ app:
   media:
     # The externally reachable backend origin, not an R2 bucket/custom-domain URL.
     public-base-url: http://localhost:8080
+  meet-link:
+    # false (the default, also in application.yml) = no link is generated at all; the coach
+    # creates a Google Meet link and sends it to the student over chat. Set true only to work
+    # on automatic link generation — it re-enables JitsiMeetClient and makes the reminder job
+    # skip sessions that have no link yet. See CLAUDE.md "Video meetings — no automatic link".
+    enabled: false
 
 spring:
   flyway:

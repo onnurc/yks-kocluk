@@ -1,5 +1,6 @@
 package com.ykskocluk.demo.service;
 
+import com.ykskocluk.demo.config.MeetLinkProperties;
 import com.ykskocluk.demo.dto.SessionCreateRequest;
 import com.ykskocluk.demo.dto.SessionReminderView;
 import com.ykskocluk.demo.dto.SessionResponse;
@@ -64,6 +65,7 @@ public class SessionService {
     private final SessionMapper sessionMapper;
     private final ApplicationEventPublisher eventPublisher;
     private final AccountReadinessService accountReadinessService;
+    private final MeetLinkProperties meetLinkProperties;
 
     public SessionService(SessionRepository sessionRepository,
                           SubscriptionRepository subscriptionRepository,
@@ -72,7 +74,8 @@ public class SessionService {
                           CoachProfileRepository coachProfileRepository,
                           SessionMapper sessionMapper,
                           ApplicationEventPublisher eventPublisher,
-                          AccountReadinessService accountReadinessService) {
+                          AccountReadinessService accountReadinessService,
+                          MeetLinkProperties meetLinkProperties) {
         this.sessionRepository = sessionRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.availabilityRepository = availabilityRepository;
@@ -81,6 +84,7 @@ public class SessionService {
         this.sessionMapper = sessionMapper;
         this.eventPublisher = eventPublisher;
         this.accountReadinessService = accountReadinessService;
+        this.meetLinkProperties = meetLinkProperties;
     }
 
     @Transactional
@@ -185,9 +189,14 @@ public class SessionService {
         return sessionRepository.claimReminder(sessionId, now) > 0;
     }
 
+    /**
+     * Reminder candidates. The meet-link requirement follows {@code app.meet-link.enabled}: with
+     * automatic generation off, no session would ever carry a link, so requiring one would mean
+     * nobody is ever reminded.
+     */
     @Transactional(readOnly = true)
     public List<SessionReminderView> findReminderCandidates(Instant now, Instant horizon) {
-        return sessionRepository.findReminderCandidates(now, horizon);
+        return sessionRepository.findReminderCandidates(now, horizon, meetLinkProperties.enabled());
     }
 
     /**

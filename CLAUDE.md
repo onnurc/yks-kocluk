@@ -31,12 +31,14 @@ Backend for a web platform that connects YKS exam students with university-stude
 | Security | Spring Security 7 + stateless JWT (access + rotating refresh, hashed) + OAuth2 (Google) |
 | Rate Limiting | In-Memory JVM (InMemoryRateLimitStore), Redis-compatible key/TTL design |
 | Real-time | Spring WebSocket + STOMP (chat) |
-| External services | iyzico (payment) · Google Calendar/Meet (video) · Resend (email) · Cloudflare R2 (files) |
+| External services | iyzico (payment) · Resend (email) · Cloudflare R2 (files) · video: see note below |
 | API docs | springdoc-openapi-starter-webmvc-ui 3.0.x |
 | Monitoring | Sentry + Actuator |
 | Testing | JUnit + Spring Boot Test, MockMvc, Mockito, Testcontainers (PostgreSQL) |
 
 **Pin all versions in `pom.xml`.** Fix until the build is GREEN in Phase 0. **Do not use H2** — use Testcontainers with real PostgreSQL for all tests touching the DB.
+
+**Video meetings — no automatic link (2026-09-17).** `MEET_LINK_ENABLED` (`app.meet-link.enabled`) is **false** by default: the platform generates no meet link at all. The coach creates a Google Meet link and sends it to the student **over chat**. No Google Calendar/Meet API is used. The infrastructure is deliberately kept for a future Google Meet integration — `MeetClient`/`JitsiMeetClient`, `sessions.meet_link`, `Session.meetLink` and `SessionResponse.meetLink` all stay; turning the flag on restores automatic generation with no schema or DTO change. While off, the reminder job must not require a link (see `SessionRepository.findReminderCandidates`) and mails omit the join block instead of rendering an empty `href`.
 
 ---
 

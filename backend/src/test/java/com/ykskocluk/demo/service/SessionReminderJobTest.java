@@ -48,6 +48,24 @@ class SessionReminderJobTest {
                 "https://meet.jit.si/x");
     }
 
+    /**
+     * The regression guard for the manual-link era: with {@code app.meet-link.enabled} off no
+     * session ever carries a link, so a link-less candidate must still be reminded — the mail
+     * simply omits the join block. If this ever stops holding, nobody gets a reminder at all.
+     */
+    @Test
+    void runReminders_candidateWithoutMeetLink_stillSendsReminder() {
+        SessionReminderView noLink = new SessionReminderView(1L, "student@example.com", "Ayşe Koç",
+                now.plusSeconds(3600), null);
+        when(sessionService.findReminderCandidates(now, now.plus(Duration.ofHours(24))))
+                .thenReturn(List.of(noLink));
+        when(sessionService.claimReminder(1L, now)).thenReturn(true);
+
+        job.runReminders(now);
+
+        verify(mailClient).sendSessionReminder("student@example.com", "Ayşe Koç", noLink.startTime(), null);
+    }
+
     @Test
     void runReminders_claimLost_skipsMail() {
         SessionReminderView view = new SessionReminderView(1L, "student@example.com", "Ayşe Koç",

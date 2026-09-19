@@ -300,4 +300,59 @@ class ResendMailClientTest {
         client.sendSessionBooked(TO, maliciousName, Instant.parse("2026-06-22T18:00:00Z"), maliciousLink);
         server[0].verify();
     }
+
+    // --- no meet link (the normal case while app.meet-link.enabled is off) ---
+
+    @Test
+    void sessionBooked_withoutMeetLink_omitsTheAnchorAndTellsStudentToWatchMessages() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(jsonPath("$.subject").value("Görüşmeniz planlandı"))
+                .andExpect(jsonPath("$.html",
+                        containsString("Görüşme bağlantısı koçunuz tarafından mesajlar üzerinden paylaşılacak")))
+                // No anchor at all — never an empty href.
+                .andExpect(jsonPath("$.html", org.hamcrest.Matchers.not(containsString("<a href"))))
+                .andRespond(withSuccess("{\"id\":\"msg_booked_no_link\"}", APPLICATION_JSON));
+
+        client.sendSessionBooked(TO, "Ayşe Koç", Instant.parse("2026-06-22T18:00:00Z"), null);
+
+        server[0].verify();
+    }
+
+    @Test
+    void sessionBookedToCoach_withoutMeetLink_asksCoachToCreateAndSendIt() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(jsonPath("$.subject").value("Yeni bir görüşmeniz planlandı"))
+                .andExpect(jsonPath("$.html",
+                        containsString("Google Meet linkini oluşturup mesajlar üzerinden öğrenciye gönderin")))
+                .andExpect(jsonPath("$.html", org.hamcrest.Matchers.not(containsString("<a href"))))
+                .andRespond(withSuccess("{\"id\":\"msg_booked_coach_no_link\"}", APPLICATION_JSON));
+
+        client.sendSessionBookedToCoach("coach@example.com", "Ayşe Koç", "Ali",
+                Instant.parse("2026-06-22T18:00:00Z"), null);
+
+        server[0].verify();
+    }
+
+    @Test
+    void sessionReminder_withoutMeetLink_stillSendsAndOmitsTheAnchor() {
+        MockRestServiceServer[] server = new MockRestServiceServer[1];
+        ResendMailClient client = clientBoundTo(server);
+
+        server[0].expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(jsonPath("$.subject").value("Yaklaşan görüşme hatırlatması"))
+                .andExpect(jsonPath("$.html",
+                        containsString("Görüşme bağlantısı koçunuz tarafından mesajlar üzerinden paylaşılacak")))
+                .andExpect(jsonPath("$.html", org.hamcrest.Matchers.not(containsString("<a href"))))
+                .andRespond(withSuccess("{\"id\":\"msg_reminder_no_link\"}", APPLICATION_JSON));
+
+        client.sendSessionReminder(TO, "Ayşe Koç", Instant.parse("2026-06-22T18:00:00Z"), null);
+
+        server[0].verify();
+    }
 }

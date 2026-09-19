@@ -1,5 +1,55 @@
 # Handoff — YKS Coaching Platform (Backend)
 
+## Automatic meet links switched off — coach sends a Google Meet link over chat (2026-09-17)
+
+**Decision:** the platform no longer generates a meeting link. The coach creates a Google Meet
+link themselves and sends it to the student **through in-platform chat**. No Google Calendar/Meet
+API is used (the Phase 0.5 finding still stands — it needs a Workspace account). This supersedes
+the "Phase 6 — Real video: Jitsi" section further down this file, which stays as the record of how
+the Jitsi implementation worked.
+
+**Nothing was deleted.** `MEET_LINK_ENABLED` (`app.meet-link.enabled`, default **false**) gates the
+behaviour only; the whole seam is preserved for a future Google Meet integration:
+
+- `MeetClient` / `JitsiMeetClient` / `StubMeetClient`, `sessions.meet_link` (V8), `Session.meetLink`
+  and `SessionResponse.meetLink` all remain. Flipping the flag to `true` restores the old behaviour
+  with **no schema, DTO or wiring change**.
+- The flag deliberately does **not** condition the bean away (`@ConditionalOnProperty` was rejected):
+  `SessionNotificationListener` keeps a single non-optional `MeetClient` dependency, and the seam is
+  what a future Google Meet client plugs into. Two layers enforce it instead — `JitsiMeetClient`
+  returns `null` without minting anything, and the listener skips the create/persist step entirely
+  (so no client call and no DB write, not merely a discarded link).
+
+**The trap this created, and the fix — read this before touching the reminder job.**
+`SessionRepository.findReminderCandidates` required `meetLink is not null`, written when links
+appeared automatically seconds after booking ("skip until it lands"). With generation off *nothing
+ever gets a link*, so that condition would have silently suppressed **every** session reminder — no
+error, no log, just no mail. The query now takes a `requireMeetLink` parameter fed from the flag
+(`SessionService.findReminderCandidates`): off → the condition is dropped, on → the original
+behaviour is byte-identical. Covered by `SessionRepositoryTest` (real PostgreSQL) plus
+`SessionReminderJobTest#runReminders_candidateWithoutMeetLink_stillSendsReminder`.
+
+**Mails.** `sendSessionBooked`, `sendSessionBookedToCoach` and `sendSessionReminder` no longer
+render `<a href="">` when there is no link. The student's copy says the coach will share the link
+over messages; the coach's copy tells them to create the Google Meet link and send it to the
+student. See `ResendMailClient.studentJoinBlock` / `coachJoinBlock`.
+
+**Frontend.** Student/coach/admin views keep their `meetLink` handling and only changed wording for
+the null case ("Bağlantı mesajlarda paylaşılacak"). `ChatPage` now linkifies message text via
+`messaging/linkifyMessage.tsx`: **only** `http://`/`https://` become anchors (`target="_blank"`,
+`rel="noopener noreferrer"`), everything else — `javascript:`, `data:`, bare `www.` — stays inert
+text, and it returns React nodes rather than using `dangerouslySetInnerHTML`.
+
+**Known gap, NOT fixed (flagged 2026-09-17).** A coach can be unable to reach their own student:
+`Conversation` rows are created *only* by `MessageService.openConversation`, which is reachable
+only through `POST /api/v1/conversations` (`@PreAuthorize("hasRole('STUDENT')")`). Booking a
+session does not create one. So a student who subscribes and books but never opens the chat leaves
+the coach with no conversation to send into (`requireParticipant` → `CONVERSATION_NOT_FOUND`) —
+and the meet link now travels *only* over chat. Secondary case: `sendMessage` calls
+`accountReadinessService.requireReady(sender)` for the coach too, so an unverified-email or
+incomplete-legal-onboarding coach is blocked from sending. Needs a product decision (coach-side
+conversation initiation, or auto-creating the conversation at subscription/booking time).
+
 ## Port 8080 is intercepted by a local proxy — WebSocket breaks, HTTP does not (2026-08-16)
 
 **If chat "doesn't connect" on your machine, check this before touching any code.** On the

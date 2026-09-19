@@ -1,5 +1,6 @@
 package com.ykskocluk.demo.service;
 
+import com.ykskocluk.demo.config.MeetLinkProperties;
 import com.ykskocluk.demo.dto.SessionCreateRequest;
 import com.ykskocluk.demo.dto.SessionResponse;
 import com.ykskocluk.demo.entity.CoachAvailability;
@@ -70,7 +71,8 @@ class SessionServiceTest {
     @BeforeEach
     void setUp() {
         service = new SessionService(sessionRepository, subscriptionRepository, availabilityRepository,
-                userRepository, coachProfileRepository, sessionMapper, eventPublisher, accountReadinessService);
+                userRepository, coachProfileRepository, sessionMapper, eventPublisher, accountReadinessService,
+                new MeetLinkProperties(false));
 
         CoachProfile coach = new CoachProfile();
         ReflectionTestUtils.setField(coach, "id", COACH_ID);
@@ -240,5 +242,32 @@ class SessionServiceTest {
         inOrder.verify(accountReadinessService).requireReady(any());
         inOrder.verify(sessionRepository).saveAndFlush(any(Session.class));
         inOrder.verify(eventPublisher).publishEvent(any(Object.class));
+    }
+
+    /**
+     * Reminder candidate filtering follows {@code app.meet-link.enabled}. With generation off
+     * nothing ever has a link, so requiring one would silently suppress every reminder.
+     */
+    @Test
+    void findReminderCandidates_meetLinkDisabled_dropsTheLinkRequirement() {
+        Instant now = Instant.now();
+        Instant horizon = now.plus(24, ChronoUnit.HOURS);
+
+        service.findReminderCandidates(now, horizon); // service built with MeetLinkProperties(false)
+
+        verify(sessionRepository).findReminderCandidates(now, horizon, false);
+    }
+
+    @Test
+    void findReminderCandidates_meetLinkEnabled_keepsTheLinkRequirement() {
+        Instant now = Instant.now();
+        Instant horizon = now.plus(24, ChronoUnit.HOURS);
+        SessionService withAutomaticLinks = new SessionService(sessionRepository, subscriptionRepository,
+                availabilityRepository, userRepository, coachProfileRepository, sessionMapper, eventPublisher,
+                accountReadinessService, new MeetLinkProperties(true));
+
+        withAutomaticLinks.findReminderCandidates(now, horizon);
+
+        verify(sessionRepository).findReminderCandidates(now, horizon, true);
     }
 }

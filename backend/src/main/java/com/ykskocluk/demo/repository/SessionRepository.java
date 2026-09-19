@@ -32,9 +32,15 @@ public interface SessionRepository extends JpaRepository<Session, Long>, JpaSpec
      * Candidate set for {@code SessionReminderJob}: PLANNED sessions starting within the lead
      * window that haven't been reminded yet. {@code startTime > :now} excludes anything already
      * underway/past (e.g. after job downtime); {@code reminderSentAt is null} excludes anything
-     * already claimed by a previous run; {@code meetLink is not null} skips a session whose
-     * after-commit Meet-link creation (booking time) hasn't landed yet — it'll be picked up on a
-     * later run once the link exists, rather than sending a reminder with a dead link.
+     * already claimed by a previous run.
+     *
+     * <p>{@code :requireMeetLink} mirrors {@code app.meet-link.enabled}. When links are generated
+     * automatically (true), a link-less session is skipped so a reminder never carries a dead
+     * link — it is picked up on a later run once the after-commit creation lands. When automatic
+     * generation is off (false, the default), <strong>no session ever gets a link this way</strong>,
+     * so applying that filter would silently suppress every reminder; the filter is therefore
+     * dropped and link-less sessions are reminded (the mail omits the join block — see
+     * {@code ResendMailClient.sendSessionReminder}).
      */
     @Query("""
             select new com.ykskocluk.demo.dto.SessionReminderView(
@@ -42,10 +48,12 @@ public interface SessionRepository extends JpaRepository<Session, Long>, JpaSpec
               from Session s
              where s.status = com.ykskocluk.demo.enums.SessionStatus.PLANNED
                and s.reminderSentAt is null
-               and s.meetLink is not null
+               and (:requireMeetLink = false or s.meetLink is not null)
                and s.startTime > :now and s.startTime <= :horizon
             """)
-    List<SessionReminderView> findReminderCandidates(@Param("now") Instant now, @Param("horizon") Instant horizon);
+    List<SessionReminderView> findReminderCandidates(@Param("now") Instant now,
+                                                     @Param("horizon") Instant horizon,
+                                                     @Param("requireMeetLink") boolean requireMeetLink);
 
     /**
      * Atomic claim (mirrors {@code CoachProfileRepository.incrementActiveStudentCountIfRoom}):

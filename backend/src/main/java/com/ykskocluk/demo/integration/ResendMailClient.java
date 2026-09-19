@@ -95,9 +95,9 @@ public class ResendMailClient implements MailClient {
                 <div style="font-family:sans-serif;line-height:1.5">
                   <h2>Görüşmeniz planlandı</h2>
                   <p>Koçunuz <strong>%s</strong> ile görüşmeniz <strong>%s</strong> tarihinde planlandı.</p>
-                  <p><a href="%s">Görüşmeye katıl</a></p>
+                  %s
                 </div>
-                """.formatted(html(coachName), html(when), html(meetLink)));
+                """.formatted(html(coachName), html(when), studentJoinBlock(meetLink)));
     }
 
     @Override
@@ -109,7 +109,7 @@ public class ResendMailClient implements MailClient {
                   <h2>Yeni bir görüşmeniz planlandı</h2>
                   <p>Merhaba %s,</p>
                   <p>Öğrenciniz <strong>%s</strong> ile görüşmeniz <strong>%s</strong> tarihinde planlandı.</p>
-                  <p><a href="%s">Görüşmeye katıl</a></p>
+                  %s
                 </div>
                 """.formatted(html(coachName), html(studentName), html(when), html(meetLink)));
     }
@@ -153,9 +153,9 @@ public class ResendMailClient implements MailClient {
                 <div style="font-family:sans-serif;line-height:1.5">
                   <h2>Görüşmeniz yaklaşıyor</h2>
                   <p>Koçunuz <strong>%s</strong> ile <strong>%s</strong> tarihinde bir görüşmeniz var.</p>
-                  <p><a href="%s">Görüşmeye katıl</a></p>
+                  %s
                 </div>
-                """.formatted(html(coachName), html(when), html(meetLink)));
+                """.formatted(html(coachName), html(when), studentJoinBlock(meetLink)));
     }
 
     @Override
@@ -329,6 +329,25 @@ public class ResendMailClient implements MailClient {
 
     private static String html(String value) {
         return HtmlUtils.htmlEscape(value == null ? "" : value, java.nio.charset.StandardCharsets.UTF_8.name());
+    }
+
+    /**
+     * Join-link paragraph for the student, or — when no link exists (the normal case while
+     * {@code app.meet-link.enabled} is off) — a note that the coach shares it over chat. Never
+     * renders an empty {@code href}. Returns ready-made HTML, so callers interpolate it raw; the
+     * URL inside is still escaped.
+     */
+    private static String studentJoinBlock(String meetLink) {
+        return StringUtils.hasText(meetLink)
+                ? "<p><a href=\"%s\">Görüşmeye katıl</a></p>".formatted(html(meetLink))
+                : "<p>Görüşme bağlantısı koçunuz tarafından mesajlar üzerinden paylaşılacak.</p>";
+    }
+
+    /** Coach-side counterpart of {@link #studentJoinBlock} — prompts them to create and send it. */
+    private static String coachJoinBlock(String meetLink) {
+        return StringUtils.hasText(meetLink)
+                ? "<p><a href=\"%s\">Görüşmeye katıl</a></p>".formatted(html(meetLink))
+                : "<p>Google Meet linkini oluşturup mesajlar üzerinden öğrenciye gönderin.</p>";
     }
 
     /** Resend send-email request body. {@code replyTo} null (never blank) omits the field entirely. */

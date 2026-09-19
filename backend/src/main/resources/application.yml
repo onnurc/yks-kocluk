@@ -241,6 +241,15 @@ app:
     debounce: ${MESSAGE_NOTIFICATION_DEBOUNCE:30m}
     # Same origin as password-security's, deliberately bound separately (see the properties record).
     frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+  meet-link:
+    # Master switch for AUTOMATIC meet-link generation. Off: the platform mints no link, the coach
+    # creates a Google Meet link and shares it with the student over chat. The MeetClient seam,
+    # sessions.meet_link and SessionResponse.meetLink are kept in place for a future Google Meet
+    # integration — turning this back on restores link generation with no schema/DTO change.
+    # NOTE: this also relaxes the reminder job's candidate filter. While off, a session with no
+    # link still gets its reminder (see SessionRepository.findReminderCandidates); while on, the
+    # original "skip until the link lands" behaviour applies.
+    enabled: ${MEET_LINK_ENABLED:false}
   session-reminder:
     # How far before a session's start the reminder becomes eligible. Actual delivery jitters by
     # up to the job's poll interval (cron below), since a session is caught on whichever run first

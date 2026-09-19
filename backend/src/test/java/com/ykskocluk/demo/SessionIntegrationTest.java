@@ -173,11 +173,13 @@ class SessionIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
 
-        // student lists own sessions — meetLink was populated by the AFTER_COMMIT listener (stub Meet client)
+        // student lists own sessions — meetLink stays null: app.meet-link.enabled is false by
+        // default, so the AFTER_COMMIT listener skips link creation and the coach shares a
+        // Google Meet link over chat instead. The field itself is kept for a future integration.
         mockMvc.perform(get("/api/v1/sessions/me").header("Authorization", "Bearer " + student))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].availabilityId").value(slotId))
-                .andExpect(jsonPath("$[0].meetLink").value(Matchers.containsString("meet.stub.local")));
+                .andExpect(jsonPath("$[0].meetLink").value(Matchers.nullValue()));
 
         // coach lists sessions booked against them
         mockMvc.perform(get("/api/v1/coach/sessions").header("Authorization", "Bearer " + coach))
