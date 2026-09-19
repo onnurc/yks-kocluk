@@ -27,11 +27,12 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         // Dev-only: sockjs-client's capability-check XHR (GET /ws/info) unconditionally sends
-        // withCredentials=true when it detects a cross-origin URL, which the backend's CORS
-        // config rejects (allowCredentials is deliberately false there — see SecurityConfig).
-        // sockjs-client has no option to disable that, so instead make the request same-origin
-        // by proxying it through the Vite dev server; useConversationSocket.ts connects to a
-        // same-origin /ws URL only in dev for this reason (see its comment).
+        // withCredentials=true when it detects a cross-origin URL, and has no option to disable
+        // that. Proxying through the Vite dev server makes the request same-origin instead.
+        // The backend does allow credentialed cross-origin requests today (SecurityConfig sets
+        // allowCredentials=true over an exact origin allowlist), so this proxy is a leftover of
+        // an earlier CORS setup, not a current requirement. stompClient.ts picks the same-origin
+        // /ws URL only in dev to match this (see getSocketBaseUrl there).
         '/ws': {
           target: backendOrigin,
           ws: true,

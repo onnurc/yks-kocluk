@@ -44,7 +44,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         this.heartbeatScheduler = heartbeatScheduler;
     }
 
-    // Same allowlist as SecurityConfig's REST CORS — keep the two in sync.
+    // Reads the same CorsProperties bean SecurityConfig's REST CORS uses, so there is one
+    // allowlist (app.cors.allowed-origins), not two to keep in sync.
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         String[] allowedOrigins = corsProperties.allowedOrigins().toArray(String[]::new);

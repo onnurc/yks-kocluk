@@ -7,11 +7,12 @@ const INITIAL_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 30000;
 
 // In dev, go through the Vite proxy (same origin as the page) rather than straight to
-// VITE_API_BASE_URL — see the proxy comment in vite.config.ts for why: sockjs-client's /info
-// precheck can't be made to skip withCredentials on a cross-origin URL, which the backend's
-// CORS config (deliberately allowCredentials=false) then rejects. A production build has no
-// dev proxy, so it connects directly; that deployment's CORS/origin setup is a separate,
-// deliberate decision for whoever configures it, not something to route around here.
+// VITE_API_BASE_URL — sockjs-client's /info precheck always sends withCredentials on a
+// cross-origin URL and has no option to disable it. The backend permits that today
+// (SecurityConfig's corsConfigurationSource sets allowCredentials=true against an exact
+// origin allowlist defaulting to http://localhost:5173), so the proxy predates the current
+// CORS setup rather than being required by it. A production build has no proxy and connects
+// directly, so the deployed frontend origin must be listed in CORS_ALLOWED_ORIGINS.
 const getSocketBaseUrl = (): string => (import.meta.env.DEV ? window.location.origin : getApiBaseUrl());
 
 interface CreateStompClientOptions {
