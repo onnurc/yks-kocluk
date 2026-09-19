@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom";
 import { ApiError } from "../api/ApiError";
 import { useAuth } from "../auth/AuthProvider";
+import { linkifyMessage } from "../messaging/linkifyMessage";
 import { messagingApi } from "../messaging/messagingApi";
 import type { AdminConversationSummary, ConversationResponse, MessageResponse, PresenceResponse } from "../messaging/messagingTypes";
 import { useConversationSocket } from "../messaging/useConversationSocket";
@@ -251,7 +252,7 @@ export const ChatPage: React.FC = () => {
               {messages.map((message) => {
                 const label = dayLabel(message.sentAt); const showDay = label !== previousDay; previousDay = label;
                 const mine = !isAdmin && message.senderId === user?.id;
-                return <React.Fragment key={message.id}>{showDay && <div className="chat-day">{label}</div>}<div className={`chat-message ${mine ? "chat-message--mine" : ""}`}><div className="chat-bubble">{isAdmin && <strong>{message.senderName}</strong>}<span>{message.content}</span><time>{new Date(message.sentAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</time></div></div></React.Fragment>;
+                return <React.Fragment key={message.id}>{showDay && <div className="chat-day">{label}</div>}<div className={`chat-message ${mine ? "chat-message--mine" : ""}`}><div className="chat-bubble">{isAdmin && <strong>{message.senderName}</strong>}<span>{linkifyMessage(message.content)}</span><time>{new Date(message.sentAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</time></div></div></React.Fragment>;
               })}
               <div ref={endRef} />
             </div>

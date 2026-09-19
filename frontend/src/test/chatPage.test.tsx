@@ -94,6 +94,31 @@ describe("real responsive chat page", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/messages");
   });
 
+  it("renders a coach-sent Google Meet link as a safe anchor and leaves other schemes inert", async () => {
+    // Meet links now reach students only through chat, so the bubble has to make them clickable.
+    mocks.history.mockResolvedValue({
+      ...page,
+      content: [
+        { ...otherMessage, id: 31, content: "Görüşme linki: https://meet.google.com/abc-defg-hij" },
+        { ...otherMessage, id: 32, content: "javascript:alert(1)" },
+      ],
+    });
+    renderChat();
+    fireEvent.click(await screen.findByText("Ayşe Koç"));
+
+    const link = await screen.findByRole("link", { name: "https://meet.google.com/abc-defg-hij" });
+    expect(link).toHaveAttribute("href", "https://meet.google.com/abc-defg-hij");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link.closest(".chat-bubble")).not.toBeNull();
+    // The javascript: message stays plain text — exactly one link on the page.
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(screen.getByText("javascript:alert(1)")).toBeInTheDocument();
+    // Long URLs must wrap inside the bubble rather than overflow it.
+    expect(chatStyles).toMatch(/\.chat-bubble\s*\{[^}]*overflow-wrap:anywhere/);
+    expect(chatStyles).toMatch(/\.chat-bubble a\s*\{[^}]*color:inherit/);
+  });
+
   it("sends through the real REST client abstraction when socket is unavailable and blocks blank messages", async () => {
     renderChat("/messages/12");
     await screen.findByText("Bugünkü plan hazır.");

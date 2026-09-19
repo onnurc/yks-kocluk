@@ -45,6 +45,9 @@
 .chat-bubble { display:flex; flex-direction:column; max-width:min(75%,720px); padding:14px 18px 9px; border-radius:18px 18px 18px 4px; background:#efeded; color:#1b1c1c; overflow-wrap:anywhere; white-space:pre-wrap; }
 .chat-message--mine .chat-bubble { border-radius:18px 18px 4px 18px; background:var(--gold); color:var(--ink); }
 .chat-bubble strong { margin-bottom:4px; font-size:13px; color:#78591b; }
+/* Links inherit the bubble's text colour so they stay legible on both the grey and gold bubbles;
+   the underline is what marks them as links. Long URLs wrap via the bubble's overflow-wrap. */
+.chat-bubble a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
 .chat-bubble time { align-self:flex-end; margin:5px 0 0 14px; color:inherit; opacity:.62; font-size:12px; }
 .chat-composer { position:relative; display:flex; align-items:flex-end; gap:10px; margin:0 28px 24px; padding:10px 11px 10px 20px; border-radius:30px; background:#f5f3f3; }
 .chat-composer textarea { flex:1; min-width:0; max-height:110px; padding:8px 0; border:0; outline:0; resize:none; background:transparent; color:#1b1c1c; font:inherit; }
