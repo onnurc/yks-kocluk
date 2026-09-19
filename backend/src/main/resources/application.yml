@@ -80,6 +80,10 @@ springdoc:
 # Railway terminates TLS at its proxy. Honor the original scheme/host when Spring builds
 # OAuth2 callback URLs from {baseUrl}; set to none only when running without a trusted proxy.
 server:
+  # Railway assigns the container a random port via the PORT env var and routes its proxy to
+  # exactly that port — it does not read SERVER_PORT. Without this, Spring always binds 8080
+  # and Railway's edge cannot reach the process. Local/dev is unaffected (PORT is unset there).
+  port: ${PORT:8080}
   # Fail closed for direct deployments: forwarded headers are ignored unless the operator has
   # explicitly placed a sanitizing reverse proxy in front of the service.
   forward-headers-strategy: ${SERVER_FORWARD_HEADERS_STRATEGY:none}

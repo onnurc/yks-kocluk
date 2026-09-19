@@ -57,6 +57,11 @@ public class FrontendUrlProductionConfigurationValidator implements SmartInitial
         for (String profile : environment.getActiveProfiles()) {
             if (NON_PRODUCTION_PROFILES.contains(profile.toLowerCase(Locale.ROOT))) return true;
         }
+        if (environment.getActiveProfiles().length == 0) {
+            for (String profile : environment.getDefaultProfiles()) {
+                if (NON_PRODUCTION_PROFILES.contains(profile.toLowerCase(Locale.ROOT))) return true;
+            }
+        }
         return false;
     }
 

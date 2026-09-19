@@ -1,0 +1,13 @@
+target/
+.git/
+.idea/
+.vscode/
+*.iml
+.env
+.env.local
+**/application-local.yml
+**/application-local.yml.example
+**/application-stub.yml
+**/application-test.yml*
+*.log
+.DS_Store
