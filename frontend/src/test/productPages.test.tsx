@@ -94,7 +94,7 @@ describe("authenticated meetings page", () => {
     const joinLinks = screen.getAllByRole("link", { name: /ile görüşmeye katıl/ });
     expect(joinLinks).toHaveLength(1);
     expect(joinLinks[0]).toHaveAttribute("href", plannedSession.meetLink);
-    expect(screen.getByLabelText("Görüşme bağlantısı henüz hazır değil")).toBeInTheDocument();
+    expect(screen.getByLabelText("Görüşme bağlantısı mesajlar üzerinden paylaşılacak")).toBeInTheDocument();
   });
 
   it("shows one real discovery CTA in the branded empty state", async () => {

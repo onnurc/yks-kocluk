@@ -335,7 +335,7 @@ describe("real coach dashboard", () => {
     renderRoute("/dashboard", coach, <DashboardPage />);
     expect(await screen.findByText("Bağlantısız Öğrenci")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /görüşmeye katıl/ })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Görüşme bağlantısı henüz hazır değil")).toBeInTheDocument();
+    expect(screen.getByLabelText("Google Meet bağlantısını mesajlar üzerinden öğrenciye gönderin")).toBeInTheDocument();
   });
 
   it("renders legitimate zero metrics and successful empty collections without failure UI", async () => {

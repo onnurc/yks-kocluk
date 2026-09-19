@@ -138,8 +138,8 @@ export const BookingsPage = () => {
                     <VideoIcon /><span>Görüşmeye katıl</span>
                   </a>
                 ) : session.status === "PLANNED" ? (
-                  <span className="bookings-page__join bookings-page__join--disabled" aria-label="Görüşme bağlantısı henüz hazır değil">
-                    <VideoIcon /><span>Bağlantı bekleniyor</span>
+                  <span className="bookings-page__join bookings-page__join--disabled" aria-label="Görüşme bağlantısı mesajlar üzerinden paylaşılacak">
+                    <VideoIcon /><span>Bağlantı mesajlarda paylaşılacak</span>
                   </span>
                 ) : null}
               </article>

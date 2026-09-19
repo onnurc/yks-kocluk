@@ -434,7 +434,7 @@ export const DashboardPage = () => {
                       <VideoIcon />
                     </a>
                   ) : (
-                    <span className="student-dashboard__join student-dashboard__join--disabled" title="Görüşme bağlantısı henüz hazır değil" aria-label="Görüşme bağlantısı henüz hazır değil">
+                    <span className="student-dashboard__join student-dashboard__join--disabled" title="Görüşme bağlantısı mesajlar üzerinden paylaşılacak" aria-label="Görüşme bağlantısı mesajlar üzerinden paylaşılacak">
                       <VideoIcon />
                     </span>
                   )}
