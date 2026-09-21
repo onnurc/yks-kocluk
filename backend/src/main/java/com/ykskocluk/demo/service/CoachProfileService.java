@@ -62,7 +62,7 @@ public class CoachProfileService {
                 // Resubmission: REJECTED → PENDING with updated fields.
                 University university = requireUniversity(request.universityId());
                 profile.setHeadline(request.headline());
-                profile.setBio(request.bio());
+                profile.setBio(normalizeBio(request.bio()));
                 profile.setUniversity(university);
                 profile.setDepartment(request.department());
                 profile.setGraduationYear(request.graduationYear());
@@ -81,7 +81,7 @@ public class CoachProfileService {
         CoachProfile profile = new CoachProfile();
         profile.setUser(user);
         profile.setHeadline(request.headline());
-        profile.setBio(request.bio());
+        profile.setBio(normalizeBio(request.bio()));
         profile.setUniversity(university);
         profile.setDepartment(request.department());
         profile.setGraduationYear(request.graduationYear());
@@ -106,7 +106,7 @@ public class CoachProfileService {
         validateGraduationYear(request.graduationYear());
         CoachProfile profile = requireOwnProfile(userId);
         profile.setHeadline(request.headline());
-        profile.setBio(request.bio());
+        profile.setBio(normalizeBio(request.bio()));
         profile.setUniversity(requireUniversity(request.universityId()));
         profile.setDepartment(request.department());
         profile.setGraduationYear(request.graduationYear());
@@ -133,7 +133,15 @@ public class CoachProfileService {
         profile.setUniversity(resolveUniversity(request.university()));
         profile.setDepartment(request.department());
         profile.setYksRanking(request.yksRanking());
+        profile.setBio(normalizeBio(request.bio()));
         return coachProfileMapper.toResponse(profile, loadTracks(profile.getId()));
+    }
+
+    private String normalizeBio(String bio) {
+        if (bio == null || bio.isBlank()) {
+            return null;
+        }
+        return bio.trim();
     }
 
     @Transactional(readOnly = true)

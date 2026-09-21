@@ -218,11 +218,13 @@ class CoachProfileServiceTest {
         university.setName("İstanbul Teknik Üniversitesi");
         when(universityRepository.findByNameIgnoreCase("İstanbul Teknik Üniversitesi")).thenReturn(Optional.of(university));
 
-        service.updateOwnEducation(1L, new CoachEducationUpdateRequest("  İstanbul   Teknik Üniversitesi ", "Bilgisayar", 1420));
+        service.updateOwnEducation(1L, new CoachEducationUpdateRequest("  İstanbul   Teknik Üniversitesi ", "Bilgisayar", 1420,
+                "  Öğrencilerle sürdürülebilir çalışma alışkanlıkları geliştiririm.  "));
 
         assertThat(profile.getUniversity()).isSameAs(university);
         assertThat(profile.getDepartment()).isEqualTo("Bilgisayar");
         assertThat(profile.getYksRanking()).isEqualTo(1420);
+        assertThat(profile.getBio()).isEqualTo("Öğrencilerle sürdürülebilir çalışma alışkanlıkları geliştiririm.");
         assertThat(profile.getHeadline()).isEqualTo("Mevcut başlık");
         assertThat(profile.getStatus()).isEqualTo(CoachProfileStatus.APPROVED);
     }
@@ -235,11 +237,27 @@ class CoachProfileServiceTest {
         when(universityRepository.findByNameIgnoreCase("Yeni Üniversite")).thenReturn(Optional.empty());
         when(universityRepository.save(any(University.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.updateOwnEducation(1L, new CoachEducationUpdateRequest("Yeni Üniversite", null, null));
+        service.updateOwnEducation(1L, new CoachEducationUpdateRequest("Yeni Üniversite", null, null, null));
 
         ArgumentCaptor<University> captor = ArgumentCaptor.forClass(University.class);
         verify(universityRepository).save(captor.capture());
         assertThat(captor.getValue().getName()).isEqualTo("Yeni Üniversite");
         assertThat(profile.getUniversity()).isSameAs(captor.getValue());
+    }
+
+    @Test
+    void updateOwnEducation_usesAuthenticatedOwnerAndAllowsEmptyBiography() {
+        CoachProfile ownProfile = new CoachProfile();
+        ownProfile.setBio("Eski biyografi");
+        University university = new University();
+        university.setName("Boğaziçi Üniversitesi");
+        when(coachProfileRepository.findByUserId(2L)).thenReturn(Optional.of(ownProfile));
+        when(universityRepository.findByNameIgnoreCase("Boğaziçi Üniversitesi")).thenReturn(Optional.of(university));
+
+        service.updateOwnEducation(2L, new CoachEducationUpdateRequest("Boğaziçi Üniversitesi", null, null, "   "));
+
+        verify(coachProfileRepository).findByUserId(2L);
+        verify(coachProfileRepository, never()).findById(any());
+        assertThat(ownProfile.getBio()).isNull();
     }
 }

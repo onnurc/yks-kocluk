@@ -13,6 +13,9 @@ public record CoachEducationUpdateRequest(
         String department,
 
         @Positive(message = "YKS sıralaması pozitif bir sayı olmalı")
-        Integer yksRanking
+        Integer yksRanking,
+
+        @Size(max = 1000, message = "Biyografi en fazla 1000 karakter olabilir")
+        String bio
 ) {
 }
