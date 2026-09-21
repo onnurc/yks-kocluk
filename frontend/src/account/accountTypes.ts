@@ -63,6 +63,7 @@ export interface CoachEducationUpdateRequest {
   university: string;
   department: string | null;
   yksRanking: number | null;
+  bio: string | null;
 }
 
 export interface MediaPresignResponse {

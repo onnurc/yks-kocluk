@@ -20,8 +20,12 @@
 .account-page__section-title h2 { margin: 0; font: 400 clamp(26px, 3vw, 36px)/1.05 "Righteous", sans-serif; }
 .account-page__fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
 .account-page__fields label { display: grid; gap: 8px; color: #353743; font-size: 14px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
-.account-page__fields input, .account-page__fields select { width: 100%; min-height: 58px; padding: 0 17px; border: 1px solid #e3e0e0; border-radius: 14px; outline: 0; color: var(--app-ink); background: #fff; font: 17px "Afacad", sans-serif; text-transform: none; transition: border-color .2s, box-shadow .2s; }
-.account-page__fields input:focus, .account-page__fields select:focus { border-color: var(--app-gold); box-shadow: 0 0 0 3px rgba(201,162,93,.16); }
+.account-page__fields input, .account-page__fields select, .account-page__fields textarea { width: 100%; min-height: 58px; padding: 0 17px; border: 1px solid #e3e0e0; border-radius: 14px; outline: 0; color: var(--app-ink); background: #fff; font: 17px "Afacad", sans-serif; text-transform: none; transition: border-color .2s, box-shadow .2s; }
+.account-page__fields textarea { min-height: 170px; padding-block: 15px; resize: vertical; line-height: 1.45; }
+.account-page__fields input:focus, .account-page__fields select:focus, .account-page__fields textarea:focus { border-color: var(--app-gold); box-shadow: 0 0 0 3px rgba(201,162,93,.16); }
+.account-page__biography { grid-column: 1 / -1; }
+.account-page__field-meta { display: flex; justify-content: space-between; gap: 18px; color: #6b6d77; font-size: 13px; font-weight: 400; letter-spacing: normal; text-transform: none; }
+.account-page__field-meta small:last-child { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
 .account-page__fields .account-page__readonly-field { color: #353743; }
 .account-page__fields input[readonly] { border-color: #dfdcdc; color: #353743; background: #f2f0f0; cursor: default; -webkit-text-fill-color: #353743; opacity: 1; }
 .account-page__read-only-note { margin: 14px 0 0; color: #565965; font-size: 14px; }
@@ -66,6 +70,7 @@
   .account-page__fields { grid-template-columns: 1fr; gap: 19px; }
   .account-page__fields--personal { grid-template-columns: 1fr; }
   .account-page__fields input, .account-page__fields select { min-height: 54px; }
+  .account-page__field-meta { align-items: flex-end; }
   .account-page__actions { flex-direction: column-reverse; }
   .account-page__actions button { width: 100%; border-radius: 13px; }
   .account-photo-modal__backdrop { padding: 18px; }

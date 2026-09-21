@@ -34,7 +34,7 @@ public class CoachProfile extends BaseEntity {
     @Column(length = 150)
     private String headline;
 
-    @Column(length = 2000)
+    @Column(length = 1000)
     private String bio;
 
     @ManyToOne(fetch = FetchType.LAZY)

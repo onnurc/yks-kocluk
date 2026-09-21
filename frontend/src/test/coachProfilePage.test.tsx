@@ -163,6 +163,13 @@ describe("Public koç profili", () => {
     expect(screen.queryByText(/9\.8|500\+|Efe Ali/)).not.toBeInTheDocument();
   });
 
+  it("keeps the existing biography fallback when a coach clears the field", async () => {
+    vi.mocked(coachDiscoveryApi.getPublicCoachDetail).mockResolvedValue({ ...detail, bio: "" });
+    renderRoute();
+
+    expect(await screen.findByText("Mentör henüz bir biyografi eklemedi.")).toBeInTheDocument();
+  });
+
   it("renders a real profile image and the generated privacy-enhanced YouTube embed", async () => {
     vi.mocked(coachDiscoveryApi.getPublicCoachDetail).mockResolvedValue({
       ...detail,

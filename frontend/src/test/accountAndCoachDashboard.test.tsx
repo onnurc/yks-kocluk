@@ -292,7 +292,54 @@ describe("shared role-aware account", () => {
     fireEvent.change(university, { target: { value: "Orta Doğu Teknik Üniversitesi" } });
     fireEvent.change(ranking, { target: { value: "3100" } });
     fireEvent.click(screen.getByRole("button", { name: "Bilgileri Kaydet" }));
-    await waitFor(() => expect(mocks.updateCoachEducation).toHaveBeenCalledWith({ university: "Orta Doğu Teknik Üniversitesi", department: "Endüstri Mühendisliği", yksRanking: 3100 }));
+    await waitFor(() => expect(mocks.updateCoachEducation).toHaveBeenCalledWith({ university: "Orta Doğu Teknik Üniversitesi", department: "Endüstri Mühendisliği", yksRanking: 3100, bio: "Gerçek profil" }));
+  });
+
+  it("saves the coach biography with a character counter and restores the persisted value after reload", async () => {
+    const savedBio = "Öğrencilerle ölçülebilir ve sürdürülebilir çalışma sistemleri kurarım.";
+    mocks.updateCoachEducation.mockImplementationOnce(async (request) => ({ ...coachProfile, ...request, universityName: request.university }));
+    const view = renderRoute("/account", coach, <AccountPage />);
+
+    const biography = await screen.findByLabelText("Hakkımda");
+    expect(biography).toHaveAttribute("maxlength", "1000");
+    expect(screen.getByText("13 / 1000")).toBeInTheDocument();
+    fireEvent.change(biography, { target: { value: savedBio } });
+    expect(screen.getByText(`${savedBio.length} / 1000`)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Bilgileri Kaydet" }));
+
+    await waitFor(() => expect(mocks.updateCoachEducation).toHaveBeenCalledWith({
+      university: "İstanbul Teknik Üniversitesi",
+      department: "Endüstri Mühendisliği",
+      yksRanking: 2870,
+      bio: savedBio,
+    }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Bilgileriniz kaydedildi.");
+
+    view.unmount();
+    mocks.getCoachProfile.mockResolvedValue({ ...coachProfile, bio: savedBio });
+    renderRoute("/account", coach, <AccountPage />);
+    expect(await screen.findByLabelText("Hakkımda")).toHaveValue(savedBio);
+  });
+
+  it("allows an empty biography and exposes the frontend character limit", async () => {
+    renderRoute("/account", coach, <AccountPage />);
+    const biography = await screen.findByLabelText("Hakkımda");
+
+    fireEvent.change(biography, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Bilgileri Kaydet" }));
+    await waitFor(() => expect(mocks.updateCoachEducation).toHaveBeenCalledWith(expect.objectContaining({ bio: null })));
+  });
+
+  it("keeps the edited biography visible and shows clear feedback when saving fails", async () => {
+    mocks.updateCoachEducation.mockRejectedValueOnce(new Error("database unavailable"));
+    renderRoute("/account", coach, <AccountPage />);
+    const biography = await screen.findByLabelText("Hakkımda");
+
+    fireEvent.change(biography, { target: { value: "Kaydedilemeyen biyografi" } });
+    fireEvent.click(screen.getByRole("button", { name: "Bilgileri Kaydet" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Bilgileriniz kaydedilemedi. Alanları kontrol edip yeniden deneyin.");
+    expect(biography).toHaveValue("Kaydedilemeyen biyografi");
   });
 
   it("loads a newly approved coach's real pending profile shell instead of failing the account", async () => {
