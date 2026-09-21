@@ -302,6 +302,7 @@ describe("shared role-aware account", () => {
 
     const biography = await screen.findByLabelText("Hakkımda");
     expect(biography).toHaveAttribute("maxlength", "1000");
+    await waitFor(() => expect(biography).toHaveValue(coachProfile.bio));
     expect(screen.getByText("13 / 1000")).toBeInTheDocument();
     fireEvent.change(biography, { target: { value: savedBio } });
     expect(screen.getByText(`${savedBio.length} / 1000`)).toBeInTheDocument();
@@ -318,7 +319,7 @@ describe("shared role-aware account", () => {
     view.unmount();
     mocks.getCoachProfile.mockResolvedValue({ ...coachProfile, bio: savedBio });
     renderRoute("/account", coach, <AccountPage />);
-    expect(await screen.findByLabelText("Hakkımda")).toHaveValue(savedBio);
+    await waitFor(() => expect(screen.getByLabelText("Hakkımda")).toHaveValue(savedBio));
   });
 
   it("allows an empty biography and exposes the frontend character limit", async () => {
