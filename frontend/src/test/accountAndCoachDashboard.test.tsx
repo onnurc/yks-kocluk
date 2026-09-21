@@ -325,6 +325,7 @@ describe("shared role-aware account", () => {
   it("allows an empty biography and exposes the frontend character limit", async () => {
     renderRoute("/account", coach, <AccountPage />);
     const biography = await screen.findByLabelText("Hakkımda");
+    await waitFor(() => expect(biography).toHaveValue(coachProfile.bio));
 
     fireEvent.change(biography, { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Bilgileri Kaydet" }));
