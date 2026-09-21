@@ -17,7 +17,9 @@ type StudentDraft = {
   targetUniversity: string;
   targetDepartment: string;
 };
-type CoachDraft = { university: string; department: string; yksRanking: string };
+type CoachDraft = { university: string; department: string; yksRanking: string; bio: string };
+
+const COACH_BIO_MAX_LENGTH = 1000;
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toLocaleUpperCase("tr-TR");
 const studentDraft = (profile: StudentProfileResponse): StudentDraft => ({
@@ -28,7 +30,7 @@ const studentDraft = (profile: StudentProfileResponse): StudentDraft => ({
   targetUniversity: profile.targetUniversity ?? "",
   targetDepartment: profile.targetDepartment ?? "",
 });
-const coachDraft = (profile: CoachProfileResponse): CoachDraft => ({ university: profile.universityName ?? "", department: profile.department ?? "", yksRanking: profile.yksRanking ? String(profile.yksRanking) : "" });
+const coachDraft = (profile: CoachProfileResponse): CoachDraft => ({ university: profile.universityName ?? "", department: profile.department ?? "", yksRanking: profile.yksRanking ? String(profile.yksRanking) : "", bio: profile.bio ?? "" });
 const scoreTypeDraft = (value: string): StudentDraft["yksScoreType"] => {
   if (value === "EQUAL_WEIGHT" || value === "NUMERICAL" || value === "VERBAL" || value === "LANGUAGE") return value;
   return "";
@@ -108,7 +110,7 @@ export function AccountPage() {
   } = useAccountProfile();
   const fileInput = useRef<HTMLInputElement>(null);
   const [student, setStudent] = useState<StudentDraft>({ gradeLevel: "", examYear: "", yksScoreType: "", examSession: "", targetUniversity: "", targetDepartment: "" });
-  const [coach, setCoach] = useState<CoachDraft>({ university: "", department: "", yksRanking: "" });
+  const [coach, setCoach] = useState<CoachDraft>({ university: "", department: "", yksRanking: "", bio: "" });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [removingPhoto, setRemovingPhoto] = useState(false);
@@ -143,6 +145,11 @@ export function AccountPage() {
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!user || user.role === "ADMIN") return;
+    if (user.role === "COACH" && coach.bio.length > COACH_BIO_MAX_LENGTH) {
+      setError(`Biyografi en fazla ${COACH_BIO_MAX_LENGTH} karakter olabilir.`);
+      setNotice(null);
+      return;
+    }
     setSaving(true); setError(null); setNotice(null);
     try {
       if (user.role === "STUDENT") {
@@ -161,6 +168,7 @@ export function AccountPage() {
           university: coach.university.trim(),
           department: coach.department.trim() || null,
           yksRanking: coach.yksRanking ? Number(coach.yksRanking) : null,
+          bio: coach.bio.trim() || null,
         });
         setCoachProfile(updated); setCoach(coachDraft(updated));
       }
@@ -265,6 +273,7 @@ export function AccountPage() {
                 <label>Üniversite<input type="text" value={coach.university} required maxLength={200} onChange={(event) => setCoach((value) => ({ ...value, university: event.target.value }))} /></label>
                 <label>Bölüm<input value={coach.department} maxLength={150} onChange={(event) => setCoach((value) => ({ ...value, department: event.target.value }))} /></label>
                 <label>YKS Sıralaması<input type="number" min="1" inputMode="numeric" value={coach.yksRanking} onChange={(event) => setCoach((value) => ({ ...value, yksRanking: event.target.value }))} /></label>
+                <label className="account-page__biography">Hakkımda<textarea aria-label="Hakkımda" value={coach.bio} maxLength={COACH_BIO_MAX_LENGTH} aria-describedby="coach-biography-help coach-biography-count" onChange={(event) => setCoach((value) => ({ ...value, bio: event.target.value }))} /><span className="account-page__field-meta"><small id="coach-biography-help">Public koç profilinizin Hakkında bölümünde gösterilir.</small><small id="coach-biography-count" aria-live="polite">{coach.bio.length} / {COACH_BIO_MAX_LENGTH}</small></span></label>
               </div>
             </section>
           )}

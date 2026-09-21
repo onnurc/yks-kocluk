@@ -16,7 +16,7 @@ public record CoachProfileUpdateRequest(
         @Size(max = 150, message = "Başlık en fazla 150 karakter olabilir")
         String headline,
 
-        @Size(max = 2000, message = "Biyografi en fazla 2000 karakter olabilir")
+        @Size(max = 1000, message = "Biyografi en fazla 1000 karakter olabilir")
         String bio,
 
         @NotNull(message = "Üniversite seçilmeli")

@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -141,6 +142,71 @@ class Phase2IntegrationTest {
                         .header("Authorization", "Bearer " + coachToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"headline\":\"\",\"universityId\":null,\"tracks\":[]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void coachBiography_isOwnerScopedPersistedValidatedAndPubliclyVisible() throws Exception {
+        String ownerToken = registerCoach("biography-owner@example.com");
+        String otherCoachToken = registerCoach("biography-other@example.com");
+        long universityId = firstUniversityId(ownerToken);
+
+        String ownerProfile = mockMvc.perform(post("/api/v1/coach/profile")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(coachProfileBody(universityId)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long ownerProfileId = ((Number) JsonPath.read(ownerProfile, "$.id")).longValue();
+
+        mockMvc.perform(post("/api/v1/coach/profile")
+                        .header("Authorization", "Bearer " + otherCoachToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(coachProfileBody(universityId)))
+                .andExpect(status().isCreated());
+
+        String adminToken = loginToken("admin@yks.local", "admin1234");
+        mockMvc.perform(post("/api/v1/admin/coaches/" + ownerProfileId + "/approve")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
+
+        String savedBiography = "Öğrencilerle hedef odaklı ve sürdürülebilir çalışma sistemleri kurarım.";
+        mockMvc.perform(put("/api/v1/coach/profile/me/education")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"university":"Boğaziçi Üniversitesi","department":"Bilgisayar",
+                                 "yksRanking":1420,"bio":"%s"}
+                                """.formatted(savedBiography)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bio").value(savedBiography))
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+
+        mockMvc.perform(get("/api/v1/coach/profile/me").header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bio").value(savedBiography));
+        mockMvc.perform(get("/api/v1/public/coaches/" + ownerProfileId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bio").value(savedBiography));
+
+        mockMvc.perform(put("/api/v1/coach/profile/me/education")
+                        .header("Authorization", "Bearer " + otherCoachToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"university":"Boğaziçi Üniversitesi","department":null,
+                                 "yksRanking":null,"bio":"Başka koçun biyografisi"}
+                                """))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/public/coaches/" + ownerProfileId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bio").value(savedBiography));
+
+        mockMvc.perform(put("/api/v1/coach/profile/me/education")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"university":"Boğaziçi Üniversitesi","department":null,
+                                 "yksRanking":null,"bio":"%s"}
+                                """.formatted("x".repeat(1001))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
     }
