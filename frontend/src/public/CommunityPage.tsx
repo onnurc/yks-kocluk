@@ -149,16 +149,16 @@ export function CommunityPage() {
           </div>
           <div className="community-giveback__rule">
             <p>Give Back nasıl planlanıyor?</p>
-            <h3>Yalnızca <strong>Sınava Kadar</strong> paketini satın alan ve YKS’de <strong>ilk 5.000</strong> içinde yer alan öğrencilerin Uniform Akademi’ye ödediği tutarın iade edilmesi planlanmaktadır.</h3>
+            <h3><strong>Sınava Kadar</strong> paketini satın alan ve YKS’de Türkiye genelinde <strong>ilk 5.000</strong> içinde yer alan öğrencilerin Uniform Akademi’ye ödediği tutarın iade edilmesi planlanmaktadır. Dil (YDT) alanından sınava giren öğrenciler Give Back programına dahil değildir.</h3>
             <div><span>Ödeme zamanı<strong>Takip eden yıl</strong></span><i aria-hidden="true">→</i><span>Ödeme planı<strong>12 aylık ödeme</strong></span></div>
           </div>
           <div className="community-giveback__steps">
-            <article><strong>01</strong><h3>Sınava Kadar Paketini Seç</h3><p>Give Back planı yalnızca UNTIL_EXAM / “Sınava Kadar” paketi için geçerlidir.</p></article>
+            <article><strong>01</strong><h3>Sınava Kadar Paketini Seç</h3><p>Give Back planı yalnızca Sınava Kadar paketi için geçerlidir.</p></article>
             <article><strong>02</strong><h3>İlk 5.000’e Gir</h3><p>YKS sıralamanda Türkiye genelinde ilk 5.000 içinde yer al.</p></article>
             <article><strong>03</strong><h3>12 Ayda Geri Al</h3><p>Ödediğin tutarın takip eden yıl boyunca 12 aylık ödemeye bölünmesi planlanır.</p></article>
           </div>
           <div className="community-giveback__actions"><Link className="community-button community-button--gold" to="/kocluk">Sınava Kadar Paketini İncele</Link></div>
-          <p className="community-giveback__fineprint">Give Back, planlanan ayrı bir başarı desteğidir; normal paket iptal ve iade politikasından ayrıdır.</p>
+          <p className="community-giveback__fineprint">Give Back, planlanan ayrı bir başarı desteğidir; normal paket iptal ve iade politikasından ayrıdır ve Dil (YDT) alanından sınava giren öğrencileri kapsamaz.</p>
         </div>
       </section>
 
@@ -168,7 +168,7 @@ export function CommunityPage() {
             <div className="community-heading community-heading--center"><p>Bağlantı kur</p><h2 id="community-connection-title">Süreç Deneyimi + Somut Sonuç</h2></div>
             <div className="community-connection__grid">
               <article><span>01</span><h3>Community</h3><p>Hazırlık sürecinde aidiyeti, üniversite vizyonunu ve birlikte gelişme kültürünü güçlendirmeyi amaçlar.</p><small>Süreç odaklı değer</small></article>
-              <article><span>02</span><h3>Give Back</h3><p>Sınava Kadar paketi alan ve YKS’de ilk 5.000’e giren öğrencilerin başarısını maddi olarak desteklemeyi amaçlar.</p><small>Sonuç odaklı değer</small></article>
+              <article><span>02</span><h3>Give Back</h3><p>Sınava Kadar paketi alan, Dil (YDT) alanı dışında YKS’de ilk 5.000’e giren öğrencilerin başarısını maddi olarak desteklemeyi amaçlar.</p><small>Sonuç odaklı değer</small></article>
             </div>
             <blockquote>“Sen geleceğine yatırım yaparken, biz de sana yatırım yapıyoruz.”</blockquote>
           </div>

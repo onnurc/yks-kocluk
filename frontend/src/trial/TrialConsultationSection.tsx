@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { trialConsultationApi } from "./trialConsultationApi";
 import type { TrialConsultationResponse } from "./trialConsultationTypes";
 import type { AvailabilityResponse } from "../booking/bookingTypes";
 import { ApiError } from "../api/ApiError";
+import { SlotPicker } from "./SlotPicker";
 import "./trial-consultation.css";
 
 interface TrialConsultationSectionProps {
@@ -41,6 +42,13 @@ export const TrialConsultationSection: React.FC<TrialConsultationSectionProps> =
   const [submitting, setSubmitting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<ApiError | Error | null>(null);
+  const bookingWindow = useMemo(() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    return { start, end };
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,10 +82,21 @@ export const TrialConsultationSection: React.FC<TrialConsultationSectionProps> =
     setError(null);
     try {
       const trial = await trialConsultationApi.request({ availabilityId: selectedSlotId });
+      setSlots((current) => current.filter((slot) => slot.id !== selectedSlotId));
       setExistingTrial(trial);
       setSelectedSlotId(null);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error("Görüşme talebi oluşturulamadı."));
+      const requestError = err instanceof Error ? err : new Error("Görüşme talebi oluşturulamadı.");
+      setError(requestError);
+      if (requestError instanceof ApiError && requestError.code === "SLOT_TAKEN") {
+        setSelectedSlotId(null);
+        try {
+          const availability = await trialConsultationApi.listCoachTrialAvailability(coachId);
+          setSlots(availability.filter((slot) => !slot.booked));
+        } catch {
+          // Keep the authoritative booking conflict visible; a later reload can retry availability.
+        }
+      }
     } finally {
       setSubmitting(false);
     }
@@ -164,26 +183,15 @@ export const TrialConsultationSection: React.FC<TrialConsultationSectionProps> =
           <p className="trial-card__hint">Bu koçun şu anda tanımlı uygun deneme görüşmesi saati bulunmuyor.</p>
         ) : (
           <>
-            <div className="trial-card__slots">
-              {slots.map((slot) => {
-                const { date, time } = formatSlot(slot.startTime);
-                const selected = selectedSlotId === slot.id;
-                return (
-                  <button
-                    key={slot.id}
-                    type="button"
-                    className={`trial-card__slot${selected ? " trial-card__slot--selected" : ""}`}
-                    onClick={() => setSelectedSlotId(slot.id)}
-                  >
-                    <span className="trial-card__slot-date">{date}</span>
-                    <span className="trial-card__slot-time">{time}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <button className="trial-card__submit" onClick={handleRequest} disabled={!selectedSlotId || submitting}>
-              {submitting ? "Gönderiliyor…" : "Ücretsiz Görüşme Planla"}
-            </button>
+            <SlotPicker
+              slots={slots}
+              rangeStart={bookingWindow.start}
+              rangeEnd={bookingWindow.end}
+              selectedSlotId={selectedSlotId}
+              onSelectSlot={setSelectedSlotId}
+              onConfirm={handleRequest}
+              submitting={submitting}
+            />
           </>
         )}
       </div>

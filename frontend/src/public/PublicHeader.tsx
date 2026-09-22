@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { BrandLogo } from "./BrandLogo";
 import { publicNavigation } from "./publicSiteConfig";
 import { useAuth } from "../auth/AuthProvider";
@@ -23,6 +23,8 @@ export function PublicHeader() {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isLandingPage = location.pathname === "/";
 
   const closeMenu = () => setMenuOpen(false);
 
@@ -80,9 +82,9 @@ export function PublicHeader() {
                 <Link className="public-button public-button--dark" to="/login">
                   Giriş Yap
                 </Link>
-                <Link className="public-button public-button--gold public-header__consultation" to="/register">
+                {!isLandingPage && <Link className="public-button public-button--gold public-header__consultation" to="/register">
                   Ücretsiz Görüş
-                </Link>
+                </Link>}
               </>
             )}
           </div>
@@ -107,9 +109,9 @@ export function PublicHeader() {
                 <Link className="public-button public-button--dark" to="/login">
                   Giriş Yap
                 </Link>
-                <Link className="public-button public-button--gold" to="/register">
+                {!isLandingPage && <Link className="public-button public-button--gold" to="/register">
                   Ücretsiz Görüş
-                </Link>
+                </Link>}
                 <span className="public-header__account" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
                     <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c.55-3.36 3.46-5.5 7-5.5s6.45 2.14 7 5.5H5Z" />
@@ -164,9 +166,9 @@ export function PublicHeader() {
                 <Link className="public-button public-button--dark" to="/login" onClick={closeMenu}>
                   Giriş Yap
                 </Link>
-                <Link className="public-button public-button--gold" to="/register" onClick={closeMenu}>
+                {!isLandingPage && <Link className="public-button public-button--gold" to="/register" onClick={closeMenu}>
                   Ücretsiz Görüş
-                </Link>
+                </Link>}
               </>
             )}
           </div>

@@ -1,8 +1,11 @@
 .coach-profile-page { color: #45464e; background: #fbf9f9; }
 .coach-profile-container { width: min(100%,1280px); margin-inline: auto; padding-inline: var(--public-gutter); }
 .coach-profile-back { margin-top: 40px; display: inline-flex; color: #625c5d !important; text-decoration: none; font-weight: 600; }
-.coach-profile-grid { padding: 54px 0 120px; display: grid; grid-template-columns: minmax(0,1.45fr) minmax(360px,1fr); grid-template-areas: "identity media" "about trial" "stats trial"; gap: 56px 48px; align-items: start; }
-.coach-profile-identity { grid-area: identity; display: flex; align-items: center; gap: 30px; }
+.coach-profile-grid { padding: 54px 0 72px; display: grid; grid-template-columns: minmax(0,1.45fr) minmax(360px,1fr); gap: 48px; align-items: start; }
+.coach-profile-column { min-width: 0; display: flex; flex-direction: column; }
+.coach-profile-column--main { gap: 36px; }
+.coach-profile-column--sidebar { gap: 24px; }
+.coach-profile-identity { display: flex; align-items: center; gap: 30px; }
 .coach-profile-avatar { width: 132px; height: 132px; flex: 0 0 auto; overflow: hidden; border: 5px solid #efeded; border-radius: 50%; display: grid; place-items: center; color: #78591b; background: #fff; font: 400 38px var(--public-font-display); }
 .coach-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .coach-profile-avatar--small { width: 82px; height: 82px; border-width: 3px; font-size: 25px; }
@@ -14,16 +17,14 @@
 .coach-profile-badges .is-open { color: #135e35; background: #e4f7ea; }
 .coach-profile-badges .is-full { color: #7a3030; background: #fae7e7; }
 .coach-profile-report { margin-top: 18px; padding: 9px 15px; border: 1px solid #d8caca; border-radius: 999px; color: #8a2e2e; background: transparent; font: 700 13px var(--public-font-body); cursor: pointer; }
-.coach-profile-media { grid-area: media; }
 .coach-profile-media__frame { aspect-ratio: 16/9; overflow: hidden; border-radius: 24px; background: #e4e2e2; }
 .coach-profile-media__frame iframe { width: 100%; height: 100%; border: 0; }
 .coach-profile-media video { width: 100%; height: 100%; display: block; object-fit: cover; }
 .coach-profile-media__empty { width: 100%; height: 100%; display: grid; place-content: center; justify-items: center; color: #625c5d; text-align: center; }
 .coach-profile-media__empty span { width: 72px; height: 72px; display: grid; place-items: center; border-radius: 50%; color: #000; background: #fff; font-size: 34px; }
 .coach-profile-media__empty p { margin: 14px 0 0 !important; }
-.coach-profile-media h2,.coach-profile-about h2,.coach-profile-trial h2,.coach-profile-similar h2 { margin: 24px 0 0; color: #000; font: 400 32px/1.2 var(--public-font-display); }
-.coach-profile-media > p { margin: 8px 0 0 !important; }
-.coach-profile-trial { grid-area: trial; padding: 34px; border-radius: 26px; background: linear-gradient(150deg,#fff 45%,#fff0d5); box-shadow: 0 12px 45px rgba(0,0,0,.035); }
+.coach-profile-about h2,.coach-profile-trial h2,.coach-profile-similar h2 { margin: 24px 0 0; color: #000; font: 400 32px/1.2 var(--public-font-display); }
+.coach-profile-trial { padding: 30px; border-radius: 26px; background: linear-gradient(150deg,#fff 45%,#fff0d5); box-shadow: 0 12px 45px rgba(0,0,0,.035); }
 .coach-profile-trial h2 { margin-top: 0; }
 .coach-profile-trial > p { margin: 16px 0 0 !important; line-height: 1.65; }
 .coach-profile-trial ul { margin: 26px 0; padding: 0; display: grid; gap: 12px; list-style: none; }
@@ -38,15 +39,15 @@
 .coach-profile-trial > small { margin-top: 15px; display: block; color: #625c5d; text-align: center; }
 .coach-profile-trial .trial-card { margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
 .coach-profile-trial .trial-card__body { padding: 4px 0 0; }
-.coach-profile-about { grid-area: about; padding-top: 12px; border-top: 1px solid rgba(126,117,118,.14); }
+.coach-profile-about { padding-top: 28px; border-top: 1px solid rgba(126,117,118,.14); }
 .coach-profile-about h2 { margin-top: 0; }
 .coach-profile-about p { margin: 18px 0 0 !important; white-space: pre-line; font-size: 18px; line-height: 1.75; }
-.coach-profile-stats { grid-area: stats; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px; }
+.coach-profile-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px; }
 .coach-profile-stats article { min-height: 160px; padding: 24px; display: flex; flex-direction: column; justify-content: center; border-radius: 20px; background: #fff; }
 .coach-profile-stats article > span { color: #78591b; font-size: 25px; }
 .coach-profile-stats strong { margin-top: 8px; color: #000; font: 400 34px var(--public-font-display); }
 .coach-profile-stats small { margin-top: 4px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.coach-profile-commerce { padding: 0 0 100px; }
+.coach-profile-commerce { padding: 0 0 80px; }
 .coach-profile-section-heading { max-width: 720px; }
 .coach-profile-section-heading > span { color: #78591b; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .coach-profile-section-heading h2,.coach-profile-booking > h2 { margin: 10px 0 0; color: #000; font: 400 clamp(34px,4vw,48px)/1.1 var(--public-font-display); }
@@ -86,7 +87,7 @@
 @keyframes coach-profile-shimmer { to { background-position: -200% 0; } }
 
 @media (max-width: 1023px) {
-  .coach-profile-grid { grid-template-columns: minmax(0,1fr) minmax(300px,.8fr); gap: 40px 30px; }
+  .coach-profile-grid { grid-template-columns: minmax(0,1fr) minmax(300px,.8fr); gap: 36px 30px; }
   .coach-profile-identity { align-items: flex-start; }
   .coach-profile-avatar { width: 108px; height: 108px; }
   .coach-profile-stats { grid-template-columns: 1fr; }
@@ -97,14 +98,16 @@
 @media (max-width: 719px) {
   .coach-profile-container { padding-inline: 20px; }
   .coach-profile-back { margin-top: 24px; }
-  .coach-profile-grid { padding: 34px 0 72px; grid-template-columns: 1fr; grid-template-areas: "identity" "media" "trial" "about" "stats"; gap: 42px; }
+  .coach-profile-grid { padding: 34px 0 56px; grid-template-columns: 1fr; gap: 36px; }
+  .coach-profile-column--main { gap: 30px; }
+  .coach-profile-column--sidebar { gap: 22px; }
   .coach-profile-identity { align-items: center; gap: 18px; }
   .coach-profile-avatar { width: 86px; height: 86px; border-width: 3px; font-size: 28px; }
   .coach-profile-identity h1 { font-size: 36px; }
   .coach-profile-school,.coach-profile-headline { font-size: 15px; }
   .coach-profile-badges { margin-top: 16px; gap: 7px; }
   .coach-profile-badges span { padding: 6px 9px; font-size: 9px; }
-  .coach-profile-media h2,.coach-profile-about h2,.coach-profile-trial h2,.coach-profile-similar h2 { font-size: 28px; }
+  .coach-profile-about h2,.coach-profile-trial h2,.coach-profile-similar h2 { font-size: 28px; }
   .coach-profile-trial { padding: 26px 20px; }
   .coach-profile-trial li div { align-items: flex-start; flex-direction: column; gap: 2px; }
   .coach-profile-trial li small { text-align: left; }

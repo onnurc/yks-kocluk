@@ -52,7 +52,7 @@ describe("Uniform error pages", () => {
     (path) => {
       renderAppRoute(path);
 
-      expect(screen.getByRole("heading", { level: 1, name: "Tekrar Hoş Geldin!" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1, name: "Hoş Geldin!" })).toBeInTheDocument();
       expect(screen.queryByLabelText("Hata kodu 404")).not.toBeInTheDocument();
     },
   );
