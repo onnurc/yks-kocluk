@@ -38,7 +38,7 @@ describe("Community page", () => {
     expect(screen.getByRole("heading", { name: "Yaklaşan Deneyimler ve Etkinlikler" })).toBeInTheDocument();
   });
 
-  it("states the confirmed Give Back rule without adding eligibility conditions", () => {
+  it("states the planned Give Back rule with natural package wording and the YDT exclusion", () => {
     renderCommunity();
 
     const giveBack = screen.getByRole("heading", { name: /İlk 5.000’e gir/ }).closest("section");
@@ -46,6 +46,8 @@ describe("Community page", () => {
     expect(within(giveBack as HTMLElement).getAllByText(/Sınava Kadar/).length).toBeGreaterThan(0);
     expect(within(giveBack as HTMLElement).getAllByText(/ilk 5.000/i).length).toBeGreaterThan(0);
     expect(within(giveBack as HTMLElement).getAllByText(/12 aylık/i).length).toBeGreaterThan(0);
+    expect(within(giveBack as HTMLElement).getAllByText(/Dil \(YDT\).*dahil değildir|Dil \(YDT\).*kapsamaz/i).length).toBeGreaterThan(0);
+    expect(within(giveBack as HTMLElement).queryByText(/UNTIL_EXAM/)).not.toBeInTheDocument();
     expect(within(giveBack as HTMLElement).getByText(/normal paket iptal ve iade politikasından ayrıdır/i)).toBeInTheDocument();
   });
 

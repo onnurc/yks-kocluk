@@ -158,6 +158,8 @@ describe("Public koç profili", () => {
 
     expect(await screen.findByLabelText("Ayşe Yılmaz için profil fotoğrafı bulunmuyor")).toHaveTextContent("AY");
     expect(screen.getByText("Tanıtım videosu henüz eklenmedi.")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Kendini Tanıt" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Bu kısa bölümde mentörünü daha yakından tanıyabilirsin.")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Ayşe Yılmaz tanıtım videosu")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ücretsiz Görüşme İçin Kayıt Ol" })).toHaveAttribute("href", "/register?coachId=42");
     expect(screen.queryByText(/9\.8|500\+|Efe Ali/)).not.toBeInTheDocument();
@@ -329,25 +331,52 @@ describe("Public koç profili", () => {
   });
 
   it("keeps the authenticated trial consultation request flow available", async () => {
+    const start = new Date();
+    start.setDate(start.getDate() + 2);
+    start.setHours(13, 0, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60 * 1000);
     vi.mocked(trialConsultationApi.listCoachTrialAvailability).mockResolvedValue([
-      { id: 501, coachProfileId: 42, startTime: "2026-09-10T10:00:00Z", endTime: "2026-09-10T10:30:00Z", booked: false },
+      { id: 501, coachProfileId: 42, startTime: start.toISOString(), endTime: end.toISOString(), booked: false },
     ]);
     vi.mocked(trialConsultationApi.request).mockResolvedValue({
       id: 700, coachProfileId: 42, coachName: "Ayşe Yılmaz", studentId: 10, studentName: "Öğrenci",
-      availabilityId: 501, status: "REQUESTED", startsAt: "2026-09-10T10:00:00Z", endsAt: "2026-09-10T10:30:00Z",
+      availabilityId: 501, status: "REQUESTED", startsAt: start.toISOString(), endsAt: end.toISOString(),
       requestedAt: "2026-09-01T10:00:00Z", updatedAt: "2026-09-01T10:00:00Z",
     });
     renderRoute("/coaches/42", { user: student, isAuthenticated: true });
 
-    const expectedTime = new Date("2026-09-10T10:00:00Z").toLocaleTimeString("tr-TR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    const slot = await screen.findByRole("button", { name: new RegExp(`10 Eylül Perşembe.*${expectedTime}`, "i") });
+    const expectedTime = start.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    const slot = await screen.findByRole("button", { name: `${expectedTime} saatini seç` });
     fireEvent.click(slot);
-    fireEvent.click(screen.getByRole("button", { name: "Ücretsiz Görüşme Planla" }));
+    expect(trialConsultationApi.request).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(`Devam et.*${expectedTime}`, "i") }));
     await waitFor(() => expect(trialConsultationApi.request).toHaveBeenCalledWith({ availabilityId: 501 }));
     expect(await screen.findByText("Durum: Onay bekliyor")).toBeInTheDocument();
+  });
+
+  it("preserves a stale-slot conflict and refreshes availability without bypassing the backend", async () => {
+    const start = new Date();
+    start.setDate(start.getDate() + 2);
+    start.setHours(14, 30, 0, 0);
+    const available = {
+      id: 504, coachProfileId: 42, startTime: start.toISOString(),
+      endTime: new Date(start.getTime() + 30 * 60 * 1000).toISOString(), booked: false,
+    };
+    vi.mocked(trialConsultationApi.listCoachTrialAvailability)
+      .mockResolvedValueOnce([available])
+      .mockResolvedValueOnce([]);
+    vi.mocked(trialConsultationApi.request).mockRejectedValue(
+      new ApiError(409, "Conflict", "Bu slot rezerve edilmiş", "SLOT_TAKEN"),
+    );
+    renderRoute("/coaches/42", { user: student, isAuthenticated: true });
+
+    const expectedTime = start.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    fireEvent.click(await screen.findByRole("button", { name: `${expectedTime} saatini seç` }));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(`Devam et.*${expectedTime}`, "i") }));
+
+    expect(await screen.findByText("Seçtiğiniz saat az önce dolmuş. Lütfen başka bir saat seçin.")).toBeInTheDocument();
+    await waitFor(() => expect(trialConsultationApi.listCoachTrialAvailability).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole("button", { name: `${expectedTime} saatini seç` })).not.toBeInTheDocument();
   });
 
   it("renders a confirmed trial meeting URL as an active safe join action", async () => {

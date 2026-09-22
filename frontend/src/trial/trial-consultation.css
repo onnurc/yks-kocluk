@@ -14,12 +14,33 @@
 .trial-card__body > p { margin: 10px 0 0; color: var(--public-color-text); font-size: 14px; line-height: 1.6; }
 .trial-card__hint { margin-top: 20px; color: var(--public-color-text); font-size: 14px; }
 .trial-card__error { margin-top: 16px; padding: 12px 14px; border-radius: 12px; background: rgba(186,26,26,.08); color: #93000a; font-size: 13px; }
-.trial-card__slots { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-top: 20px; }
-.trial-card__slot { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border: 1px solid rgba(207,196,197,.3); border-radius: 14px; background: var(--public-color-surface); color: var(--public-color-ink); text-align: left; cursor: pointer; transition: border-color 180ms ease,background-color 180ms ease; }
-.trial-card__slot:hover { border-color: rgba(120,89,27,.35); }
-.trial-card__slot--selected { border-color: var(--public-color-gold); background: rgba(255,222,169,.25); }
-.trial-card__slot-date { color: var(--public-color-text); font-size: 12px; }
-.trial-card__slot-time { font-size: 15px; font-weight: 700; }
+.slot-picker { margin-top: 20px; container-type: inline-size; }
+.slot-picker__calendar-header { display: grid; grid-template-columns: 36px minmax(0,1fr) 36px; align-items: center; gap: 8px; }
+.slot-picker__calendar-header strong { color: var(--public-color-ink); font-size: 14px; text-align: center; text-transform: capitalize; }
+.slot-picker__calendar-header button { width: 36px; height: 36px; border: 1px solid var(--public-color-border); border-radius: 50%; color: var(--public-color-ink); background: var(--public-color-surface); cursor: pointer; }
+.slot-picker__calendar-header button:disabled { color: var(--public-color-text); cursor: not-allowed; opacity: .45; }
+.slot-picker__days { margin-top: 12px; display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 5px; }
+.slot-picker__day { min-width: 0; min-height: 72px; padding: 8px 2px; border: 1px solid var(--public-color-border); border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--public-color-text); background: var(--public-color-surface); cursor: pointer; }
+.slot-picker__day > span { font-size: 10px; font-weight: 700; text-transform: capitalize; }
+.slot-picker__day > strong { margin-top: 2px; color: var(--public-color-ink); font-size: 17px; }
+.slot-picker__day > small { margin-top: 2px; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.slot-picker__day:hover:not(:disabled) { border-color: var(--public-color-gold); }
+.slot-picker__day--selected { border-color: var(--public-color-gold); color: var(--public-color-ink); background: var(--public-color-gold); }
+.slot-picker__day--selected > strong { color: var(--public-color-ink); }
+.slot-picker__day:disabled { cursor: not-allowed; opacity: .48; }
+.slot-picker__times { margin-top: 20px; }
+.slot-picker__times-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.slot-picker__times-heading strong { color: var(--public-color-ink); font-size: 14px; text-transform: capitalize; }
+.slot-picker__times-heading span { flex: 0 0 auto; color: var(--public-color-text); font-size: 11px; }
+.slot-picker__time-scroll { max-height: 286px; margin-top: 12px; padding-right: 3px; overflow-y: auto; overscroll-behavior: contain; }
+.slot-picker__time-group + .slot-picker__time-group { margin-top: 16px; }
+.slot-picker__time-group h4 { margin: 0 0 8px; color: var(--public-color-text); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.slot-picker__time-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.slot-picker__time { min-width: 0; min-height: 42px; padding: 8px 4px; border: 1px solid var(--public-color-border); border-radius: 12px; color: var(--public-color-ink); background: var(--public-color-surface); font: 700 13px var(--public-font-body); cursor: pointer; }
+.slot-picker__time:hover { border-color: var(--public-color-gold); }
+.slot-picker__time--selected { border-color: var(--public-color-gold); color: var(--public-color-ink); background: var(--public-color-gold); }
+.slot-picker__empty { margin: 18px 0 0 !important; padding: 14px; border-radius: 12px; color: var(--public-color-text); background: var(--public-color-surface); font-size: 13px; text-align: center; }
+.slot-picker :is(button):focus-visible { outline: 2px solid var(--public-color-gold); outline-offset: 3px; }
 .trial-card__submit { width: 100%; margin-top: 20px; padding: 16px; border: 0; border-radius: 16px; background: #000; color: #eac078; font: 600 15px/1 var(--public-font-body); cursor: pointer; transition: background-color 180ms ease,opacity 180ms ease; }
 .trial-card__submit:disabled,.trial-card__cancel:disabled { opacity: .55; cursor: not-allowed; }
 .trial-card__submit:hover:not(:disabled) { background: #1f1f1f; }
@@ -32,4 +53,5 @@
 .public-site a.trial-card__meeting-link:hover{background:#15264c}
 .public-site a.trial-card__meeting-link:focus-visible{outline:3px solid #c49a50;outline-offset:3px;box-shadow:0 0 0 5px rgba(196,154,80,.18)}
 .public-site .trial-card__meeting-link--disabled{color:#555c69;background:#dedfe3;cursor:not-allowed}
-@media (max-width: 419px) { .trial-card__slots { grid-template-columns: 1fr; } }
+@container (min-width: 400px) { .slot-picker__time-grid { grid-template-columns: repeat(4,minmax(0,1fr)); } }
+@container (max-width: 289px) { .slot-picker__time-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }

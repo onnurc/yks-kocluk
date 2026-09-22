@@ -43,9 +43,8 @@ export const LoginPage: React.FC = () => {
 
   return (
     <AuthPageShell
-      title="Tekrar Hoş Geldin!"
-      lead="Uniform hesabına giriş yaparak koçluk programlarına, çalışma planına ve Community ayrıcalıklarına kaldığın yerden devam et."
-      icon="↪"
+      title="Hoş Geldin!"
+      compact
     >
       {typeof location.state?.notice === "string" && <div role="status" className="auth-notice auth-notice--success">{location.state.notice}</div>}
       {searchParams.get("accountDeleted") === "1" && <div role="status" className="auth-notice auth-notice--info">Hesabınızla ilgili silme işlemi tamamlandı. Oturumunuz güvenli biçimde kapatıldı.</div>}
