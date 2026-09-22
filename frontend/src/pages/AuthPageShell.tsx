@@ -3,23 +3,24 @@ import { BrandLogo } from "../public/BrandLogo";
 
 type AuthPageShellProps = {
   title: string;
-  lead: string;
-  icon: ReactNode;
+  lead?: string;
+  icon?: ReactNode;
   children: ReactNode;
   wide?: boolean;
+  compact?: boolean;
 };
 
-export function AuthPageShell({ title, lead, icon, children, wide = false }: AuthPageShellProps) {
+export function AuthPageShell({ title, lead, icon, children, wide = false, compact = false }: AuthPageShellProps) {
   return (
     <div className="auth-shell">
       <a className="auth-skip-link" href="#auth-main">Ana içeriğe geç</a>
       <div className="auth-shell__brand"><BrandLogo to="/" size="compact" /></div>
       <main className="auth-page" id="auth-main">
-        <section className={`auth-card${wide ? " auth-card--wide" : ""}`} aria-labelledby="auth-title">
+        <section className={`auth-card${wide ? " auth-card--wide" : ""}${compact ? " auth-card--compact" : ""}`} aria-labelledby="auth-title">
           <header className="auth-card__header">
-            <span className="auth-card__icon" aria-hidden="true">{icon}</span>
+            {icon != null && <span className="auth-card__icon" aria-hidden="true">{icon}</span>}
             <h1 id="auth-title">{title}</h1>
-            <p className="auth-lead">{lead}</p>
+            {lead && <p className="auth-lead">{lead}</p>}
           </header>
           {children}
         </section>

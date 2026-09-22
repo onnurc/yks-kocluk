@@ -206,37 +206,49 @@ export function CoachProfilePage() {
       <div className="coach-profile-container">
         <Link className="coach-profile-back" to="/coaches">← Koçlarımıza Dön</Link>
         <div className="coach-profile-grid">
-          <section className="coach-profile-identity" aria-labelledby="coach-profile-title">
-            <ProfileAvatar name={coach.fullName} url={coach.profileImageUrl} />
-            <div>
-              <h1 id="coach-profile-title">{coach.fullName}</h1>
-              <p className="coach-profile-school">⌂ {[coach.universityName, coach.department].filter(Boolean).join(" · ")}</p>
-              <p className="coach-profile-headline">{coach.headline}</p>
-              <div className="coach-profile-badges">
-                {tracks.map((track) => <span key={track}>{track}</span>)}
-                <span className={coach.acceptingNewStudents ? "is-open" : "is-full"}>{coach.acceptingNewStudents ? "Yeni öğrenci kabul ediyor" : "Kontenjan dolu"}</span>
+          <div className="coach-profile-column coach-profile-column--main">
+            <section className="coach-profile-identity" aria-labelledby="coach-profile-title">
+              <ProfileAvatar name={coach.fullName} url={coach.profileImageUrl} />
+              <div>
+                <h1 id="coach-profile-title">{coach.fullName}</h1>
+                <p className="coach-profile-school">⌂ {[coach.universityName, coach.department].filter(Boolean).join(" · ")}</p>
+                <p className="coach-profile-headline">{coach.headline}</p>
+                <div className="coach-profile-badges">
+                  {tracks.map((track) => <span key={track}>{track}</span>)}
+                  <span className={coach.acceptingNewStudents ? "is-open" : "is-full"}>{coach.acceptingNewStudents ? "Yeni öğrenci kabul ediyor" : "Kontenjan dolu"}</span>
+                </div>
+                {reportTargetUserId && (
+                  <button className="coach-profile-report" type="button" onClick={() => setShowReportModal(true)}>
+                    Koçu Bildir
+                  </button>
+                )}
               </div>
-              {reportTargetUserId && (
-                <button className="coach-profile-report" type="button" onClick={() => setShowReportModal(true)}>
-                  Koçu Bildir
-                </button>
-              )}
-            </div>
-          </section>
+            </section>
 
-          <section className="coach-profile-media" aria-labelledby="coach-profile-media-title">
-            <div className="coach-profile-media__frame">
-              {safeYoutubeEmbedUrl(coach.introVideoEmbedUrl) ? (
-                <YouTubeEmbed url={coach.introVideoEmbedUrl} title={`${coach.fullName} tanıtım videosu`} />
-              ) : (
-                <div className="coach-profile-media__empty"><span aria-hidden="true">▷</span><p>Tanıtım videosu henüz eklenmedi.</p></div>
-              )}
-            </div>
-            <h2 id="coach-profile-media-title">Kendini Tanıt</h2>
-            <p>Bu kısa bölümde mentörünü daha yakından tanıyabilirsin.</p>
-          </section>
+            <section className="coach-profile-about" aria-labelledby="coach-profile-about-title">
+              <h2 id="coach-profile-about-title">Hakkında</h2>
+              <p>{coach.bio || "Mentör henüz bir biyografi eklemedi."}</p>
+            </section>
 
-          <section className="coach-profile-trial" aria-label="Ücretsiz Tanışma Görüşmesi">
+            <section className="coach-profile-stats" aria-label="Koç istatistikleri">
+              {coach.rating != null && <article><span aria-hidden="true">★</span><strong>{coach.rating.toFixed(1)}</strong><small>Ortalama Puan</small></article>}
+              <article><span aria-hidden="true">♧</span><strong>{coach.totalSessions}</strong><small>Tamamlanan Görüşme</small></article>
+              {coach.graduationYear && <article><span aria-hidden="true">▣</span><strong>{coach.graduationYear}</strong><small>Mezuniyet Yılı</small></article>}
+            </section>
+          </div>
+
+          <div className="coach-profile-column coach-profile-column--sidebar">
+            <section className="coach-profile-media" aria-label="Mentör tanıtım videosu">
+              <div className="coach-profile-media__frame">
+                {safeYoutubeEmbedUrl(coach.introVideoEmbedUrl) ? (
+                  <YouTubeEmbed url={coach.introVideoEmbedUrl} title={`${coach.fullName} tanıtım videosu`} />
+                ) : (
+                  <div className="coach-profile-media__empty"><span aria-hidden="true">▷</span><p>Tanıtım videosu henüz eklenmedi.</p></div>
+                )}
+              </div>
+            </section>
+
+            <section className="coach-profile-trial" aria-label="Ücretsiz Tanışma Görüşmesi">
             {user?.role === "STUDENT" && !isSubscribedToThisCoach && !hasActiveCoachRelationship ? (
               <TrialConsultationSection key={coach.id} coachId={coach.id} />
             ) : (
@@ -281,18 +293,8 @@ export function CoachProfilePage() {
                 {!user && <small>Deneme görüşmesi ve rezervasyon işlemleri giriş gerektirir.</small>}
               </>
             )}
-          </section>
-
-          <section className="coach-profile-about" aria-labelledby="coach-profile-about-title">
-            <h2 id="coach-profile-about-title">Hakkında</h2>
-            <p>{coach.bio || "Mentör henüz bir biyografi eklemedi."}</p>
-          </section>
-
-          <section className="coach-profile-stats" aria-label="Koç istatistikleri">
-            {coach.rating != null && <article><span aria-hidden="true">★</span><strong>{coach.rating.toFixed(1)}</strong><small>Ortalama Puan</small></article>}
-            <article><span aria-hidden="true">♧</span><strong>{coach.totalSessions}</strong><small>Tamamlanan Görüşme</small></article>
-            {coach.graduationYear && <article><span aria-hidden="true">▣</span><strong>{coach.graduationYear}</strong><small>Mezuniyet Yılı</small></article>}
-          </section>
+            </section>
+          </div>
         </div>
 
         {user?.role === "STUDENT" && (

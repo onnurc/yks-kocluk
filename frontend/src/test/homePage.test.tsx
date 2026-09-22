@@ -40,6 +40,11 @@ describe("Ana Sayfa", () => {
     const primaryCta = screen.getByRole("link", { name: "Ücretsiz Görüşme Ayarla" });
     expect(primaryCta).toHaveAttribute("href", "/register");
     expect(primaryCta).toHaveClass("home-button--primary");
+    expect(screen.getByRole("link", { name: "Sistemimizi İncele" })).toHaveAttribute("href", "#neden-uniform");
+    within(screen.getByRole("banner")).getAllByRole("link", { name: "Giriş Yap" })
+      .forEach((link) => expect(link).toHaveAttribute("href", "/login"));
+    expect(within(screen.getByRole("banner")).queryByRole("link", { name: "Ücretsiz Görüş" })).not.toBeInTheDocument();
+    expect(screen.queryByText("YKS Mentörlük Programı")).not.toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Bilgi Al" })).toHaveLength(3);
     expect(within(screen.getByRole("navigation", { name: "Ana menü" })).getByRole("link", { name: "Biz Kimiz" })).toHaveAttribute("href", "/biz-kimiz");
   });
