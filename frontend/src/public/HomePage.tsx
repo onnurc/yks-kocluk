@@ -85,7 +85,6 @@ export function HomePage() {
       <section className="home-hero" aria-labelledby="home-title">
         <div className="home-hero__pattern" aria-hidden="true" />
         <div className="home-hero__inner">
-          <p className="home-eyebrow"><span /> YKS Mentörlük Programı</p>
           <h1 id="home-title">
             Hedeflerin Kadar <em>Disiplinli</em>,<br />Başarın Kadar Kalıcı.
           </h1>

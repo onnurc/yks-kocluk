@@ -54,7 +54,10 @@ describe("auth page family", () => {
     mocks.login.mockResolvedValue(undefined);
     render(<MemoryRouter><LoginPage /></MemoryRouter>);
 
-    expect(screen.getByRole("heading", { level: 1, name: "Tekrar Hoş Geldin!" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Hoş Geldin!" })).toBeInTheDocument();
+    expect(document.querySelector(".auth-card__icon")).not.toBeInTheDocument();
+    expect(document.querySelector(".auth-lead")).not.toBeInTheDocument();
+    expect(document.querySelector(".auth-card--compact")).toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Google ile Giriş Yap" })).toHaveAttribute("href", "http://localhost:8080/oauth2/authorization/google");
     expect(screen.getByRole("link", { name: "Parolamı Unuttum" })).toHaveAttribute("href", "/forgot-password");
