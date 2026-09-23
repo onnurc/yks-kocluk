@@ -143,6 +143,8 @@ describe("shared authenticated product shell", () => {
     expect(container.querySelector(".app-layout__header")).toBeInTheDocument();
     expect(container.querySelector(".app-layout__sidebar")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Uniform Akademi ana sayfa" })).toBeInTheDocument();
+    expect(screen.getByText("uniform", { selector: ".brand-logo__wordmark" })).toBeInTheDocument();
+    expect(container.querySelector(".brand-logo__mark")).toHaveAttribute("viewBox", "0 0 40 40");
     expect(screen.getByText("Mentorluk")).toBeInTheDocument();
     expect(screen.queryByText("YKS Koçluk")).not.toBeInTheDocument();
   });
@@ -166,6 +168,18 @@ describe("shared authenticated product shell", () => {
     expect(container.querySelector(".app-layout__sidebar")).toHaveClass("is-open");
     expect(screen.getByRole("button", { name: "Hesap menüsünü aç" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Ayarlar" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["STUDENT", "Selin Erdem", "/dashboard"],
+    ["COACH", "Ece Koç", "/dashboard"],
+    ["ADMIN", "Deniz Admin", "/admin"],
+  ] as const)("uses the shared lowercase wordmark for the %s shell", (role, fullName, path) => {
+    const { container } = renderShell(path, { ...student, role, fullName });
+
+    expect(screen.getByText("uniform", { selector: ".brand-logo__wordmark" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Uniform Akademi ana sayfa" })).toHaveAttribute("href", "/dashboard");
+    expect(container.querySelector(".brand-logo__mark")).toHaveAttribute("viewBox", "0 0 40 40");
   });
 
   it("uses only real student product destinations and keeps logout in the menu", async () => {

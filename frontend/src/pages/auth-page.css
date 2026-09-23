@@ -52,7 +52,7 @@
 
 .auth-shell .brand-logo { display: inline-flex; align-items: center; gap: 8px; color: var(--auth-ink) !important; text-decoration: none; }
 .auth-shell .brand-logo__mark { width: 28px; height: 28px; fill: currentColor; }
-.auth-shell .brand-logo__wordmark { color: var(--auth-ink); font: 400 25px/1 "Righteous", system-ui, sans-serif; letter-spacing: -0.04em; }
+.auth-shell .brand-logo__wordmark { color: var(--auth-ink); font: 700 25px/1 var(--font-editorial); letter-spacing: -0.04em; text-transform: lowercase; }
 
 .auth-page {
   position: relative;

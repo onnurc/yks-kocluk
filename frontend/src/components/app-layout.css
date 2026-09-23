@@ -43,7 +43,7 @@
 .app-layout__header-actions { gap: 12px; }
 .app-layout__brand { display: inline-flex; align-items: center; gap: 8px; color: var(--app-ink); text-decoration: none; }
 .app-layout__brand .brand-logo__mark { width: 29px; height: 29px; fill: currentColor; }
-.app-layout__brand .brand-logo__wordmark { color: var(--app-ink); font: 400 28px/1 "Righteous", sans-serif; letter-spacing: -.04em; text-transform: uppercase; }
+.app-layout__brand .brand-logo__wordmark { color: var(--app-ink); font: 700 28px/1 var(--font-editorial); letter-spacing: -.04em; text-transform: lowercase; }
 .app-layout__product-name { padding-left: 13px; border-left: 1px solid var(--app-border); color: var(--app-gold-dark); font-size: 13px; font-weight: 600; letter-spacing: .08em; }
 
 .app-layout__icon-button { position: relative; width: 42px; height: 42px; padding: 9px; display: grid; place-items: center; border: 0; border-radius: 50%; color: var(--app-ink); background: transparent; cursor: pointer; text-decoration: none; }

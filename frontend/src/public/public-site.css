@@ -82,8 +82,10 @@
 
 .brand-logo__wordmark {
   color: var(--public-color-ink);
-  font-family: var(--public-font-display);
+  font-family: var(--font-editorial);
   font-size: 29px;
+  font-style: normal;
+  font-weight: 700;
   line-height: 1;
   letter-spacing: -0.04em;
   text-transform: lowercase;

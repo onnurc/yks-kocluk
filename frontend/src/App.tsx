@@ -39,6 +39,7 @@ import { CommunityPage } from "./public/CommunityPage";
 import { PublicLayout } from "./public/PublicLayout";
 import { AppErrorBoundary } from "./errors/AppErrorBoundary";
 import "./App.css";
+import "./typography.css";
 
 export const AppRoutes: React.FC = () => {
   return (
