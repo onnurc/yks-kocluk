@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -182,6 +183,85 @@ describe("OAuth and onboarding gates", () => {
     );
     await waitFor(() => expect(mocks.auth.completeOAuthLogin).toHaveBeenCalledWith("once"));
     expect(await screen.findByText("Onboarding ekranı")).toBeInTheDocument();
+  });
+
+  it("keeps the OAuth transition visually neutral and exchanges a code exactly once", async () => {
+    mocks.auth.completeOAuthLogin.mockReturnValue(new Promise(() => undefined));
+
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={["/oauth/callback?code=single-use-code"]}>
+          <OAuthCallbackPage />
+        </MemoryRouter>
+      </StrictMode>,
+    );
+
+    await waitFor(() => expect(mocks.auth.completeOAuthLogin).toHaveBeenCalledTimes(1));
+    expect(mocks.auth.completeOAuthLogin).toHaveBeenCalledWith("single-use-code");
+    expect(screen.getByRole("main")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status", { name: "Oturum hazırlanıyor." })).toBeEmptyDOMElement();
+    expect(screen.getByText("uniform")).toBeVisible();
+    expect(document.querySelector(".auth-card")).not.toBeInTheDocument();
+    expect(screen.queryByText("Google ile giriş")).not.toBeInTheDocument();
+    expect(screen.queryByText("Giriş tamamlanıyor…")).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("single-use-code");
+  });
+
+  it.each([
+    ["unverified students", { id: 10, email: "student@example.com", fullName: "Student", role: "STUDENT" as const, status: "ACTIVE" as const, emailVerified: false, legalOnboardingCompleted: false }, "/verify-email", "Doğrulama ekranı"],
+    ["students awaiting legal onboarding", { id: 11, email: "student@example.com", fullName: "Student", role: "STUDENT" as const, status: "ACTIVE" as const, emailVerified: true, legalOnboardingCompleted: false }, "/legal-onboarding", "Onboarding ekranı"],
+    ["ready students", { id: 12, email: "student@example.com", fullName: "Student", role: "STUDENT" as const, status: "ACTIVE" as const, emailVerified: true, legalOnboardingCompleted: true }, "/dashboard", "Öğrenci paneli"],
+    ["ready administrators", { id: 13, email: "admin@example.com", fullName: "Admin", role: "ADMIN" as const, status: "ACTIVE" as const, emailVerified: true, legalOnboardingCompleted: true }, "/admin", "Yönetim paneli"],
+  ])("preserves the post-OAuth redirect for %s", async (_label, user, destination, destinationText) => {
+    mocks.auth.completeOAuthLogin.mockResolvedValue(user);
+
+    render(
+      <MemoryRouter initialEntries={["/oauth/callback?code=once"]}>
+        <Routes>
+          <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+          <Route path={destination} element={<p>{destinationText}</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText(destinationText)).toBeInTheDocument();
+    expect(mocks.auth.completeOAuthLogin).toHaveBeenCalledTimes(1);
+    expect(mocks.auth.completeOAuthLogin).toHaveBeenCalledWith("once");
+  });
+
+  it("shows a recoverable accessible error when the OAuth code is missing", () => {
+    render(
+      <MemoryRouter initialEntries={["/oauth/callback"]}>
+        <Routes>
+          <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+          <Route path="/login" element={<p>Giriş ekranı</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Google giriş kodu bulunamadı. Lütfen yeniden giriş yapın.");
+    expect(alert.closest(".auth-card")).toHaveClass("auth-card--compact");
+    expect(mocks.auth.completeOAuthLogin).not.toHaveBeenCalled();
+    const returnButton = screen.getByRole("button", { name: "Girişe dön" });
+    expect(returnButton).toHaveClass("auth-submit");
+    fireEvent.click(returnButton);
+    expect(screen.getByText("Giriş ekranı")).toBeInTheDocument();
+  });
+
+  it("shows a recoverable accessible error without retrying a failed OAuth exchange", async () => {
+    mocks.auth.completeOAuthLogin.mockRejectedValue(new Error("Geçersiz veya süresi dolmuş kod"));
+
+    render(
+      <MemoryRouter initialEntries={["/oauth/callback?code=expired-code"]}>
+        <OAuthCallbackPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Geçersiz veya süresi dolmuş kod");
+    expect(screen.getByRole("button", { name: "Girişe dön" })).toBeInTheDocument();
+    expect(mocks.auth.completeOAuthLogin).toHaveBeenCalledTimes(1);
+    expect(document.body).not.toHaveTextContent("expired-code");
   });
 
   it("blocks continuation until both required approvals and keeps marketing permissions optional", async () => {
