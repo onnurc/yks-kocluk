@@ -25,6 +25,8 @@ describe("public site foundation", () => {
     expect(screen.getByRole("heading", { name: "Geçici sayfa içeriği" })).toBeInTheDocument();
     expect(screen.getByRole("contentinfo")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ana içeriğe geç" })).toHaveAttribute("href", "#public-main");
+    expect(screen.getAllByText("uniform", { selector: ".brand-logo__wordmark" })).toHaveLength(2);
+    expect([...document.querySelectorAll(".brand-logo__mark")].every((mark) => mark.getAttribute("viewBox") === "0 0 40 40")).toBe(true);
   });
 
   it("opens and closes the keyboard-accessible mobile menu", () => {
