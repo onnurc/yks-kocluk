@@ -3,6 +3,10 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { readinessPathForUser } from "../auth/authNavigation";
 import { FormError } from "../components/FormError";
+import { BrandLogo } from "../public/BrandLogo";
+import { AuthPageShell } from "./AuthPageShell";
+import "./auth-page.css";
+import "./oauth-callback-page.css";
 
 export const OAuthCallbackPage: React.FC = () => {
   const { completeOAuthLogin } = useAuth();
@@ -24,12 +28,25 @@ export const OAuthCallbackPage: React.FC = () => {
       .catch((cause) => setError(cause instanceof Error ? cause : "Google ile giriş tamamlanamadı."));
   }, [code, completeOAuthLogin, navigate]);
 
+  if (!error) {
+    return (
+      <div className="auth-shell oauth-callback-shell" aria-busy="true">
+        <header className="auth-shell__brand">
+          <BrandLogo size="compact" />
+        </header>
+        <main className="oauth-callback-transition" aria-busy="true">
+          <span role="status" aria-label="Oturum hazırlanıyor." />
+        </main>
+      </div>
+    );
+  }
+
   return (
-    <main style={{ maxWidth: "460px", margin: "5rem auto", padding: "2rem", textAlign: "center" }}>
-      <h1>Google ile giriş</h1>
-      <FormError error={error} />
-      {!error && <p role="status">Giriş tamamlanıyor…</p>}
-      {error && <button type="button" onClick={() => navigate("/login", { replace: true })}>Girişe dön</button>}
-    </main>
+    <AuthPageShell title="Google ile giriş" compact>
+      <div className="auth-error-slot" role="alert">
+        <FormError error={error} />
+      </div>
+      <button className="auth-submit" type="button" onClick={() => navigate("/login", { replace: true })}>Girişe dön</button>
+    </AuthPageShell>
   );
 };
