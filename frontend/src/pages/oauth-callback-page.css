@@ -1,0 +1,10 @@
+.oauth-callback-shell {
+  display: flex;
+  flex-direction: column;
+}
+
+.oauth-callback-transition {
+  min-height: 0;
+  flex: 1;
+  background: var(--auth-surface);
+}
