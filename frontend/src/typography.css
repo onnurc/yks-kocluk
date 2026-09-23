@@ -1,0 +1,233 @@
+@import url("https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:wght@400;700&family=Open+Sans:wght@400;600;700&family=Oswald:wght@400&display=swap");
+
+:root {
+  --font-editorial: "Libre Caslon Text", Georgia, serif;
+  --font-interface: "Afacad", system-ui, sans-serif;
+}
+
+.public-site {
+  --font-interface: var(--public-font-body);
+}
+
+/* Public editorial content follows the landing-page typography. */
+.public-site :is(h1, h2, h3, p, blockquote) {
+  font-family: var(--font-editorial);
+  font-style: normal;
+}
+
+.public-site h1 {
+  font-weight: 400;
+}
+
+.public-site :is(h2, h3) {
+  font-weight: 700;
+}
+
+.public-site :is(p, blockquote) {
+  font-weight: 400;
+}
+
+/* Navigation, forms, actions, filters, booking controls and dense data stay sans-serif. */
+.public-site :is(
+  nav,
+  button,
+  input,
+  select,
+  textarea,
+  label,
+  table,
+  [role="button"],
+  .public-header,
+  .public-footer,
+  .slot-picker,
+  .coach-profile-stats,
+  .coaches-filter-chips,
+  .coaches-pagination
+) {
+  font-family: var(--font-interface);
+}
+
+.public-site :is(
+  a[class*="button"],
+  a[class*="cta"],
+  a[class*="action"],
+  .home-plan > a,
+  .home-success__intro a
+) {
+  font-family: var(--font-interface);
+}
+
+.brand-logo__wordmark {
+  font-family: var(--font-editorial);
+  font-style: normal;
+  font-weight: 700;
+  text-transform: lowercase;
+}
+
+:is(.public-site, .auth-shell, .app-layout, .uniform-error-page) .brand-logo .brand-logo__wordmark {
+  font-family: var(--font-editorial);
+  font-style: normal;
+  font-weight: 700;
+  text-transform: lowercase;
+}
+
+.public-site :is(.public-header, .public-footer) :is(p, span, small, strong, a) {
+  font-family: var(--font-interface);
+}
+
+.public-site .coaches-hero h1 em {
+  font-style: normal;
+}
+
+/* Authentication: editorial hierarchy around an intentionally sans-serif form. */
+.auth-card h1 {
+  font-family: var(--font-editorial);
+  font-style: normal;
+  font-weight: 400;
+}
+
+.auth-card :is(h2, h3, .auth-legal legend) {
+  font-family: var(--font-editorial);
+  font-style: normal;
+  font-weight: 700;
+}
+
+.auth-card :is(
+  .auth-lead,
+  .auth-notice,
+  .auth-form-hint,
+  .auth-footer,
+  .auth-security,
+  .auth-legal__notice
+) {
+  font-family: var(--font-editorial);
+  font-style: normal;
+  font-weight: 400;
+}
+
+.auth-community p {
+  font-family: var(--font-editorial);
+  font-style: normal;
+  font-weight: 400;
+}
+
+/* Shared authenticated-page heading hierarchy. */
+:is(
+  .account-page__heading,
+  .student-dashboard__welcome,
+  .student-dashboard__role-view,
+  .coach-dashboard__welcome,
+  .trial-availability-page > header,
+  .admin-page__heading,
+  .bookings-page__header,
+  .privacy-page__header,
+  .security-settings__header,
+  .stub-payment__header
+) h1 {
+  font-family: var(--font-editorial);
+  font-style: normal;
+  font-weight: 400;
+}
+
+:is(
+  .account-page__photo,
+  .account-page__section-title,
+  .account-photo-modal,
+  .student-dashboard__section-heading,
+  .student-dashboard__messages-card,
+  .student-dashboard__coach-identity,
+  .student-dashboard__subscription-card,
+  .student-dashboard__empty-summary,
+  .subscription-management__header,
+  .subscription-modal,
+  .pending-subscription,
+  .coach-dashboard__section-heading,
+  .trial-availability-page__panel,
+  .admin-page,
+  .bookings-page__title-row,
+  .bookings-page__state,
+  .privacy-page__action-card,
+  .security-settings__card-heading,
+  .security-settings__unavailable,
+  .stub-payment__success
+) :is(h2, h3) {
+  font-family: var(--font-editorial);
+  font-style: normal;
+  font-weight: 700;
+}
+
+/* Supporting copy is editorial; controls and record-level text inherit sans-serif. */
+.account-page__heading > span,
+.student-dashboard__welcome > p,
+.student-dashboard__coach-identity p,
+.student-dashboard__subscription-card > p,
+.student-dashboard__empty-summary > p,
+.subscription-management__header p:last-child,
+.subscription-modal > p:not(.subscription-modal__eyebrow):not(.subscription-modal__error),
+.pending-subscription__header p:last-child,
+.coach-dashboard__welcome > span,
+.coach-dashboard__section-heading p,
+.trial-availability-page > header > span,
+.admin-page__heading p:last-child,
+.admin-panel__heading p,
+.bookings-page__lead,
+.bookings-page__state > p,
+.privacy-page__header > p,
+.privacy-page__action-card > p,
+.security-settings__header > p:last-child,
+.security-settings__card-heading p,
+.security-settings__unavailable > p,
+.stub-payment__success p,
+.uniform-error-page__description,
+.confirmation-modal > p,
+.report-modal__intro {
+  font-family: var(--font-editorial);
+  font-style: normal;
+  font-weight: 400;
+}
+
+.admin-page .admin-package-management > .admin-page__heading h2 {
+  font-family: var(--font-editorial);
+  font-style: normal;
+  font-weight: 700;
+}
+
+/* Shared dialogs and full-page states. */
+:is(.confirmation-modal, .report-modal) h2 {
+  font-family: var(--font-editorial);
+  font-style: normal;
+  font-weight: 700;
+}
+
+.uniform-error-page h1 {
+  font-family: var(--font-editorial);
+  font-style: normal;
+  font-weight: 400;
+}
+
+/* Metrics, dates, chat, controls and other data-dense UI deliberately stay sans-serif. */
+:is(
+  .admin-metric strong,
+  .student-dashboard__unread strong,
+  .student-dashboard__date-tile strong,
+  .coach-dashboard__metric strong,
+  .coach-dashboard__metric em,
+  .coach-dashboard__session > time strong,
+  .coach-dashboard__messages div strong,
+  .bookings-page__date-tile strong,
+  .trial-availability-page__day h2,
+  .stub-payment__mark,
+  .uniform-error-page__code,
+  .chat-page,
+  .app-layout__navigation,
+  .app-layout__header,
+  .app-layout__footer
+) {
+  font-family: var(--font-interface);
+  font-style: normal;
+}
+
+:is(.chat-sidebar h1, .chat-conversation__header h2, .chat-empty-selection h2, .coach-profile-stats strong) {
+  font-family: var(--font-interface);
+  font-style: normal;
+}
