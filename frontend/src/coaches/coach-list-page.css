@@ -22,7 +22,7 @@
   position: relative;
   display: inline-block;
   color: var(--public-color-gold);
-  font-style: italic;
+  font-style: normal;
   font-weight: 400;
 }
 

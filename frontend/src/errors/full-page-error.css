@@ -59,9 +59,9 @@
 
 .uniform-error-page .brand-logo__wordmark {
   color: var(--error-ink);
-  font: 400 28px/1 "Righteous", system-ui, sans-serif;
+  font: 700 28px/1 var(--font-editorial);
   letter-spacing: -.04em;
-  text-transform: uppercase;
+  text-transform: lowercase;
 }
 
 .uniform-error-page__product {
