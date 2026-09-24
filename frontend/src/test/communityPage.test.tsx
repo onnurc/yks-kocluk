@@ -23,6 +23,7 @@ describe("Community page", () => {
     expect(screen.getAllByRole("banner")).toHaveLength(1);
     expect(screen.getAllByRole("contentinfo")).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1, name: /YKS’ye hazırlanırken/ })).toBeInTheDocument();
+    expect(screen.queryByText("Uniform Akademi özel topluluğu", { exact: false })).not.toBeInTheDocument();
     const navLink = within(screen.getByRole("navigation", { name: "Ana menü" })).getByRole("link", { name: "Community" });
     expect(navLink).toHaveAttribute("href", "/community");
     expect(navLink).toHaveAttribute("aria-current", "page");

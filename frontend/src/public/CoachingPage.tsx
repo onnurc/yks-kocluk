@@ -117,12 +117,10 @@ export function CoachingPage() {
       <section className="coaching-hero" aria-labelledby="coaching-title">
         <div className="coaching-hero__glow" aria-hidden="true" />
         <div className="coaching-hero__inner">
-          <p className="coaching-eyebrow">Uniform Akademik Koçluk</p>
           <h1 id="coaching-title">Akademik Başarıya<br className="coaching-desktop-break" /> Giden Yolda, <span>Seninle Birlikteyiz.</span></h1>
           <p className="coaching-hero__lead">Hayallerindeki üniversiteye ulaşman için disiplinli, veriye dayalı ve kişiselleştirilmiş koçluk sistemi. Hedeflerine özel stratejilerle başarıyı şansa bırakmıyoruz.</p>
           <div className="coaching-hero__actions">
-            <Link to="/register" className="coaching-button coaching-button--gold">Ücretsiz Görüşme Başlat</Link>
-            <a href="#kocluk-paketleri" className="coaching-button coaching-button--light">Paketleri İncele</a>
+            <Link to="#kocluk-paketleri" className="coaching-button coaching-button--light">Paketleri İncele</Link>
           </div>
           <ul className="coaching-trust" aria-label="Koçluk sistemi avantajları">
             {trustItems.map((item, index) => <li key={item}><span aria-hidden="true">{index === 0 ? "✓" : index === 1 ? "↗" : "◎"}</span>{item}</li>)}

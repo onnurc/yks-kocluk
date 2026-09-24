@@ -38,6 +38,7 @@ import { CoachApplicationPage } from "./public/CoachApplicationPage";
 import { CommunityPage } from "./public/CommunityPage";
 import { PublicLayout } from "./public/PublicLayout";
 import { AppErrorBoundary } from "./errors/AppErrorBoundary";
+import { NavigationScrollManager } from "./routes/NavigationScrollManager";
 import "./App.css";
 import "./typography.css";
 
@@ -122,6 +123,7 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <NavigationScrollManager />
         <AppErrorBoundary>
           <AppRoutes />
         </AppErrorBoundary>

@@ -76,7 +76,6 @@ export function CommunityPage() {
         <div className="community-ambient" aria-hidden="true" />
         <div className="community-container">
           <div className="community-hero__copy">
-            <p className="community-kicker"><span aria-hidden="true" /> Uniform Akademi özel topluluğu</p>
             <h1 id="community-page-title">YKS’ye hazırlanırken,<br /><em>üniversite hayatını</em> yaşamaya başla.</h1>
             <p>Uniform Community; hazırlık yolculuğunu kampüs, meslek ve insan deneyimleriyle zenginleştirmek için tasarlanan topluluk alanıdır.</p>
             <div className="community-actions">

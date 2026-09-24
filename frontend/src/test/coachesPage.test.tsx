@@ -77,6 +77,7 @@ describe("Koçlarımız sayfası", () => {
     expect(screen.getAllByRole("banner")).toHaveLength(1);
     expect(screen.getAllByRole("contentinfo")).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1, name: /Hayalindeki Üniversiteye Giden Yolda/ })).toBeInTheDocument();
+    expect(screen.queryByText("Geleceğini Tasarla")).not.toBeInTheDocument();
     expect(await screen.findByText("Ayşe Yılmaz")).toBeInTheDocument();
     expect(screen.getByText(/Boğaziçi Üniversitesi/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Profili İncele/ })).toHaveAttribute("href", "/coaches/42");
