@@ -154,7 +154,6 @@ export function CoachesPage() {
   return (
     <div className="coaches-page">
       <section className="coaches-hero" aria-labelledby="coaches-title">
-        <p className="coaches-eyebrow"><span aria-hidden="true">⌕</span> Geleceğini Tasarla</p>
         <h1 id="coaches-title">Hayalindeki Üniversiteye Giden Yolda,<br /><em>En Doğru Rehberi Bul.</em></h1>
         <p>Türkiye'nin seçkin üniversitelerinde okuyan mentörlerimizle tanışın. Size en uygun koçu bulmak için filtreleri kullanın.</p>
       </section>

@@ -4,13 +4,11 @@
 .coaching-hero { position: relative; min-height: 840px; padding: 150px var(--public-gutter) 180px; display: grid; place-items: center; overflow: hidden; text-align: center; background: linear-gradient(180deg,#fbf9f9,#f9f4ed); }
 .coaching-hero__glow { position: absolute; inset: 8% 8% auto auto; width: 540px; height: 540px; border-radius: 50%; background: rgba(255,212,138,.2); filter: blur(110px); }
 .coaching-hero__inner { position: relative; width: min(100%, 1040px); display: flex; flex-direction: column; align-items: center; }
-.coaching-eyebrow { margin-bottom: 36px !important; padding: 9px 18px; border-radius: 999px; color: var(--public-color-gold); background: rgba(255,212,138,.28); font-size: 12px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; }
 .coaching-hero h1 { color: #000; font: 400 clamp(58px,5.55vw,80px)/1.06 var(--public-font-display); letter-spacing: -.035em; }
 .coaching-hero h1 span { color: var(--public-color-gold); }
 .coaching-hero__lead { max-width: 730px; margin-top: 28px !important; font-size: 20px; line-height: 1.6; }
 .coaching-hero__actions { display: flex; gap: 22px; margin-top: 48px; }
 .coaching-button { min-height: 56px; padding: 0 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; color: #000; text-decoration: none; font-weight: 700; }
-.coaching-button--gold { color: #fff; background: var(--public-color-gold); box-shadow: 0 10px 26px rgba(120,89,27,.22); }
 .coaching-button--light { background: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.05); }
 .coaching-trust { width: 100%; margin: 76px 0 0; padding: 32px 0 0; display: flex; justify-content: center; gap: 42px; border-top: 1px solid rgba(126,117,118,.24); list-style: none; }
 .coaching-trust li { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
@@ -71,7 +69,6 @@
 @media (max-width: 719px) {
   .coaching-container { width: calc(100% - 32px); }
   .coaching-hero { min-height: 760px; padding: 92px 16px 64px; }
-  .coaching-eyebrow { margin-bottom: 26px !important; font-size: 10px; }
   .coaching-hero h1 { font-size: 40px; line-height: 1.12; }
   .coaching-desktop-break { display: none; }
   .coaching-hero h1 span { display: block; margin-top: 4px; }

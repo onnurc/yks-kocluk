@@ -44,10 +44,8 @@
 .community-hero { position: relative; padding: clamp(64px, 7vw, 104px) 0 clamp(88px, 9vw, 136px); overflow: hidden; }
 .community-ambient { position: absolute; top: -240px; left: 50%; width: min(90vw, 900px); height: 580px; border-radius: 50%; background: radial-gradient(circle, rgba(201,162,93,.21), rgba(201,162,93,0) 67%); transform: translateX(-50%); pointer-events: none; }
 .community-hero__copy { position: relative; z-index: 1; max-width: 930px; margin: 0 auto 58px; text-align: center; }
-.community-kicker { width: fit-content; margin: 0 auto 22px !important; padding: 8px 14px; display: flex; align-items: center; gap: 9px; border: 1px solid rgba(201,162,93,.48); border-radius: 999px; color: #795a1c; background: rgba(201,162,93,.12); font-size: 11px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
-.community-kicker span { width: 7px; height: 7px; border-radius: 50%; background: var(--community-gold); box-shadow: 0 0 0 5px rgba(201,162,93,.14); }
 .community-hero h1 { font-size: clamp(45px, 5.15vw, 74px); line-height: 1.04; letter-spacing: -.035em; }
-.community-hero__copy > p:not(.community-kicker) { max-width: 740px; margin: 24px auto 0; color: #414550; font-size: clamp(17px, 1.5vw, 20px); line-height: 1.65; }
+.community-hero__copy > p { max-width: 740px; margin: 24px auto 0; color: #414550; font-size: clamp(17px, 1.5vw, 20px); line-height: 1.65; }
 .community-actions { margin-top: 32px; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 .community-button { min-height: 50px; padding: 13px 25px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid transparent; border-radius: 999px; font-size: 15px; font-weight: 700; line-height: 1.2; text-align: center; text-decoration: none; transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease; }
 .community-button:hover { transform: translateY(-2px); }
@@ -195,9 +193,8 @@
   .community-heading > div + span { margin-top: 14px; font-size: 16px; line-height: 1.6; }
   .community-hero { padding: 46px 0 76px; }
   .community-hero__copy { margin-bottom: 38px; }
-  .community-kicker { margin-bottom: 18px !important; font-size: 10px; }
   .community-hero h1 { font-size: clamp(37px,10.3vw,44px); line-height: 1.08; }
-  .community-hero__copy > p:not(.community-kicker) { margin-top: 18px; font-size: 16px; }
+  .community-hero__copy > p { margin-top: 18px; font-size: 16px; }
   .community-actions { margin-top: 25px; align-items: stretch; flex-direction: column; }
   .community-button { width: 100%; }
   .community-hero__media { border-width: 3px; border-radius: 19px; }
