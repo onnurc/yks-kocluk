@@ -1,5 +1,5 @@
 import { httpClient } from "../api/httpClient";
-import type { AdminCampaignRequest, AdminCoach, AdminCoachCreateRequest, AdminCoachCreateResponse, AdminDashboardSummary, AdminExamSettingsRequest, AdminPackage, AdminPackageCatalog, AdminSession, AdminUser, AdminUserDetail, CoachFilter, CoachStudent, PackageType, PageResponse, SuspendResponse, UserStatus } from "./adminTypes";
+import type { AdminCampaignRequest, AdminCoach, AdminCoachCreateRequest, AdminCoachCreateResponse, AdminDashboardSummary, AdminExamSettingsRequest, AdminPackage, AdminPackageCatalog, AdminSession, AdminUser, AdminUserDetail, CoachFilter, CoachStudent, CoachYoutubeIntroResponse, PackageType, PageResponse, SuspendResponse, UserStatus } from "./adminTypes";
 import type { TrialConsultationResponse } from "../trial/trialConsultationTypes";
 
 const query = (values: Record<string, string | number | undefined | null>) => {
@@ -17,6 +17,8 @@ export const adminApi = {
   coach: (id:number) => httpClient.get<AdminCoach>(`/api/v1/admin/coaches/${id}`),
   approveCoachProfile: (id:number) => httpClient.post(`/api/v1/admin/coaches/${id}/approve`),
   rejectCoachProfile: (id:number, reason:string) => httpClient.post(`/api/v1/admin/coaches/${id}/reject`, { reason }),
+  setCoachYoutubeIntro: (id:number, youtubeUrlOrVideoId:string) => httpClient.put<CoachYoutubeIntroResponse>(`/api/v1/admin/coaches/${id}/youtube-intro`, { youtubeUrlOrVideoId }),
+  removeCoachYoutubeIntro: (id:number) => httpClient.delete<void>(`/api/v1/admin/coaches/${id}/youtube-intro`),
   coachStudents: (id:number) => httpClient.get<PageResponse<CoachStudent>>(`/api/v1/admin/coaches/${id}/students?page=0&size=20&sort=createdAt,desc`),
   suspendUser: (id:number, reason:string) => httpClient.post<SuspendResponse>(`/api/v1/admin/users/${id}/suspend`, { reason }),
   activateUser: (id:number) => httpClient.post<SuspendResponse>(`/api/v1/admin/users/${id}/unsuspend`),

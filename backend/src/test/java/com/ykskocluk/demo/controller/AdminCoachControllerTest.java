@@ -35,7 +35,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -58,7 +60,7 @@ class AdminCoachControllerTest {
         when(adminDashboardService.coach(7L)).thenReturn(new AdminCoachDirectoryResponse(
                 7L, 70L, 7L, "Derya Koç", "derya@example.com", CoachProfileStatus.APPROVED,
                 CoachProfileStatus.APPROVED, UserStatus.ACTIVE, null, "ODTÜ", "Fizik", true,
-                null, null,
+                null, null, "dQw4w9WgXcQ",
                 Instant.parse("2026-01-01T00:00:00Z")));
         when(coachDashboardService.students(eq(70L), eq(CoachStudentFilter.ACTIVE), any())).thenReturn(
                 new PageResponse<>(List.of(new CoachStudentResponse(22L, "Ece Öğrenci", 2L,
@@ -70,6 +72,19 @@ class AdminCoachControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].displayName").value("Ece Öğrenci"))
                 .andExpect(jsonPath("$.content[0].packageName").value("Mentorluk Paketi"));
+    }
+
+    @Test @WithMockUser(roles = "ADMIN")
+    void adminCoachDetailExposesCurrentYoutubeVideoId() throws Exception {
+        when(adminDashboardService.coach(7L)).thenReturn(new AdminCoachDirectoryResponse(
+                7L, 70L, 7L, "Derya Koç", "derya@example.com", CoachProfileStatus.APPROVED,
+                CoachProfileStatus.APPROVED, UserStatus.ACTIVE, null, "ODTÜ", "Fizik", true,
+                null, null, "dQw4w9WgXcQ",
+                Instant.parse("2026-01-01T00:00:00Z")));
+
+        mvc.perform(get("/api/v1/admin/coaches/7"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.introYoutubeVideoId").value("dQw4w9WgXcQ"));
     }
 
     @Test @WithMockUser(roles = "STUDENT")
@@ -101,5 +116,34 @@ class AdminCoachControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
         verifyNoInteractions(adminCoachCreationService);
+    }
+
+    @Test @WithMockUser(roles = "ADMIN")
+    void adminCanAssignAndRemoveCoachYoutubeIntro() throws Exception {
+        when(coachYoutubeIntroService.set(null, 7L, "https://youtube.com/shorts/dQw4w9WgXcQ"))
+                .thenReturn(new com.ykskocluk.demo.dto.CoachYoutubeIntroResponse(
+                        7L, "dQw4w9WgXcQ", "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"));
+
+        mvc.perform(put("/api/v1/admin/coaches/7/youtube-intro")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"youtubeUrlOrVideoId\":\"https://youtube.com/shorts/dQw4w9WgXcQ\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.videoId").value("dQw4w9WgXcQ"))
+                .andExpect(jsonPath("$.embedUrl").value(
+                        "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"));
+
+        mvc.perform(delete("/api/v1/admin/coaches/7/youtube-intro").with(csrf()))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test @WithMockUser(roles = "COACH")
+    void coachCannotAssignYoutubeIntroThroughAdminApi() throws Exception {
+        mvc.perform(put("/api/v1/admin/coaches/7/youtube-intro")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"youtubeUrlOrVideoId\":\"dQw4w9WgXcQ\"}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(coachYoutubeIntroService);
     }
 }

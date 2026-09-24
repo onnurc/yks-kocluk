@@ -172,7 +172,7 @@ describe("Public koç profili", () => {
     expect(await screen.findByText("Mentör henüz bir biyografi eklemedi.")).toBeInTheDocument();
   });
 
-  it("renders a real profile image and the generated privacy-enhanced YouTube embed", async () => {
+  it("shows a thumbnail preview and loads the safe privacy-enhanced iframe only after play", async () => {
     vi.mocked(coachDiscoveryApi.getPublicCoachDetail).mockResolvedValue({
       ...detail,
       profileImageUrl: "https://media.example/profile.jpg",
@@ -182,10 +182,40 @@ describe("Public koç profili", () => {
     renderRoute();
 
     expect(await screen.findByRole("img", { name: "Ayşe Yılmaz profil fotoğrafı" })).toHaveAttribute("src", "https://media.example/profile.jpg");
+    const play = screen.getByRole("button", { name: "Ayşe Yılmaz tanıtım videosu oynat" });
+    expect(play.querySelector("img")).toHaveAttribute("src", "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg");
+    expect(screen.queryByTitle("Ayşe Yılmaz tanıtım videosu")).not.toBeInTheDocument();
+
+    fireEvent.click(play);
     const video = screen.getByTitle("Ayşe Yılmaz tanıtım videosu");
-    expect(video).toHaveAttribute("src", "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ");
+    expect(video).toHaveAttribute("src", "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1");
     expect(video).toHaveAttribute("sandbox", "allow-scripts allow-same-origin allow-presentation");
     expect(video).toHaveAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+  });
+
+  it("keeps the accessible play control when the YouTube thumbnail is unavailable", async () => {
+    vi.mocked(coachDiscoveryApi.getPublicCoachDetail).mockResolvedValue({
+      ...detail,
+      introVideoEmbedUrl: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+    });
+    vi.mocked(coachDiscoveryApi.listCoaches).mockResolvedValue({ ...page, content: [] });
+    renderRoute();
+
+    const play = await screen.findByRole("button", { name: "Ayşe Yılmaz tanıtım videosu oynat" });
+    fireEvent.error(play.querySelector("img") as HTMLImageElement);
+    expect(play).toHaveTextContent("YouTube videosu");
+    expect(screen.queryByTitle("Ayşe Yılmaz tanıtım videosu")).not.toBeInTheDocument();
+  });
+
+  it("keeps one video and consultation section for responsive CSS ordering", async () => {
+    const { container } = renderRoute();
+    await screen.findByRole("heading", { name: "Ayşe Yılmaz" });
+
+    expect(container.querySelectorAll(".coach-profile-identity")).toHaveLength(1);
+    expect(container.querySelectorAll(".coach-profile-stats")).toHaveLength(1);
+    expect(container.querySelectorAll(".coach-profile-media")).toHaveLength(1);
+    expect(container.querySelectorAll(".coach-profile-trial")).toHaveLength(1);
+    expect(container.querySelectorAll(".coach-profile-about")).toHaveLength(1);
   });
 
   it("rejects a non-YouTube embed URL and keeps the clean no-video state", async () => {

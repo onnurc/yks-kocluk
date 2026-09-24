@@ -188,6 +188,7 @@ public class AdminDashboardService {
                 c.getUniversity() == null ? null : c.getUniversity().getName(), c.getDepartment(),
                 c.getStatus() == CoachProfileStatus.APPROVED && c.getUser().getStatus() == UserStatus.ACTIVE,
                 mediaUrls.publicUrl(c.getProfileImageAsset()), mediaUrls.activeAssetId(c.getProfileImageAsset()),
+                c.getIntroYoutubeVideoId(),
                 c.getCreatedAt());
     }
 

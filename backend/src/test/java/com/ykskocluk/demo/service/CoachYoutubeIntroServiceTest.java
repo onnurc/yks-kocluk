@@ -56,6 +56,19 @@ class CoachYoutubeIntroServiceTest {
         verify(coaches, never()).findById(9L);
     }
 
+    @Test
+    void adminCanClearTheStoredVideoId() {
+        User admin = user(1L, Role.ADMIN);
+        CoachProfile coach = new CoachProfile();
+        coach.setIntroYoutubeVideoId("dQw4w9WgXcQ");
+        when(users.findById(1L)).thenReturn(Optional.of(admin));
+        when(coaches.findById(9L)).thenReturn(Optional.of(coach));
+
+        service.clear(1L, 9L);
+
+        assertThat(coach.getIntroYoutubeVideoId()).isNull();
+    }
+
     private User user(Long id, Role role) {
         User user = new User();
         ReflectionTestUtils.setField(user, "id", id);

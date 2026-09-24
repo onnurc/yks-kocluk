@@ -8,7 +8,8 @@ import { studentDashboardApi, SUBSCRIPTION_STATE_CHANGED_EVENT } from "../studen
 import type { StudentDashboardResponse } from "../studentDashboard/studentDashboardTypes";
 import { blocksNewCoachCheckout, canMessageWithSubscription, isLiveCoachRelationship } from "../access/subscriptionAccess";
 import { messagingApi } from "../messaging/messagingApi";
-import { safeYoutubeEmbedUrl, YouTubeEmbed } from "../coaches/YouTubeEmbed";
+import { YouTubeEmbed } from "../coaches/YouTubeEmbed";
+import { safeYoutubeEmbedUrl } from "../coaches/youtubeEmbedUrl";
 import { CheckoutSection } from "../subscriptionCheckout/CheckoutSection";
 import { BookingSection } from "../booking/BookingSection";
 import { TrialConsultationSection } from "../trial/TrialConsultationSection";
@@ -241,7 +242,7 @@ export function CoachProfilePage() {
             <section className="coach-profile-media" aria-label="Mentör tanıtım videosu">
               <div className="coach-profile-media__frame">
                 {safeYoutubeEmbedUrl(coach.introVideoEmbedUrl) ? (
-                  <YouTubeEmbed url={coach.introVideoEmbedUrl} title={`${coach.fullName} tanıtım videosu`} />
+                  <YouTubeEmbed key={coach.introVideoEmbedUrl} url={coach.introVideoEmbedUrl} title={`${coach.fullName} tanıtım videosu`} />
                 ) : (
                   <div className="coach-profile-media__empty"><span aria-hidden="true">▷</span><p>Tanıtım videosu henüz eklenmedi.</p></div>
                 )}
