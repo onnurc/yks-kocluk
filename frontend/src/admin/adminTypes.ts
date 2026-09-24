@@ -12,7 +12,8 @@ export interface AdminDashboardSummary {
 }
 export interface AdminUser { id:number; name:string; email:string; role:"STUDENT"|"COACH"|"ADMIN"; status:UserStatus; emailVerified:boolean; legalOnboardingCompleted:boolean; anonymized:boolean; createdAt:string; }
 export interface AdminUserDetail { user:AdminUser; profileImageUrl:string|null; profileImageAssetId:number|null; }
-export interface AdminCoach { id:number; userId:number; coachProfileId:number; name:string; email:string; status:string; approvalState:string; accountStatus:UserStatus; universityId:number|null; university:string|null; department:string|null; publiclyVisible:boolean; profileImageUrl?:string|null; profileImageAssetId?:number|null; createdAt:string; }
+export interface AdminCoach { id:number; userId:number; coachProfileId:number; name:string; email:string; status:string; approvalState:string; accountStatus:UserStatus; universityId:number|null; university:string|null; department:string|null; publiclyVisible:boolean; profileImageUrl?:string|null; profileImageAssetId?:number|null; introYoutubeVideoId:string|null; createdAt:string; }
+export interface CoachYoutubeIntroResponse { coachProfileId:number; videoId:string; embedUrl:string; }
 export interface CoachStudent { studentId:number; displayName:string; packageId:number; packageName:string; subscriptionStatus:string; subscriptionStart:string; subscriptionEnd:string; sessionsUsedInCurrentWeek:number; sessionsRemainingInCurrentWeek:number; conversationId:number|null; nextSession:{id:number;startTime:string;endTime:string;status:string}|null; }
 export interface AdminSession { id:number; type:"PAID"|"TRIAL"; coachProfileId:number; coachUserId:number; coachName:string; studentId:number; studentName:string; studentEmail?:string; startsAt:string; endsAt:string; status:string; subscriptionId:number|null; meetingUrl?:string|null; }
 export interface SuspendResponse { userId:number; status:UserStatus; reason:string|null; }

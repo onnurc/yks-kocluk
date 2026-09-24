@@ -8,4 +8,5 @@ public record AdminCoachDirectoryResponse(Long id, Long userId, Long coachProfil
                                           CoachProfileStatus status, CoachProfileStatus approvalState, UserStatus accountStatus,
                                           Long universityId, String university, String department,
                                           boolean publiclyVisible, String profileImageUrl,
-                                          Long profileImageAssetId, Instant createdAt) {}
+                                          Long profileImageAssetId, String introYoutubeVideoId,
+                                          Instant createdAt) {}

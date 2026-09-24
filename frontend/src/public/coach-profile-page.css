@@ -19,6 +19,13 @@
 .coach-profile-report { margin-top: 18px; padding: 9px 15px; border: 1px solid #d8caca; border-radius: 999px; color: #8a2e2e; background: transparent; font: 700 13px var(--public-font-body); cursor: pointer; }
 .coach-profile-media__frame { aspect-ratio: 16/9; overflow: hidden; border-radius: 24px; background: #e4e2e2; }
 .coach-profile-media__frame iframe { width: 100%; height: 100%; border: 0; }
+.youtube-embed-preview { position: relative; width: 100%; height: 100%; padding: 0; overflow: hidden; border: 0; display: block; color: #fff; background: linear-gradient(135deg,#252525,#090909); cursor: pointer; }
+.youtube-embed-preview img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.youtube-embed-preview::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg,transparent 45%,rgba(0,0,0,.36)); }
+.youtube-embed-preview__fallback { width: 100%; height: 100%; display: grid; place-items: center; color: #d9d9d9; font-weight: 700; }
+.youtube-embed-preview__play { position: absolute; z-index: 1; top: 50%; left: 50%; width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(0,0,0,.82); box-shadow: 0 12px 32px rgba(0,0,0,.3); font-size: 27px; transform: translate(-50%,-50%); transition: transform 160ms ease,background-color 160ms ease; }
+.youtube-embed-preview:hover .youtube-embed-preview__play { background: #78591b; transform: translate(-50%,-50%) scale(1.06); }
+.youtube-embed-preview:focus-visible { outline: 4px solid #b78a36; outline-offset: -4px; }
 .coach-profile-media video { width: 100%; height: 100%; display: block; object-fit: cover; }
 .coach-profile-media__empty { width: 100%; height: 100%; display: grid; place-content: center; justify-items: center; color: #625c5d; text-align: center; }
 .coach-profile-media__empty span { width: 72px; height: 72px; display: grid; place-items: center; border-radius: 50%; color: #000; background: #fff; font-size: 34px; }
@@ -99,8 +106,12 @@
   .coach-profile-container { padding-inline: 20px; }
   .coach-profile-back { margin-top: 24px; }
   .coach-profile-grid { padding: 34px 0 56px; grid-template-columns: 1fr; gap: 36px; }
-  .coach-profile-column--main { gap: 30px; }
-  .coach-profile-column--sidebar { gap: 22px; }
+  .coach-profile-column { display: contents; }
+  .coach-profile-identity { order: 1; }
+  .coach-profile-stats { order: 2; }
+  .coach-profile-media { order: 3; }
+  .coach-profile-trial { order: 4; }
+  .coach-profile-about { order: 5; }
   .coach-profile-identity { align-items: center; gap: 18px; }
   .coach-profile-avatar { width: 86px; height: 86px; border-width: 3px; font-size: 28px; }
   .coach-profile-identity h1 { font-size: 36px; }
@@ -124,4 +135,4 @@
   .coach-profile-similar-card { min-height: 250px; }
 }
 
-@media (prefers-reduced-motion: reduce) { .coach-profile-state span { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .coach-profile-state span { animation: none; } .youtube-embed-preview__play { transition: none; } }
