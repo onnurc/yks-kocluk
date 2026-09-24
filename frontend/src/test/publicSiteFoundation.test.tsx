@@ -26,6 +26,7 @@ describe("public site foundation", () => {
     expect(screen.getByRole("contentinfo")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ana içeriğe geç" })).toHaveAttribute("href", "#public-main");
     expect(screen.getAllByText("uniform", { selector: ".brand-logo__wordmark" })).toHaveLength(2);
+    expect(screen.getByRole("link", { name: "Koçluk Paketleri" })).toHaveAttribute("href", "/kocluk#kocluk-paketleri");
     expect([...document.querySelectorAll(".brand-logo__mark")].every((mark) => mark.getAttribute("viewBox") === "0 0 40 40")).toBe(true);
   });
 

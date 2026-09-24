@@ -82,9 +82,11 @@ describe("Koçluk sayfası", () => {
     expect(screen.getByText("İade kapsamı dışında")).toBeInTheDocument();
     expect(screen.queryByText(/7 gün|koşulsuz iade/i)).not.toBeInTheDocument();
     expect(screen.getByText("İptal ve iade koşulları mevcut hizmet dönemi hesabına göre belirlenir")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Ücretsiz Görüşme Başlat" })).toHaveAttribute("href", "/register");
+    expect(screen.queryByText("Uniform Akademik Koçluk")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ücretsiz Görüşme Başlat" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Ücretsiz Görüş" }).length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "Hemen Başla" })).toHaveAttribute("href", "/register");
-    expect(screen.getByRole("link", { name: "Paketleri İncele" })).toHaveAttribute("href", "#kocluk-paketleri");
+    expect(screen.getByRole("link", { name: "Paketleri İncele" })).toHaveAttribute("href", "/kocluk#kocluk-paketleri");
     expect(screen.getByRole("button", { name: "Tanıtım videosu henüz kullanıma hazır değil" })).toBeDisabled();
   });
 
