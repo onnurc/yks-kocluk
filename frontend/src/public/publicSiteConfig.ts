@@ -12,7 +12,7 @@ export const publicNavigation: readonly PublicNavigationItem[] = [
 ];
 
 export const publicQuickLinks: readonly PublicNavigationItem[] = [
-  { label: "Koçluk Paketleri", to: "/kocluk", available: true },
+  { label: "Koçluk Paketleri", to: "/kocluk#kocluk-paketleri", available: true },
   { label: "Koçlarımız", to: "/coaches", available: true },
   { label: "Uniform Community", to: "/community", available: true },
   { label: "Giriş Yap", to: "/login", available: true },

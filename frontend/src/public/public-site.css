@@ -64,6 +64,10 @@
   background: var(--public-color-surface);
 }
 
+.public-site__main [id] {
+  scroll-margin-top: 96px;
+}
+
 .brand-logo {
   display: inline-flex;
   align-items: center;
