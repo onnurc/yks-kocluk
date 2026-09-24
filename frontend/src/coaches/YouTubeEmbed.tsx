@@ -1,22 +1,35 @@
-export const safeYoutubeEmbedUrl = (value: string | null | undefined): string | null => {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:" || url.hostname !== "www.youtube-nocookie.com") return null;
-    if (!/^\/embed\/[A-Za-z0-9_-]{11}$/.test(url.pathname)) return null;
-    if (url.username || url.password || url.search || url.hash) return null;
-    return url.toString();
-  } catch {
-    return null;
-  }
-};
+import { useState } from "react";
+import { safeYoutubeEmbedUrl } from "./youtubeEmbedUrl";
 
 export function YouTubeEmbed({ url, title }: { url: string | null | undefined; title: string }) {
   const safeUrl = safeYoutubeEmbedUrl(url);
+  const [playing, setPlaying] = useState(false);
+  const [thumbnailUnavailable, setThumbnailUnavailable] = useState(false);
   if (!safeUrl) return null;
+
+  const videoId = safeUrl.match(/^https:\/\/www\.youtube-nocookie\.com\/embed\/([A-Za-z0-9_-]{11})$/)?.[1];
+  if (!videoId) return null;
+
+  if (!playing) {
+    return (
+      <button className="youtube-embed-preview" type="button" aria-label={`${title} oynat`} onClick={() => setPlaying(true)}>
+        {thumbnailUnavailable ? (
+          <span className="youtube-embed-preview__fallback" aria-hidden="true">YouTube videosu</span>
+        ) : (
+          <img
+            src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
+            alt=""
+            onError={() => setThumbnailUnavailable(true)}
+          />
+        )}
+        <span className="youtube-embed-preview__play" aria-hidden="true">▶</span>
+      </button>
+    );
+  }
+
   return (
     <iframe
-      src={safeUrl}
+      src={`${safeUrl}?autoplay=1`}
       title={title}
       loading="lazy"
       referrerPolicy="strict-origin-when-cross-origin"
