@@ -12,6 +12,7 @@ import { AdminCoachApplicationsPage } from "../pages/admin/AdminCoachApplication
 const mocks = vi.hoisted(() => ({
   summary: vi.fn(), users: vi.fn(), user: vi.fn(), coaches: vi.fn(), coach: vi.fn(), coachStudents: vi.fn(),
   createCoach: vi.fn(), approveCoachProfile: vi.fn(), rejectCoachProfile: vi.fn(),
+  setCoachYoutubeIntro: vi.fn(), removeCoachYoutubeIntro: vi.fn(),
   suspendUser: vi.fn(), activateUser: vi.fn(), sessions: vi.fn(),
   removeProfileImage: vi.fn(), confirmTrial: vi.fn(),
   packages: vi.fn(), updatePackage: vi.fn(), setPackageActive: vi.fn(), upsertPackageTier: vi.fn(), deletePackageTier: vi.fn(), upsertCampaign: vi.fn(), setCampaignEnabled: vi.fn(), setExamSettings: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock("../admin/adminApi", () => ({ adminApi: {
   summary: mocks.summary, users: mocks.users, coaches: mocks.coaches, coach: mocks.coach,
   user: mocks.user,
   createCoach: mocks.createCoach, approveCoachProfile: mocks.approveCoachProfile, rejectCoachProfile: mocks.rejectCoachProfile,
+  setCoachYoutubeIntro: mocks.setCoachYoutubeIntro, removeCoachYoutubeIntro: mocks.removeCoachYoutubeIntro,
   coachStudents: mocks.coachStudents, suspendUser: mocks.suspendUser, activateUser: mocks.activateUser,
   sessions: mocks.sessions, removeProfileImage: mocks.removeProfileImage, confirmTrial: mocks.confirmTrial,
   packages: mocks.packages, updatePackage: mocks.updatePackage, setPackageActive: mocks.setPackageActive,
@@ -42,7 +44,7 @@ vi.mock("../coachApplications/coachApplicationAdminApi", () => ({ coachApplicati
 } }));
 
 const page = <T,>(content: T[]) => ({ content, page: 0, size: 20, totalElements: content.length, totalPages: 1, last: true });
-const coach = { id: 7, userId: 70, coachProfileId: 7, name: "Derya Koç", email: "derya@example.com", status: "APPROVED", approvalState: "APPROVED", accountStatus: "ACTIVE" as const, universityId: 4, university: "ODTÜ", department: "Fizik", publiclyVisible: true, createdAt: "2026-01-01T10:00:00Z" };
+const coach = { id: 7, userId: 70, coachProfileId: 7, name: "Derya Koç", email: "derya@example.com", status: "APPROVED", approvalState: "APPROVED", accountStatus: "ACTIVE" as const, universityId: 4, university: "ODTÜ", department: "Fizik", publiclyVisible: true, introYoutubeVideoId: null, createdAt: "2026-01-01T10:00:00Z" };
 const pendingCoach = { ...coach, id: 8, userId: 80, coachProfileId: 8, name: "Yeni Koç", email: "yeni@example.com", status: "PENDING", approvalState: "PENDING", publiclyVisible: false };
 
 beforeEach(() => {
@@ -130,6 +132,71 @@ describe("admin management experience", () => {
     fireEvent.change(screen.getByLabelText("Gerekçe"), { target: { value: "Operasyon" } });
     fireEvent.click(screen.getByRole("button", { name: "Onayla" }));
     await waitFor(() => expect(mocks.suspendUser).toHaveBeenCalledWith(70, "Operasyon"));
+  });
+
+  it("adds and replaces a coach YouTube intro without duplicate submissions", async () => {
+    const assigned = { ...coach, introYoutubeVideoId: "dQw4w9WgXcQ" };
+    const replaced = { ...coach, introYoutubeVideoId: "9bZkp7q19f0" };
+    mocks.coaches.mockResolvedValue(page([coach]));
+    mocks.coach.mockResolvedValueOnce(coach).mockResolvedValueOnce(assigned).mockResolvedValueOnce(replaced);
+    mocks.coachStudents.mockResolvedValue(page([]));
+    mocks.setCoachYoutubeIntro
+      .mockResolvedValueOnce({ coachProfileId: 7, videoId: "dQw4w9WgXcQ", embedUrl: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ" })
+      .mockResolvedValueOnce({ coachProfileId: 7, videoId: "9bZkp7q19f0", embedUrl: "https://www.youtube-nocookie.com/embed/9bZkp7q19f0" });
+    render(<AdminCoachesPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Detay" }));
+
+    const input = await screen.findByLabelText("YouTube Shorts bağlantısı veya video kimliği");
+    fireEvent.change(input, { target: { value: "https://youtube.com/shorts/dQw4w9WgXcQ" } });
+    const save = screen.getByRole("button", { name: "Videoyu Kaydet" });
+    fireEvent.click(save);
+    fireEvent.click(save);
+
+    await waitFor(() => expect(mocks.setCoachYoutubeIntro).toHaveBeenCalledTimes(1));
+    expect(mocks.setCoachYoutubeIntro).toHaveBeenCalledWith(7, "https://youtube.com/shorts/dQw4w9WgXcQ");
+    expect(await screen.findByText("Tanıtım videosu kaydedildi.")).toBeInTheDocument();
+    expect(mocks.coach).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("dQw4w9WgXcQ")).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "9bZkp7q19f0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Videoyu Güncelle" }));
+    await waitFor(() => expect(mocks.setCoachYoutubeIntro).toHaveBeenNthCalledWith(2, 7, "9bZkp7q19f0"));
+    expect(await screen.findByText("Tanıtım videosu kaydedildi.")).toBeInTheDocument();
+    expect(mocks.coach).toHaveBeenCalledTimes(3);
+    expect(screen.getByText("9bZkp7q19f0")).toBeInTheDocument();
+  });
+
+  it("confirms removal and refreshes the selected coach detail", async () => {
+    const assigned = { ...coach, introYoutubeVideoId: "dQw4w9WgXcQ" };
+    mocks.coaches.mockResolvedValue(page([assigned]));
+    mocks.coach.mockResolvedValueOnce(assigned).mockResolvedValueOnce(coach);
+    mocks.coachStudents.mockResolvedValue(page([]));
+    mocks.removeCoachYoutubeIntro.mockResolvedValue(undefined);
+    render(<AdminCoachesPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Detay" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Videoyu Kaldır" }));
+    expect(mocks.removeCoachYoutubeIntro).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Kaldırmayı Onayla" }));
+
+    await waitFor(() => expect(mocks.removeCoachYoutubeIntro).toHaveBeenCalledWith(7));
+    expect(await screen.findByText("Tanıtım videosu kaldırıldı.")).toBeInTheDocument();
+    expect(screen.getByText("Bu koça henüz bir tanıtım videosu atanmamış.")).toBeInTheDocument();
+    expect(mocks.coach).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows a useful error when assigning a malformed YouTube reference", async () => {
+    mocks.coaches.mockResolvedValue(page([coach])); mocks.coach.mockResolvedValue(coach);
+    mocks.coachStudents.mockResolvedValue(page([]));
+    const error = new Error("invalid") as Error & { code: string };
+    error.code = "COACH_YOUTUBE_URL_INVALID";
+    mocks.setCoachYoutubeIntro.mockRejectedValue(error);
+    render(<AdminCoachesPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Detay" }));
+    fireEvent.change(await screen.findByLabelText("YouTube Shorts bağlantısı veya video kimliği"), { target: { value: "not-youtube" } });
+    fireEvent.click(screen.getByRole("button", { name: "Videoyu Kaydet" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Tanıtım videosu kaydedilemedi");
   });
 
   it("creates a coach without an application and refreshes the directory", async () => {
